@@ -1,0 +1,63 @@
+# Open-Question Log — Proposed 2026 PPNR Net-Interest Methodology
+
+**Deliverable 9 of Phase 1 (seeded in Task 1).** Date: 2026-07-16.
+Rules: every entry cites the source `(PDF p. N; md sec-M)`, states what is unknown or ambiguous, and what would resolve it. Entries are never deleted — resolved items move to status RESOLVED with the resolution recorded. Unknowns stay UNKNOWN in the handbook until resolved here.
+
+## Decision log (user decisions binding on all deliverables)
+
+| ID | Date | Decision | Where applied |
+|---|---|---|---|
+| D-001 | 2026-07-16 | The five interest-income components "Deposits with banks and other", "U.S. Treasuries", "Mortgage-backed securities", "Other securities", and "Other interest/dividend-bearing assets" are **five separate sibling models**, following Table A6 (PDF pp. 168–169) — the nested list in PROJECT_CONTEXT.md is a formatting slip, not a grouping directive | model-inventory records #2–#6; source map §4 |
+| D-002 | 2026-07-16 | Firm fixed effects for the two proposed regression models (Table A9 discloses macro coefficients only): **backsolving α_b from lift-off actuals is the handbook's working method**, always flagged INTERPRETATION / CODING CONSIDERATION and never attributed to the Fed. The Fed's non-disclosure remains the SOURCE-STATED FACT | inventory #11, #12; OQ-009; chapter template §3.3 |
+| D-003 | 2026-07-16 | Chapter granularity: **one chapter per Table A6 net-interest component (~13 chapters)**; the loans chapter carries the six portfolio sections inside one common framework; shared securities/deposit mechanics handled by cross-references and the common-methodology chapter | chapter template header; future chapter plan |
+
+## Open questions
+
+### OQ-001 — Loan re-origination weight `wt`: upstream inputs unspecified
+**Status: OPEN (external dependency).** Equation A38's weight wt(p,i,t) "is derived from the default rate, prepayment rate, and maturity rate" and the model uses "estimated loss rates from the Retail and Wholesale models" (PDF pp. 174, 183; md sec-151, sec-165). Those rates, their granularity, and their delivery format are defined outside this document. Resolves: obtain the Retail/Wholesale credit-loss model documentation for the proposed suite, or record the interface as an explicit external input contract.
+
+### OQ-002 — Loan interest-rate floors: values and data source unstated
+**Status: OPEN.** "All portfolios have a portfolio-specific interest rate floor that will bind if the projected interest rate decreases to the stated floor" (PDF p. 180; md sec-161); Question A153 discusses floor segmentation (PDF p. 187). Where floor values come from (contract data field? assumption?) is UNKNOWN. Resolves: Fed clarification or final-rule documentation.
+
+### OQ-003 — Wholesale spread base rate at "median origination date (t−a)": computation detail
+**Status: OPEN.** Equation A37 uses the base rate at the median origination date for the portfolio (PDF pp. 182–183; md sec-165). How `a` is measured (median age across loans? balance-weighted?) and at what granularity is not stated. Resolves: Fed clarification; cf. Question A155 (Fed itself asks whether wholesale should switch to the retail approach).
+
+### OQ-004 — Securities Model Description is a separate, uncollected source
+**Status: OPEN (scope decision needed).** Reinvestment assumptions and the Agency RMBS vendor prepayment model live in the "Securities Model Description" (footnotes 64–65, PDF pp. 193, 196; md 5356, 5358) — a different public document not in `sources/`. Until acquired, reinvestment mechanics and vendor-model behavior are UNKNOWN in the securities chapters (#3–#5). Resolves: user decision whether to add that public document as a second source in `sources/fed/`.
+
+### OQ-005 — Hedge treatment: two data states and unclear division of responsibility
+**Status: OPEN.** Securities models embed a Hedge Income term that "will be zero" until proposed FR Y-14Q B.2/B.3 revisions are adopted (PDF pp. 192, 197, 203); loans exclude hedges entirely (Question A159, PDF p. 188); Section v.c defines the cross-cutting adjustment contingent on the same proposed collection (PDF pp. 220–225). Unstated: if the collection proceeds, whether hedge effects flow through the embedded per-security terms, the cross-cutting adjustment, or both without double counting. Handbook approach: present both data states per chapter and treat the allocation as UNKNOWN. Resolves: final data-collection outcome + Fed methodology statement.
+
+### OQ-006 — Rate units and quarterly conversion conventions (global)
+**Status: OPEN (interpretation currently required).** The source states ÷4 annual→quarterly conversion explicitly only for trading NII data construction (PDF p. 225) and inside the securities coupon formulas (Coupon Rate/4; N/360 for hedge legs). For the deposit-expense models ("multiplying the modeled rate by the average balance", PDF pp. 209, 214), the calculators (Eqs A39, A43, A48), and other-borrowing (Eq A53(1)), whether rates are annualized (requiring ÷4 for a quarterly flow) is not stated. Loans state "interest income is quarterly compounded" (assumption 3, PDF p. 184) without defining the rate basis. INTERPRETATION (working assumption): scenario and reported rates are annualized percentages; quarterly dollar flows require ÷4. Resolves: Fed clarification or reconciliation against disclosed aggregates.
+
+### OQ-007 — Trading NII: ratio-to-dollar projection step implied, not stated
+**Status: OPEN (working interpretation per D-002 spirit).** Equation A52 projects a Ratio normalized by net trading assets (PDF p. 225); the source never states the projection-side multiplication. INTERPRETATION: projected dollars = Ratio(b,q) × net trading assets at lift-off, constant per the flat-balance convention. Resolves: Fed clarification.
+
+### OQ-008 — WAL units in ρ = 1/WAL (time deposits)
+**Status: OPEN (minor).** Equation A44 defines ρ_b ≡ 1/WAL_b as "the fraction of the portfolio that reprices every period (quarter)" using Schedule G item 71 (PDF p. 209). WAL must therefore be expressed in quarters, but the reporting unit of item 71 (months? years? quarters?) is not stated here. Resolves: FR Y-14Q Schedule G instructions (public form documentation).
+
+### OQ-009 — Firm fixed effects not disclosed; backsolving mechanics undefined
+**Status: OPEN (working method fixed by D-002).** Table A9: "Estimated coefficients for firm fixed-effects are not included in the table" (PDF p. 234; md sec-224); "backsolve" appears nowhere in the source. Working method (INTERPRETATION): recover α_b at lift-off from observed actuals given disclosed macro coefficients. Undefined: which quarter(s) of actuals (single lift-off quarter vs. an average), data source for the actuals, and treatment if the ELB/sample regime differs from the estimation window (A53 was estimated on 2020:Q2–2021:Q4). Resolves: Fed disclosure of fixed effects, or a validated backsolve specification in the coding phase (generic, non-confidential).
+
+### OQ-010 — Table A8 has 7 scalar rows; footnote 63 lists 8 categories
+**Status: OPEN.** Footnote 63 (PDF p. 184): mortgage, auto, corporate & investment, small and median business loans and card, domestic CRE, consumer credit card, rest of consumer, rest of wholesale — 8 categories. Table A8 (PDF p. 220) has 7 rows; "C&I, noncore SME loan and card" appears to merge two footnote categories (integrity review SQ-11). Exact category→row mapping (and which portfolios each scalar multiplies) is UNKNOWN. Resolves: Fed clarification or updated table.
+
+### OQ-011 — Other Consumer Products: jump-off rate mapping
+**Status: OPEN.** Jump-off rates come from "the firm-level earned interest rates reported in the FR Y-14Q pre-provision net revenue line-item report for the most closely aligned business line" (PDF p. 180; md sec-160). Which G.2 line maps to which product is unstated, as is the "expert judgment" fixed/variable split for non-core (PDF p. 181). Resolves: Fed clarification; interim handbook treatment = UNKNOWN mapping.
+
+### OQ-012 — Credit-card revolver share: constant over the horizon?
+**Status: OPEN (minor).** The revolver share is calculated at the segment/firm level and "used as inputs in credit card interest income projection" (PDF p. 179; md sec-159). Nothing states whether it changes over the projection. INTERPRETATION: constant from lift-off, consistent with the model's constancy conventions. Resolves: Fed clarification.
+
+### OQ-013 — ELB boundary at exactly 25 basis points
+**Status: OPEN (minor edge case).** ELB is "below 25 basis points", non-ELB "above 25 basis points" (PDF p. 211); Equation A46's condition is written Treasury3m > 25bps (PDF p. 212). The Treasury3m = 25bp case is unassigned. CODING CONSIDERATION: pick one branch and document it; immaterial to methodology. Resolves: Fed clarification (unlikely needed).
+
+### OQ-014 — Industry scalar application granularity
+**Status: OPEN (confirmation).** As proposed, the scalar is a constant multiplicative true-up "by industry for each loan category," applied every projection quarter (PDF p. 184). Question A157 floats bank-level vs. portfolio-level alternatives (PDF p. 188), so the final design may change. Handbook records the as-proposed reading; watch the final rule.
+
+### OQ-015 — Truncated sentence: wholesale segmentation data source
+**Status: OPEN (minor; interpretation available).** "Data used in the segmentation of wholesale balances are sourced from FR." (PDF p. 175; md sec-153 — truncation is in the PDF itself, integrity review SQ-5). INTERPRETATION: FR Y-14Q (Schedule H.1), per footnote 61 and the Corporate section's references. Resolves: Fed correction in a future revision.
+
+## Question-numbering note
+
+Board question numbers A151–A191 cover the net-interest scope, but A161/A162 are duplicated across components #2 and #3 (integrity review SQ-3) — always cite Board questions with their section, not the bare number.
