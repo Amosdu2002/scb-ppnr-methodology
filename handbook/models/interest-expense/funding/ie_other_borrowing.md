@@ -49,7 +49,7 @@
 | β1 on BBB yield (`beta_bbb`) | Supplied — Board OLS estimate | **0.254** | ** (5% level) | [FACT] Table A9 (PDF p. 234; md sec-224) |
 | β2 on CP share (`beta_cp`) | Supplied — Board OLS estimate | **−0.036** | *** (1% level) | [FACT] Table A9. Sign rationale: shorter duration, usually highly rated — the source calls this coefficient "economically significant" (PDF pp. 232, 234) |
 | β3 on subdebt share (`beta_subdebt`) | Supplied — Board OLS estimate | **0.066** | ** (5% level) | [FACT] Table A9. Sign rationale: subordinated debt is more expensive — "positive and statistically significant" (PDF pp. 232, 234) |
-| Firm fixed effect, α_b (`ob_firm_fixed_effect`) | Estimated by the Board, **NOT disclosed** — "Estimated coefficients for firm fixed-effects are not included in the table" | UNKNOWN from the source | Table A9 marks only "Yes" | [FACT] (PDF p. 234; md sec-224); project sourcing per §9 |
+| Firm fixed effect, α_b (`ob_firm_fixed_effect`) | backsolved | UNKNOWN from the source | Table A9 marks only "Yes" | [FACT] (PDF p. 234; md sec-224); project sourcing per §9 |
 
 Table A9 note, verbatim: "Statistical significance levels of 1%, 5%, and 10% are indicated as ***, **, and *, respectively." The 0.278*** in the same table belongs to Equation A52 (trading NII, model #11), not to this model.
 
