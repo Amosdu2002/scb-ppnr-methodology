@@ -28,14 +28,16 @@ dimensions:
 inputs:
   firm_data:                           # FR Y-14Q, Schedule G, Net Interest Income Worksheet (FACT, PDF pp. 216-217)
     - name: fed_funds_purchased_balance
-      fed_item: "44A (federal funds purchased)"                    # FACT
-      dims: [b]
+      fed_item: "36A (federal funds purchased)"                    # PID-FFR-1 (user-confirmed 2026-07-17)
+      source_stated_item: "44A"                                    # FACT — source misnames the RATE item
+      dims: [b]                                                    # as the balance (SQ-candidate, review §3)
       units: USD
       timing: "PQ0; constant over horizon"                          # FACT flat-balance (PDF p. 218)
     - name: repo_sold_balance
-      fed_item: "44B (securities sold under agreements to repurchase)"  # FACT; NOTE 44B also names the
-      dims: [b]                                                     # foreign-deposits-time RATE item in
-      units: USD                                                    # v.a(9) (PDF p. 215) — collision flag,
+      fed_item: "36B (securities sold under agreements to repurchase)"  # PID-FFR-1
+      source_stated_item: "44B"                                    # FACT; NOTE 44B is also the
+      dims: [b]                                                    # foreign-deposits-time RATE item in
+      units: USD                                                   # v.a(9) (PDF p. 215) — collision flag,
       timing: "PQ0; constant over horizon"                          # see ie_foreign_dep review §4
   scenario_data:
     - name: usd_3m_treasury
@@ -49,9 +51,11 @@ parameters: none                        # FACT — no beta, scalar, spread, floo
                                         # Tables A7-A9 contain no row for this component
 
 balance_aggregation:
-  formula: "Balance(b,0) = fed_funds_purchased_balance(b) + repo_sold_balance(b)"   # = 44A + 44B
-  label: "INT — source names both items as 'the relevant balance for this component' and defines
-    B_b as 'the total balance' (PDF pp. 216-217) without writing the sum; candidate PID"
+  formula: "Balance(b,0) = fed_funds_purchased_balance(b) + repo_sold_balance(b)"   # = 36A + 36B
+  label: "PID-FFR-1 (user-confirmed 2026-07-17) — balance items are 36A/36B; the source-stated
+    44A/44B (PDF pp. 216-217) are Schedule G liability RATE items (v.a(9) itself uses 44B as the
+    foreign-time rate and 35-series for balances, PDF p. 215). Sum follows 'Let B_b be the total
+    balance' (PDF p. 217)"
 
 balance_behavior:
   convention: constant_balance          # FACT (PDF p. 218): "B(b,q) = B(b,q0) for all periods"
@@ -75,7 +79,8 @@ quarterly_dollar_calculation:
     component (FACT absence; OQ-006 resolution)"
 
 validations:                            # CODE — non-normative; no invented fallbacks
-  - missing_or_negative_launchpoint_balance_44A_or_44B
+  - missing_or_negative_launchpoint_balance_36A_or_36B
+  - launchpoint_crosscheck_implied_expense_vs_reported_rate_items_44A_44B   # flags item-mapping/scale errors
   - both_balances_zero_expense_identically_zero_log_reporting_gap
   - usd_3m_treasury_present_all_quarters_all_scenarios
   - negative_treasury_rate_logged_expense_sign_flips_arithmetically_valid
@@ -93,12 +98,13 @@ dependencies:
 open_questions:
   - {id: OQ-005, status: OPEN, topic: hedge-adjustment allocation}
   - {id: OQ-006, status: RESOLVED_D-004, topic: annualized units and final-step /4}
-  - {id: PID-candidate, status: awaiting_user_confirmation, topic: "balance aggregation = 44A + 44B (INT)"}
+  - {id: PID-FFR-1, status: user_confirmed_2026-07-17_file_in_decision_log_at_integration, topic: "balance items = 36A + 36B; source-stated 44A/44B are rate items"}
+  - {id: SQ-candidate, status: proposed_in_review_file, topic: "v.a(10) misnames rate items 44A/44B as 'the liabilities reported' (PDF pp. 216-217)"}
   - {id: CODE-TODO, status: open_implementation_mapping, topic: "physical MEV column name for usd_3m_treasury (PID-5 pattern)"}
   - {id: OQ-NEW-1_proposed, status: tracked_in_ie_foreign_dep_review, topic: "item 44B double use: foreign-time rate (p. 215) vs repo balance (p. 217)"}
 
 source_references:
-  - "PDF pp. 216-217; md sec-205 — component proposal; short durations; items 44A/44B of the Schedule G NII Worksheet"
+  - "PDF pp. 216-217; md sec-205 — component proposal; short durations; source-stated balance items 44A/44B of the Schedule G NII Worksheet (corrected to 36A/36B by PID-FFR-1)"
   - "PDF p. 217; md sec-206 — Equation A48 (title typo); Treasury3m definition; projection form; asset-side equivalence note"
   - "PDF p. 218; md sec-206 — flat balance B(b,q) = B(b,q0) at lift-off"
   - "PDF p. 218; md sec-207 — assumptions: 3M Treasury rate; special/rare collateral caveat; no-estimation rationale; gross/net reporting discretion"

@@ -2,7 +2,7 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Source: Section B.v.a(10) (PDF pp. 216–219; md sec-205–208). Model type per Table A6: **Structural** (PDF pp. 168–169; md sec-148).
-> Integrity flag: the Equation A48 title reads "…Securities Sold under the **Agreement to Purchase**" (PDF p. 217) — a source typo; the correct component name ("…Repurchase") is used throughout the section prose and this chapter. Related quirk: item 44B is also used as the foreign-deposits–time *rate* item in v.a(9) (PDF p. 215) — collision flagged in `reviews/interest-expense/deposits/ie_foreign_dep.review.md` §4.
+> Integrity flags: (1) the Equation A48 title reads "…Securities Sold under the **Agreement to Purchase**" (PDF p. 217) — a source typo; the correct component name ("…Repurchase") is used throughout the section prose and this chapter. (2) v.a(10) names items **44A/44B** as "the liabilities reported" (PDF pp. 216–217), but 44A/44B are Schedule G liability **rate** items — consistent with v.a(9)'s own usage of 44B as the foreign-deposits–time *rate* (PDF p. 215; collision flagged in `reviews/interest-expense/deposits/ie_foreign_dep.review.md` §4). The correct **balance** items are **36A/36B** [PID-FFR-1, user-confirmed 2026-07-17].
 > December 2025 revision: on p. 216, "federal funds sold" was corrected to "federal funds purchased" (PDF pp. 4–5).
 > Chapter review state: **DRAFT** — see `reviews/interest-expense/funding/ie_fed_funds_repo.review.md`.
 > Labels: **[FACT]** = Fed statement (cited); **[PID]** = project implementation decision (user-confirmed); **[INT]** = interpretation; **[CODE]** = coding consideration; **[OQ]** = open question.
@@ -20,10 +20,11 @@
 
 | Input | Line item | Dimensions | Units | Timing | Label |
 |---|---|---|---|---|---|
-| Federal funds purchased balance (`fed_funds_purchased_balance`) | 44A ("federal funds purchased") | b | USD | Launch point (PQ0); constant over horizon | [FACT] item (PDF pp. 216–217; md sec-205) |
-| Repo balance (`repo_sold_balance`) | 44B ("securities sold under agreements to repurchase") | b | USD | Launch point (PQ0); constant over horizon | [FACT] item (PDF p. 217; md sec-205); 44B collision flag, see banner |
+| Federal funds purchased balance (`fed_funds_purchased_balance`) | **36A** [PID-FFR-1]; source states 44A ("federal funds purchased") | b | USD | Launch point (PQ0); constant over horizon | [FACT] source wording (PDF pp. 216–217; md sec-205); [PID-FFR-1] corrected item |
+| Repo balance (`repo_sold_balance`) | **36B** [PID-FFR-1]; source states 44B ("securities sold under agreements to repurchase") | b | USD | Launch point (PQ0); constant over horizon | [FACT] source wording (PDF p. 217; md sec-205); [PID-FFR-1] corrected item |
 
-- [INT] Component balance B(b,PQ0) = item 44A + item 44B. The source names both items as "the relevant balance for this component" without stating the sum explicitly; aggregation into the single balance B_b of Equation A48 is the only reading consistent with "Let B_b be the **total** balance" (PDF p. 217; md sec-206). Candidate PID for user confirmation.
+- [FACT] Source wording: "The relevant balance for this component is the liabilities reported in line items 44A ('federal funds purchased') and 44B ('securities sold under agreements to repurchase') of the Net Interest Income Worksheet of FR Y-14Q, Schedule G" (PDF pp. 216–217; md sec-205).
+- [PID-FFR-1, user-confirmed 2026-07-17] Items 44A/44B are Schedule G liability **rate** items, not balances; the correct balance items are **36A** (federal funds purchased) and **36B** (securities sold under agreements to repurchase). Component balance B(b,PQ0) = item 36A + item 36B — the sum follows "Let B_b be the **total** balance" (PDF p. 217; md sec-206). The source's item naming is preserved above as a source quirk (SQ-candidate, review §3); internal corroboration: v.a(9) itself uses 44B as the foreign-deposits–time *rate* item and 35-series items for balances (PDF p. 215).
 - No MDRM codes are stated in v.a(10); none are invented [FACT absence].
 
 ### 2.2 Scenario data
@@ -55,8 +56,8 @@ $$F_{b,t} = B_{b,t}\,Treasury3m_t$$
 
 ## 5. Calculation workflow
 
-1. **Launch-point extraction.** Read Schedule G items 44A and 44B at PQ0 [FACT items]. Validate per §8.
-2. **Balance aggregation.** Balance(b,0) = 44A + 44B [INT, §2.1].
+1. **Launch-point extraction.** Read Schedule G balance items 36A and 36B at PQ0 [PID-FFR-1; source states 44A/44B — §2.1]. Validate per §8.
+2. **Balance aggregation.** Balance(b,0) = 36A + 36B [PID-FFR-1, §2.1].
 3. **Scenario prep.** Load `usd_3m_treasury` for q = 1…9, in annualized units; do **not** divide the rate here [PID, D-004].
 4. **Rate assignment.** AnnualizedRate(q) = Treasury3m(q), each quarter, unmodified [FACT].
 5. **Quarterly expense.** QuarterlyExpense(b,q) = Balance(b,0) × AnnualizedRate(q) / 4, for q = 1…9 (§6).
@@ -83,7 +84,8 @@ Public-input request: Question A180 (PDF pp. 218–219; md sec-208) seeks commen
 
 [CODE] — non-normative; failures surface as errors, no invented fallbacks:
 
-- Missing or negative launch-point balance in 44A or 44B; both zero → expense identically zero (log, likely a reporting gap).
+- Missing or negative launch-point balance in 36A or 36B; both zero → expense identically zero (log, likely a reporting gap).
+- Cross-check [CODE]: the launch-point expense implied by A48 at PQ0 (36A + 36B) × Treasury3m(PQ0) / 4 versus the reported rate items 44A/44B × balances — a large gap flags an item-mapping or scale error.
 - `usd_3m_treasury` present for all q = 1…9 in every scenario; flag negative values (expense would flip sign — arithmetically valid under A48, but log it).
 - Rate-scale sanity: annualized decimal in a plausible range (e.g., |rate| < 0.25) to catch percent/decimal errors.
 - Flat-balance invariant: Balance(b,q) identical for all q.
@@ -96,7 +98,8 @@ Public-input request: Question A180 (PDF pp. 218–219; md sec-208) seeks commen
 
 ## 10. Open implementation items
 
-- [INT → candidate PID] Balance aggregation 44A + 44B (§2.1) — user confirmation requested.
+- [PID-FFR-1 — CONFIRMED 2026-07-17] Balance items are 36A + 36B, not the source-stated 44A/44B (rate items) (§2.1). To be filed in the decision log at integration (final ID there).
+- [SQ-candidate] v.a(10) misnames rate items 44A/44B as "the liabilities reported" (PDF pp. 216–217) — for `inventory/source-integrity-review.md` §8 at integration (review §3).
 - [CODE, TODO] Physical MEV workbook column name for `usd_3m_treasury` (PID-5 pattern; unconfirmed for this model — implementation mapping, not methodology).
 - [OQ-005 — OPEN] Hedge-adjustment allocation (§9).
 - [OQ-006 — RESOLVED (D-004)] Annualized units; ÷4 at the final step only (§6).
@@ -107,7 +110,7 @@ Public-input request: Question A180 (PDF pp. 218–219; md sec-208) seeks commen
 
 | Claim | (PDF p.; md anchor) |
 |---|---|
-| Component proposal; short duration; items 44A/44B of the Schedule G NII Worksheet | (PDF pp. 216–217; md sec-205) |
+| Component proposal; short duration; source-stated balance items 44A/44B of the Schedule G NII Worksheet (corrected to 36A/36B by PID-FFR-1) | (PDF pp. 216–217; md sec-205) |
 | Equation A48 (incl. title typo "Agreement to Purchase"); Treasury3m definition; projection form; equivalence to the fed-funds-sold asset-side approach | (PDF p. 217; md sec-206) |
 | Flat balance B(b,q) = B(b,q0) at lift-off | (PDF p. 218; md sec-206) |
 | Assumptions: 3M Treasury rate; special/rare collateral caveat; no-estimation rationale; gross/net reporting discretion | (PDF p. 218; md sec-207) |
