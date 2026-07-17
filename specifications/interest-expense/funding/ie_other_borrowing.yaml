@@ -1,0 +1,222 @@
+# Coding-oriented specification — ie_other_borrowing — DRAFT (Phase 1; no production code).
+# Labels: FACT = Fed source-stated (cited); INT = interpretation; PID = user-confirmed project
+# decision (never a Fed statement); UNKNOWN = not stated anywhere authoritative — never defaulted.
+# Companion chapter: handbook/models/interest-expense/funding/ie_other_borrowing.md. Citations: (PDF p. N; md sec-M).
+
+model:
+  id: ie_other_borrowing
+  fed_name: Interest Expense on Other Borrowing
+  status: proposed_2026_stress_test__public_comment__NOT_adopted   # FACT (PDF pp. 6, 167)
+  model_type: regression                                           # FACT Table A6 (PDF pp. 168-169)
+  source_section: B.v.d(2)
+  source_pages_pdf: [230, 234]
+  source_anchors_md: [sec-220, sec-224]
+  side: interest_expense
+  chapter_review_state: DRAFT
+  replaces_current_model: iv.m(3) instrument-level subordinated-debt structural model, absorbed
+    into this single regression (PDF pp. 153-159, 230; Questions A134, A190) — contrast only,
+    nothing imported from the current methodology
+  implementation_status: conditionally_implementable   # backsolve identity + PQ0 actuals mechanics
+    # confirmed (PID-OB-1/PID-OB-3); remaining gates: PQ0 actual-expense line item (OQ-009 residual)
+    # and the four BBB physical-input confirmations (PID-OB-4) — see fixed_effect and inputs.scenario
+
+dimensions:
+  firm: b
+  time:
+    launchpoint_quarter: PQ0          # launch point (source: "lift-off quarter", q = 0) = last quarter before the projection horizon
+    projection_quarters: 9            # FACT (PDF p. 6)
+  output_grain: [firm, scenario, quarter]
+  no_subcomponent_dimension: true     # FACT — modeled as a single quantity (PDF p. 230)
+
+inputs:
+  firm_data:
+    - name: ob_total_balance_launchpoint            # B(b,0)
+      fed_item: {schedule: FR Y-14Q Schedule G NII Worksheet, items: [44C, 46, 47], combine: sum}  # FACT (PDF p. 230) — preserved as the source-stated scope
+      note: parts of subordinated debt may also sit in 44C/47 per reporting instructions (FACT)
+      project_mapping:                              # PID-OB-2, user-confirmed 2026-07-17 — physical input layer; never a Fed statement
+        schedule: FR Y-14Q Schedule G
+        items: [36C, 38, 39]
+        combine: sum
+        note: mapping governs for implementation; item-number tension with the Fed-stated
+          44C/46/47 is recorded, not resolved
+      dims: [firm]
+      units: USD
+      timing: launchpoint, held constant over horizon   # FACT — projection uses B(b,0) every quarter (PDF p. 231)
+    - name: ob_expense_actual_launchpoint           # PQ0 actual quarterly interest expense on other borrowing
+      fed_item: UNKNOWN                             # FACT absence — no Schedule G expense item stated for this component; none guessed
+      physical_item: TO_BE_CONFIRMED                # OQ-009 residual — sole remaining input gap for the backsolve
+      dims: [firm]
+      units: USD_per_quarter
+      timing: PQ0 single quarter only               # PID-OB-3
+      role: backsolve of alpha_b only — never enters projection quarters
+    - name: ob_cp_balance
+      fed_item: {schedule: FR Y-9C, mdrm: [BHCK2309]}   # FACT (PDF p. 232)
+      dims: [firm]
+      units: USD
+      timing: launchpoint
+      role: numerator of ob_cp_share_launchpoint
+    - name: ob_subdebt_balance
+      fed_item: {schedule: FR Y-9C, mdrm: [BHDM4062, BHDMC699], combine: sum}   # FACT (PDF p. 232)
+      dims: [firm]
+      units: USD
+      timing: launchpoint
+      role: numerator of ob_subdebt_share_launchpoint
+    - name: ob_cp_share_launchpoint                 # Commercial Paper(b,0)
+      derivation: ob_cp_balance / ob_total_balance_launchpoint
+        # FACT ratio definition "balance of commercial paper divided by the total balance of other
+        # borrowing" (PDF p. 231); INT that the projection-side denominator is the Schedule G sum —
+        # numerators are FR Y-9C, total is Schedule G (mixed form; proposed OQ-OB-A). No further
+        # MDRM mapping invented.
+      dims: [firm]
+      units: share_0_to_1
+      timing: frozen at launchpoint                 # FACT "held constant at the lift-off quarter" (PDF p. 231)
+    - name: ob_subdebt_share_launchpoint            # Subdebt(b,0)
+      derivation: ob_subdebt_balance / ob_total_balance_launchpoint   # same FACT/INT status as CP share
+      dims: [firm]
+      units: share_0_to_1
+      timing: frozen at launchpoint
+  scenario:
+    - name: usd_3m_treasury                         # Treasury3m(q)
+      fed_name: 3-month Treasury rate/yield         # FACT (PDF pp. 230-231)
+      dims: [scenario, quarter]                     # q = 1..9; PQ0 value needed only for the alpha_b backsolve
+      units: annualized_rate                        # PID D-004; percent-vs-decimal scale UNKNOWN — metadata-driven
+      coefficient: 1 by construction in A53(1)      # FACT — NOT an estimated coefficient; Table A9 A53(2) row has an empty 3M-Treasury cell (PDF p. 234)
+      physical_source: MEV workbook per PID-5 pattern; column name UNCONFIRMED (working assumption, flagged)
+    - name: bbb_corporate_yield                     # BBB(q)
+      fed_name: BBB corporate bond yield            # FACT (PDF pp. 230-231) — Eq A53 is defined on the YIELD; a BBB spread and a BBB yield are never interchangeable
+      dims: [scenario, quarter]
+      units: annualized_rate
+      enters_via: credit spread, x beta_bbb         # beta_bbb = 0.254 unchanged regardless of the physical-input resolution
+      physical_source: project MEV file             # PID-OB-4, user-confirmed 2026-07-17 — physical input layer only
+      physical_input_to_be_confirmed:               # MATERIAL implementation item — all four gate first use
+        column_name: TO_BE_CONFIRMED
+        source_quantity: TO_BE_CONFIRMED            # BBB yield or BBB spread
+        transformation: TO_BE_CONFIRMED             # direct yield, or spread + applicable Treasury yield
+        unit_scale: TO_BE_CONFIRMED                 # decimal, percentage points, or basis points
+
+parameters:
+  - name: beta_bbb                                  # beta_1
+    kind: supplied                                  # FACT — Board OLS estimate
+    value: 0.254
+    significance: "** (5% level)"                   # metadata only — never used numerically
+    source: Table A9 (PDF p. 234; verified against the page image 2026-07-17)
+  - name: beta_cp                                   # beta_2
+    kind: supplied
+    value: -0.036
+    significance: "*** (1% level)"                  # source prose calls this coefficient "economically significant" (PDF p. 232) — preserved verbatim alongside the table's stars
+    source: Table A9 (PDF p. 234)
+  - name: beta_subdebt                              # beta_3
+    kind: supplied
+    value: 0.066
+    significance: "** (5% level)"
+    source: Table A9 (PDF p. 234)
+  - name: ob_firm_fixed_effect                      # alpha_b
+    kind: backsolved_per_project_decision           # see fixed_effect block — NOT published by the Fed
+    fed_value: UNKNOWN                              # FACT — "Estimated coefficients for firm fixed-effects are not included in the table" (PDF p. 234)
+    dims: [firm]
+    constant_over_horizon: true                     # FACT — no time subscript on alpha_b
+
+estimation:                                         # documentation only — the project never re-estimates
+  method: OLS                                       # FACT — "estimated using ordinary least squares" (PDF p. 231)
+  wls_convention: DOES NOT APPLY                    # CODE — the WLS convention of other PPNR panel regressions must not be assumed here
+  sample: unbalanced panel of all FR Y-14Q reporters, 2020:Q2 - 2021:Q4   # FACT (PDF p. 231)
+  sample_rationale: deliberately a low-interest-rate window for more precise calibration   # FACT (PDF p. 231)
+  error_term: epsilon(b,t) present in A53(2) at estimation; absent from the projection form  # FACT (PDF pp. 230-231)
+
+equations:
+  A53_1_expense:                                    # FACT (PDF p. 230, verified)
+    formula: expense[b,t] = (usd_3m_treasury[t] + credit_spread[b,t]) * balance[b,t]
+    projection_form: expense[b,q] = (usd_3m_treasury[q] + credit_spread[b,q]) * ob_total_balance_launchpoint[b]   # FACT (PDF p. 231)
+  A53_2_credit_spread:                              # FACT (PDF p. 230, verified)
+    formula: credit_spread[b,t] = beta_bbb*bbb[t] + beta_cp*cp_share[b,t] + beta_subdebt*subdebt_share[b,t] + alpha[b] + eps[b,t]
+    projection_form: ob_credit_spread[b,q] = beta_bbb*bbb_corporate_yield[q]
+      + beta_cp*ob_cp_share_launchpoint[b] + beta_subdebt*ob_subdebt_share_launchpoint[b]
+      + ob_firm_fixed_effect[b]                     # FACT (PDF p. 231) — no error term in projection
+  annualized_rate:
+    formula: ob_annualized_rate[b,q] = usd_3m_treasury[q] + ob_credit_spread[b,q]
+    constraints: none — no floor, cap, or non-negativity term exists (FACT absence); negative rates legal, log never clamp
+  quarterly_expense:                                # FACT product form (PDF pp. 230-231); /4 is PID D-004, never a Fed statement
+    formula: ob_interest_expense[b,q] = ob_total_balance_launchpoint[b] * ob_annualized_rate[b,q] / 4
+  structure_absences:                               # FACT — verified against the PDF page images
+    autoregressive_term: none
+    rolling_fixed_effect: none
+    seasonality_term: none
+    firm_grouping: none
+
+fixed_effect:
+  fed_status: estimated by the Board, values NOT disclosed (Table A9 marks "Yes" only)   # FACT (PDF p. 234)
+  fed_rationale: absorbs cross-firm variation in borrowing mix and interest-rate-risk hedging intensity  # FACT (PDF pp. 232-233)
+  project_method: PROJECT IMPLEMENTATION DECISION — USER CONFIRMED (D-002 + PID-OB-1, 2026-07-17);
+    never attributable to the Federal Reserve
+  backsolve_identity: ob_firm_fixed_effect[b] = r_actual[b,PQ0] - usd_3m_treasury[PQ0]
+    - beta_bbb*bbb_corporate_yield[PQ0] - beta_cp*ob_cp_share_launchpoint[b]
+    - beta_subdebt*ob_subdebt_share_launchpoint[b]              # confirmed identity (PID-OB-1)
+  actuals_mechanics:                                # PID-OB-3, user-confirmed 2026-07-17
+    window: single PQ0 quarter                      # resolved — no multi-quarter averaging
+    r_actual_definition: 4 * ob_expense_actual_launchpoint[b] / ob_total_balance_launchpoint[b]
+      # CODE — annualization mirrors the D-004 final /4 in reverse; rates stay annualized in the identity
+  unresolved_mechanics:                             # OQ-009 — narrowed; remaining gaps only
+    - r_actual_physical_item: line item for ob_expense_actual_launchpoint — TO_BE_CONFIRMED
+    - regime_mismatch: treatment if PQ0 rates sit outside the low-rate 2020:Q2-2021:Q4 estimation
+        regime — UNRESOLVED (minor)
+  spec_rule: missing ob_firm_fixed_effect blocks the firm; never defaulted to zero
+
+balance_behavior:
+  total_balance: constant at launchpoint value B(b,0)            # FACT (PDF p. 231)
+  composition_shares: frozen at launchpoint                      # FACT "held constant at the lift-off quarter"
+  varying_over_horizon: [usd_3m_treasury, bbb_corporate_yield, ob_credit_spread, ob_annualized_rate, ob_interest_expense]
+
+quarterly_dollar_calculation:
+  convention: PID D-004 — annualized rates throughout (including the backsolve); divide by 4 only at the final expense step
+  source_status: the Fed states no annual->quarterly conversion for Eq A53(1) (FACT absence, preserved; OQ-006 resolution)
+
+validations:                                        # CODE — non-normative; no invented fallbacks; failures surface
+  - Schedule G items 36C, 38, 39 (PID-OB-2 physical mapping) all present per firm (missing item -> fail, no partial sum)
+  - ob_expense_actual_launchpoint present per firm at PQ0 (backsolve input; missing -> block firm)
+  - BBB input gate (PID-OB-4) — column name, yield-vs-spread, Treasury-yield addition, and unit
+    scale all confirmed before first use; a spread series must never be passed as the yield
+  - ob_total_balance_launchpoint > 0 (zero or negative fails; zero also breaks share denominators)
+  - BHCK2309, BHDM4062, BHDMC699 present
+  - ob_cp_share_launchpoint in [0,1]; ob_subdebt_share_launchpoint in [0,1]
+  - ob_cp_share_launchpoint + ob_subdebt_share_launchpoint <= 1 (violation possible under the mixed
+    Y-9C/Schedule G form — OQ-OB-A; surface, never clip)
+  - usd_3m_treasury and bbb_corporate_yield complete for q = 1..9 plus PQ0 (backsolve); full
+    nine-quarter scenario alignment, no gaps
+  - percent-vs-decimal rate scale metadata-driven, identical across both MEV series and r_actual
+  - ob_firm_fixed_effect present per firm (missing -> block firm, never default)
+  - configured betas equal Table A9 exactly (0.254, -0.036, 0.066); verify against the PDF page;
+    significance stars stored as metadata only
+  - edge monitors — negative ob_annualized_rate legal (log, never clamp); |alpha_b| magnitude
+    screen for scale mismatch
+
+dependencies:
+  upstream_models: none                             # FACT — no proposed model's output enters
+  shared_inputs: [usd_3m_treasury, bbb_corporate_yield, FR Y-14Q Schedule G, FR Y-9C]
+  hedge_interface: exposes expense path for cross-cutting v.c adjustment (Eqs A49-A51, contingent on
+    proposed FR Y-14Q B.2/B.3 collection; PDF pp. 220-223); no hedge term inside this model; hedge
+    intensity partially embedded in alpha_b (FACT rationale, PDF pp. 232-233) — double-counting
+    risk if v.c is later applied here (CODE); allocation unresolved (OQ-005)
+
+open_questions:
+  existing: [OQ-005, OQ-009 (further narrowed by PID-OB-1/PID-OB-3 — residuals in fixed_effect block)]
+  resolved_applied: [OQ-006 via D-004]
+  material_implementation_items:
+    - BBB physical input (PID-OB-4) — four TO_BE_CONFIRMED items in inputs.scenario
+    - PQ0 actual-expense line item (OQ-009 residual)
+    - balance item-number tension — Fed-stated 44C/46/47 vs confirmed physical 36C/38/39
+        (PID-OB-2; mapping governs, tension recorded)
+  proposed_in_review_file:                          # not yet filed in handbook/open-questions.md (this session may not edit it)
+    - OQ-OB-A: share-denominator physical form (FR Y-9C numerators over Schedule G total — mixed
+        literal reading; projection-side source form unstated; final OQ number assigned at integration)
+
+source_references:
+  - {claim: component scope + items 44C/46/47 + subdebt bleed + rationale, pdf_page: 230, md: sec-220}
+  - {claim: Eq A53(1)/(2) as displayed, pdf_page: 230, md: sec-221}
+  - {claim: "where-list + share definitions + OLS + 2020:Q2-2021:Q4 unbalanced panel + projection equations with (b,0) freezing", pdf_page: 231, md: sec-221}
+  - {claim: variable selection + MDRMs BHCK2309/BHDM4062/BHDMC699 + sign rationale, pdf_page: 232, md: sec-221, note: CA-4 heading without anchor}
+  - {claim: fixed-effect rationale (mix + hedging intensity), pdf_page: 232-233, md: sec-221}
+  - {claim: assumptions and limitations, pdf_page: 233, md: sec-222}
+  - {claim: Questions A189-A191, pdf_page: 233-234, md: sec-223}
+  - {claim: Table A9 coefficients + significance note + fixed effects excluded, pdf_page: 234, md: sec-224}
+  - {claim: Table A6 regression classification, pdf_page: 168-169, md: sec-148}
+  - {claim: current subordinated-debt structural model (contrast only), pdf_page: 153-159, md: sec-136}
