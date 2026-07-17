@@ -24,7 +24,7 @@
 - Provide a PDF page number and Markdown section anchor for every material methodology claim.
 - Preserve exact terminology from the source while also providing coding-friendly names.
 - Clearly identify inputs, transformations, assumptions, parameters, intermediate calculations, and outputs.
-- Clearly distinguish lift-off-quarter values from projection-quarter values.
+- Clearly distinguish launch-point (PQ0) values from projection-quarter values.
 - Record whether balances, portfolio composition, rates, or other variables remain constant over the projection horizon.
 
 ## Workflow rules

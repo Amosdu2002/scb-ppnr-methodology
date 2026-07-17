@@ -2,8 +2,8 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Source: Section B.v.a(8) (PDF pp. 211–215; md sec-197–200). Model type per Table A6: **Structural** (PDF pp. 168–169; md sec-148).
-> Integrity flags affecting this chapter: SQ-1 (Table A7 Down-row labels are internal parameter names), SQ-2 (Table A7 caption cites "(Equations A46)"), SQ-9 (Eq A45 where-list "indicats"), SQ-12 (two consecutive "A third assumption" labels, PDF p. 214); candidate new source quirk — truncated spread-estimation sentence (PDF p. 212) — proposed as SQ-15 in `ie_other_dom_dep.review.md`. December 2025 revision item 5 applies to p. 214 ("end of quarter" → "average"; "FR Y-9C" → "FR Y-14Q"; subsection (a.) → (b); "contradicts" → "abstracts from"; PDF pp. 4–5; md sec-0). Conversion artifacts in v.a(8): none.
-> Chapter review state: **DRAFT** — independent source-grounding review recorded in `handbook/models/ie_other_dom_dep.review.md`. Approved content is never silently overwritten.
+> Integrity flags affecting this chapter: SQ-1 (Table A7 Down-row labels are internal parameter names), SQ-2 (Table A7 caption cites "(Equations A46)"), SQ-9 (Eq A45 where-list "indicats"), SQ-12 (two consecutive "A third assumption" labels, PDF p. 214); candidate new source quirk — truncated spread-estimation sentence (PDF p. 212) — proposed as SQ-15 in `reviews/interest-expense/deposits/ie_other_dom_dep.review.md`. December 2025 revision item 5 applies to p. 214 ("end of quarter" → "average"; "FR Y-9C" → "FR Y-14Q"; subsection (a.) → (b); "contradicts" → "abstracts from"; PDF pp. 4–5; md sec-0). Conversion artifacts in v.a(8): none.
+> Chapter review state: **DRAFT** — independent source-grounding review recorded in `reviews/interest-expense/deposits/ie_other_dom_dep.review.md`. Approved content is never silently overwritten.
 > Labels: **[FACT]** Fed source, cited · **[INT]** interpretation with stated basis · **[CODE]** coding consideration, non-normative · **[OQ]** open question by ID · **[PID]** PROJECT IMPLEMENTATION DECISION — user-confirmed, never attributable to the Federal Reserve · **[ALT]** alternative discussed by the Fed but not proposed. Citations: (PDF p. N; md sec-M).
 
 ## 1. Status and purpose
@@ -30,12 +30,12 @@
 
 ### 3.1 Firm data inputs
 
-| Input | Fed source (schedule, line item) | Dimensions | Units | Timing (lift-off definition) | Label |
+| Input | Fed source (schedule, line item) | Dimensions | Units | Timing (launch-point definition) | Label |
 |---|---|---|---|---|---|
-| Subcomponent rates, Rate(i,b,0) (`odd_rate_liftoff`) | FR Y-14Q Schedule G items **42B** (MMA), **42C** (Savings), **42D** (Transaction) | b × i | Annualized rate [D-004]; scale normalization §10 | Retrieved at lift-off; seed the A46 recursion at t = 1 [INT — seed role; see §4] | [FACT] items (PDF p. 213; md sec-198) |
-| Firm-reported betas (`odd_firm_beta_up/down`) | Schedule G items **79A/79B** (MMA up/down), **80A/80B** (Savings), **81A/81B** (Transaction) | b × i × {up,down} | Dimensionless | At lift-off; enter only the Fed's cross-firm **median** — individual firm betas do not drive projections (Table A7 supplies the medians) | [FACT] (PDF pp. 213, 219; md sec-198, sec-209) |
-| Subcomponent balances, Balance(i,b,t) (`odd_subcomponent_balance`) | "the balance reported in the Y-14Q corresponding to the rate i" — **line items not named** ([FACT] absence) | b × i | USD | Lift-off values, held constant [INT — general flat-balance convention; A47 carries a t subscript] | [FACT] role (PDF p. 213; md sec-198); mapping UNKNOWN (proposed OQ-016) |
-| Average balance on other domestic deposits (`odd_total_average_balance`) | "the average balance on other domestic deposits as reported in the FR Y-14Q" — **item not named** ([FACT] absence); "average" per December 2025 revision item 5 | b | USD | Lift-off average balance, held flat [INT — flat-balance convention] | [FACT] role (PDF p. 214; md sec-198; revision PDF pp. 4–5); mapping UNKNOWN (proposed OQ-016) |
+| Subcomponent rates, Rate(i,b,0) (`odd_rate_launchpoint`) | FR Y-14Q Schedule G items **42B** (MMA), **42C** (Savings), **42D** (Transaction) | b × i | Annualized rate [D-004]; scale normalization §10 | Retrieved at the launch point; seed the A46 recursion at t = 1 [INT — seed role; see §4] | [FACT] items (PDF p. 213; md sec-198) |
+| Firm-reported betas (`odd_firm_beta_up/down`) | Schedule G items **79A/79B** (MMA up/down), **80A/80B** (Savings), **81A/81B** (Transaction) | b × i × {up,down} | Dimensionless | At the launch point; enter only the Fed's cross-firm **median** — individual firm betas do not drive projections (Table A7 supplies the medians) | [FACT] (PDF pp. 213, 219; md sec-198, sec-209) |
+| Subcomponent balances, Balance(i,b,t) (`odd_subcomponent_balance`) | "the balance reported in the Y-14Q corresponding to the rate i" — **line items not named** ([FACT] absence) | b × i | USD | Launch-point values, held constant [INT — general flat-balance convention; A47 carries a t subscript] | [FACT] role (PDF p. 213; md sec-198); mapping UNKNOWN (proposed OQ-016) |
+| Average balance on other domestic deposits (`odd_total_average_balance`) | "the average balance on other domestic deposits as reported in the FR Y-14Q" — **item not named** ([FACT] absence); "average" per December 2025 revision item 5 | b | USD | Launch-point average balance, held flat [INT — flat-balance convention] | [FACT] role (PDF p. 214; md sec-198; revision PDF pp. 4–5); mapping UNKNOWN (proposed OQ-016) |
 | Historical subcomponent rates, 2020:Q2–2021:Q4 (`odd_rate_history_elb`) | Same rate items over the ELB window [INT — series identity implied, not stated] | b × i × history | Annualized rate | Fixed historical window for Spread(i,b) estimation | [FACT] window (PDF p. 212; md sec-198) |
 
 ### 3.2 Scenario inputs
@@ -48,21 +48,21 @@
 
 | Parameter | Supplied or estimated | Source | Value(s) or UNKNOWN | Constant over horizon? | Label |
 |---|---|---|---|---|---|
-| β_up(i), β_down(i) (`beta_up`, `beta_down`) | **Supplied** — median of firm-reported betas at lift-off, calculated by the Board from FR Y-14Q data | **Table A7** "Median Betas for Proposed Deposit Models (Equations A46)" | MMA 0.620 / 0.645; Savings 0.310 / 0.335; Other (transaction) 0.465 / 0.490 (up / down) | **Yes** — "constant betas" | [FACT] (PDF pp. 213, 219; md sec-198, sec-209); SQ-1/SQ-2 recorded, never corrected |
+| β_up(i), β_down(i) (`beta_up`, `beta_down`) | **Supplied** — median of firm-reported betas at the launch point, calculated by the Board from FR Y-14Q data | **Table A7** "Median Betas for Proposed Deposit Models (Equations A46)" | MMA 0.620 / 0.645; Savings 0.310 / 0.335; Other (transaction) 0.465 / 0.490 (up / down) | **Yes** — "constant betas" | [FACT] (PDF pp. 213, 219; md sec-198, sec-209); SQ-1/SQ-2 recorded, never corrected |
 | Spread(i,b) (`elb_spread`) | **Estimated from firm data** — "the average distance between the deposit rate paid by the firm during the most recent effective lower-bound period" (sentence truncated in the PDF; [INT] intended: distance **to the 3-month Treasury yield**, per the A45 where-list) | ELB window **2020:Q2–2021:Q4** | Firm- and deposit-type-specific; values from data | Yes [INT — no re-estimation is described] | [FACT] window and role (PDF p. 212; md sec-198); sign/averaging mechanics UNKNOWN (proposed OQ-017) |
 | First_ELB_Treasury3m (`first_elb_treasury3m`) | Derived per scenario | "the minimum between 25 basis points and the first observation of the 3-month Treasury yield which goes below the 25 basis points in the scenario (if available)" | min(25 bp, first sub-25bp scenario observation); [INT] = 25 bp when no observation goes below | Yes, per scenario | [FACT] (PDF p. 213; md sec-198) |
 | Estimated regression coefficients / firm fixed effects | — | — | **None exist** — structural models "avoid statistical estimation"; D-002 backsolving does not apply | — | [FACT] (PDF pp. 172–173; md sec-149) |
 
 ## 4. Timing and dimensions
 
-Dimensions: subcomponent paths b × i × t with i ∈ {MMA, Savings, Transaction}; aggregate rate and expense b × t; t = 1…9 plus seed values at the jump-off quarter q0.
+Dimensions: subcomponent paths b × i × t with i ∈ {MMA, Savings, Transaction}; aggregate rate and expense b × t; t = 1…9 plus seed values at the launch point PQ0 (jump-off quarter).
 
-| Quantity | Lift-off (q0) role | Projection-quarter (t ≥ 1) role | Label |
+| Quantity | Launch point (PQ0) role | Projection-quarter (t ≥ 1) role | Label |
 |---|---|---|---|
-| Rate(i,b,0) — items 42B/42C/42D | Measured once at lift-off | Rate(i,b,t−1) at t = 1 in A46 [INT — the source retrieves these rates but never states the t = 1 seed explicitly; proposed OQ-018] | [FACT] retrieval; [INT] seed |
-| Spread(i,b) | Estimated once from the 2020:Q2–2021:Q4 window (historical, before q0) | Constant in A45 and in assumed_floor | [FACT] |
-| β_up(i)/β_down(i) | Table A7 constants (Board-computed at lift-off) | Constant in δ(i,t) | [FACT] |
-| Balance(i,b,·) and total average balance | Measured at lift-off | Held constant [INT — flat-balance convention; not restated in v.a(8)] | [FACT] role; [INT] constancy |
+| Rate(i,b,0) — items 42B/42C/42D | Measured once at the launch point | Rate(i,b,t−1) at t = 1 in A46 [INT — the source retrieves these rates but never states the t = 1 seed explicitly; proposed OQ-018] | [FACT] retrieval; [INT] seed |
+| Spread(i,b) | Estimated once from the 2020:Q2–2021:Q4 window (historical, before PQ0) | Constant in A45 and in assumed_floor | [FACT] |
+| β_up(i)/β_down(i) | Table A7 constants (Board-computed at the launch point) | Constant in δ(i,t) | [FACT] |
+| Balance(i,b,·) and total average balance | Measured at the launch point | Held constant [INT — flat-balance convention; not restated in v.a(8)] | [FACT] role; [INT] constancy |
 | Treasury3m(t) | Jump-off value needed for ΔTreasury3m(1) [INT] | Contemporaneous scenario value; regime trigger each t | [FACT] path; [INT] t=1 change |
 | Rate(i,b,t), Rate(b,t), Expense(b,t) | — | Computed each t; A46 depends on t−1 (previous modeled rate, whichever regime produced it [INT]) | [FACT] |
 
@@ -92,9 +92,9 @@ $$Rate_{b,t} = \left(\sum_i Rate_{i,b,t} \cdot Balance_{i,b,t}\right) / \left(\s
 
 ## 6. Calculation workflow
 
-1. **Lift-off extraction (q0).** Read rates 42B/42C/42D → Rate(i,b,0); read subcomponent balances and the total average balance (mappings UNKNOWN — proposed OQ-016); load Table A7 betas. Validate per §10; no fallback treatment is invented [CODE].
+1. **Launch-point extraction (PQ0).** Read rates 42B/42C/42D → Rate(i,b,0); read subcomponent balances and the total average balance (mappings UNKNOWN — proposed OQ-016); load Table A7 betas. Validate per §10; no fallback treatment is invented [CODE].
 2. **Spread estimation.** Spread(i,b) = average distance of the firm's subcomponent deposit rate to the 3-month Treasury yield over 2020:Q2–2021:Q4 [FACT window; INT endpoint per truncated sentence; sign convention [INT]: signed difference rate − Treasury3m — proposed OQ-017].
-3. **Scenario preparation.** Align Treasury3m to q0…PQ9; ΔTreasury3m(t) = Treasury3m(t) − Treasury3m(t−1), with t = 1 using the jump-off value [INT — proposed OQ-018]; First_ELB_Treasury3m = min(25 bp, first sub-25bp observation in the scenario path, else 25 bp [INT on "(if available)"]).
+3. **Scenario preparation.** Align Treasury3m to PQ0…PQ9; ΔTreasury3m(t) = Treasury3m(t) − Treasury3m(t−1), with t = 1 using the jump-off value [INT — proposed OQ-018]; First_ELB_Treasury3m = min(25 bp, first sub-25bp observation in the scenario path, else 25 bp [INT on "(if available)"]).
 4. **Assumed floor.** assumed_floor(i,b) = First_ELB_Treasury3m + Spread(i,b) [FACT].
 5. **Regime classification, each t.** ELB if Treasury3m(t) < 25 bp; non-ELB if > 25 bp; = 25 bp unassigned [OQ-013 — pick one branch and document it, [CODE]].
 6. **Subcomponent rate paths, each t in order.** ELB quarter → Eq A45; non-ELB quarter → Eq A46 with Rate(i,b,t−1) = the previous quarter's modeled rate whichever regime produced it (Rate(i,b,0) at t = 1) [INT]. Coding restatement: `odd_rate[i,t] = t3m[t] + elb_spread[i]` (ELB) or `max(odd_rate[i,t-1] + delta[i,t], assumed_floor[i])` (non-ELB). No cap or non-negativity constraint exists; in ELB quarters the rate can sit below assumed_floor by construction [FACT — A45 has no max()].
@@ -161,7 +161,7 @@ All [FACT] (PDF p. 214; md sec-199), restated faithfully:
 |---|---|
 | Component name; subcomponents MMA/Savings/Transaction (NOW, ATS, other); two-regime design; 25 bp thresholds | (PDF p. 211; md sec-197) |
 | Eq A45 + where-list; spread estimation sentence; ELB window 2020:Q2–2021:Q4 | (PDF p. 212; md sec-198) |
-| Eq A46 + where-list; rate items 42B/42C/42D; beta items 79A–81B; median-at-lift-off rationale; Eq A47 | (PDF p. 213; md sec-198) |
+| Eq A46 + where-list; rate items 42B/42C/42D; beta items 79A–81B; median-at-launch-point rationale; Eq A47 | (PDF p. 213; md sec-198) |
 | Expense = aggregate rate × average balance (FR Y-14Q); assumptions 1–4 (incl. SQ-12) | (PDF p. 214; md sec-198–199) — "average"/"FR Y-14Q"/"abstracts from" per revision item 5 (PDF pp. 4–5; md sec-0) |
 | Question A178, verbatim: "The Board seeks comment on the proposed approach to model interest expense on other deposits, as compared to the Board's current panel regression model." | (PDF p. 215; md sec-200) |
 | Table A7 (Board-calculated from FR Y-14Q); SQ-1/SQ-2 | (PDF p. 219; md sec-209) |

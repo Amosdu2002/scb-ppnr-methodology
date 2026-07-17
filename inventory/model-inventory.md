@@ -11,7 +11,7 @@ Table A6 (PDF pp. 168–169; md sec-148) assigns the 23 PPNR components to four 
 - Subordinated debt expense (current structural model iv.m(3)) is **absorbed into** other borrowing (#12) (PDF p. 230; md sec-220; Question A190).
 - Trading-asset interest income (current iv.g) and the trading-liabilities part of current iv.i(4) become one **net** regression model (#11) (PDF p. 225; md sec-215).
 
-Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t`/`q` = projection quarter, `q0`/`t=0` = lift-off (jump-off) quarter — the last quarter before the projection horizon.
+Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t`/`q` = projection quarter, `PQ0` = launch point — the last quarter before the projection horizon (source terms "lift-off"/"jump-off"; source notation `q0`/`t=0` retained inside equation transcriptions; decision D-005).
 
 ---
 
@@ -27,8 +27,8 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Portfolio segmentation | Wholesale = Corporate (11 disclosure portfolios; 16 of 22 split fixed/variable; mixed-rate and demand loans treated variable; fee-only loans excluded entirely) + CRE (6 loan types; 24 segments with HFI vs. FVO/HFS and rate split). Retail = Mortgage (HFI/FVO-HFS × fixed/ARM), Auto (all fixed; new vs. used vehicle), Consumer & Small-Business Credit Card (all treated variable; revolver share from 12-month-active + finance-charge-in-last-3-months rule), Other Consumer Products (no segmentation; aggregate product-type jump-off rates) (PDF pp. 175–180) |
 | Firm data inputs | FR Y-14M (mortgage, card loan-level); FR Y-14Q Schedule H.1 (wholesale facility-level, per footnote 61; identifies NPML), A.2 (auto segment-level), retail schedules; FR Y-14Q Schedule G.2 (reported interest income for scalar true-up; jump-off rates for other-consumer via "most closely aligned business line") |
 | Scenario inputs | Prime Rate (retail variable incl. cards and HELOC; spread benchmark for auto and other-consumer), mortgage rate (ARMs), 3-month Treasury yield (wholesale) (PDF p. 181) |
-| Parameters | Industry scalars — **Table A8** (PDF p. 220), 7 values, supplied; spreads — derived from firm data at lift-off, then constant; no estimated regression coefficients ("does not estimate any components", PDF p. 174) |
-| Lift-off inputs | Balance-weighted average jump-off interest rates by segment; percentage of outstanding balance by segment; portfolio balances from FR Y-14 schedules; revolver shares; jump-off spreads |
+| Parameters | Industry scalars — **Table A8** (PDF p. 220), 7 values, supplied; spreads — derived from firm data at the launch point, then constant; no estimated regression coefficients ("does not estimate any components", PDF p. 174) |
+| Launch-point inputs | Balance-weighted average jump-off interest rates by segment; percentage of outstanding balance by segment; portfolio balances from FR Y-14 schedules; revolver shares; jump-off spreads |
 | Constant over horizon | Balances (flat balance; run-off replenished by same-type new originations within the quarter); spreads; segment composition; revolver share (implied — OQ-012); scalars |
 | Varies over horizon | Variable rates (reprice quarterly with base rate); fixed-rate portfolio rate via A38 blending (weight wt from default, prepayment, maturity rates); floors bind when scenario rates fall below stated floor (values unspecified — OQ-002) |
 | Upstream dependencies | Retail and Wholesale credit-loss models supply estimated loss/runoff rates for wt (PDF p. 174; OQ-001) |
@@ -48,7 +48,7 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Firm data inputs | Balances: FR Y-14Q Schedule G, Net Interest Income Worksheet, line item 14 (interest-bearing deposits incl. Federal Reserve and FHLB deposits) |
 | Scenario inputs | 3-month Treasury yield |
 | Parameters | None |
-| Lift-off inputs | Balance B(b,q0) |
+| Launch-point inputs | Balance B(b,q0) |
 | Constant over horizon | Balance (B(b,q) = B(b,q0)) |
 | Varies over horizon | 3-month Treasury path only |
 | Upstream dependencies | None |
@@ -68,7 +68,7 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Firm data inputs | FR Y-14Q Schedule B.1 (security-level); vendor data (coupon rate, maturity); FR Y-14Q Schedule B.2 (hedges — currently insufficient fields) |
 | Scenario inputs | Interest-rate paths via reinvestment assumptions (Securities Model Description) |
 | Parameters | None estimated |
-| Lift-off inputs | t=0 face value, amortized cost, maturity |
+| Launch-point inputs | t=0 face value, amortized cost, maturity |
 | Constant over horizon | Balance via reinvestment assumption (maturing securities replaced; purchases assumed on first day of quarter after maturity) |
 | Varies over horizon | Face values as securities mature/reinvest; hedge legs if data become available |
 | Upstream dependencies | **Securities Model Description** (separate document): reinvestment assumptions (footnote 64) — OQ-004 |
@@ -121,7 +121,7 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Firm data inputs | Balances: FR Y-14Q Schedule G (G.2) Net Interest Income Worksheet line item 15; α from worksheet footnote fields cross-referenced with FR Y-9C item BHCK3365 |
 | Scenario inputs | 3-month and 10-year Treasury yields |
 | Parameters | None |
-| Lift-off inputs | B(b,q0) and α(b,q0) |
+| Launch-point inputs | B(b,q0) and α(b,q0) |
 | Constant over horizon | Balance and share α |
 | Absorbs | Current structural model iv.m(1) (fed funds sold & reverse repo income) — modeled jointly per Question A176 |
 | Integrity flags | CA-1 (md footnote 66 has glued text) |
@@ -138,7 +138,7 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Firm data inputs | Initial rate: FR Y-14Q Schedule G line item 42E (Time Deposits), jump-off average rate; WAL: Schedule G line item 71 (Domestic Deposits – Time); average balances from FR Y-14Q |
 | Scenario inputs | 1-year Treasury yield |
 | Parameters | ρ(b) ≡ 1/WAL(b), computed from firm data — constant over horizon; no estimated coefficients |
-| Lift-off inputs | Rate(b,0) = jump-off average rate (42E); WAL(b) |
+| Launch-point inputs | Rate(b,0) = jump-off average rate (42E); WAL(b) |
 | Constant over horizon | ρ (repricing fraction); balance |
 | Varies over horizon | Rate recursion with 1Y Treasury |
 | Assumptions (source-stated) | Constant repricing share; re-originations priced at 1Y Treasury (no market power); no contractual maturity structure (Call Report maturity-profile alternative discussed but not proposed, PDF pp. 210–211) |
@@ -158,7 +158,7 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Aggregation | Balance-weighted across subcomponents — **Eq A47** (PDF p. 213) |
 | Firm data inputs | Rates: Schedule G items 42B (MMA), 42C (Savings), 42D (Transaction); betas: items 79A/79B, 80A/80B, 81A/81B; balances per corresponding Y-14Q items; average balance for expense |
 | Scenario inputs | 3-month Treasury yield (level and change) |
-| Parameters | β_up/β_down per deposit type = **median of firm-reported betas at lift-off** — **Table A7** (PDF p. 219; supplied); Spread(i,b) estimated from 2020:Q2–2021:Q4 data |
+| Parameters | β_up/β_down per deposit type = **median of firm-reported betas at the launch point** — **Table A7** (PDF p. 219; supplied); Spread(i,b) estimated from 2020:Q2–2021:Q4 data |
 | Constant over horizon | Betas; spreads; balances |
 | Varies over horizon | Rate path; regime switching on the 3M Treasury path |
 | Integrity flags | SQ-1 (Table A7 down-row labels), SQ-2 (caption "(Equations A46)"), SQ-9, SQ-12 |
@@ -185,7 +185,7 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Model family | Short-rate calculator |
 | Projects | `F(b,t) = B(b,t) × Treasury3m(t)` — **Eq A48** (PDF p. 217); asset-side mirror is inside #6 (source-stated equivalence) |
 | Firm data inputs | Balances: Schedule G NII Worksheet items 44A (federal funds purchased) + 44B (securities sold under agreements to repurchase) |
-| Constant over horizon | Balance at q0 |
+| Constant over horizon | Balance at PQ0 |
 | Integrity flags | SQ-10 (Eq A48 caption "Purchase"); CA-2f |
 | Open questions | OQ-006 |
 
@@ -200,8 +200,8 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Data construction (source-stated) | Income/expense numerators = reported average asset (liability) balance × reported average asset (liability) rate ÷ 4 (annual→quarterly), from FR Y-14Q Schedule G NII Worksheet (PDF p. 225) |
 | Scenario inputs | 3-month Treasury yield (term spread and BBB spread examined and rejected — collinearity; PDF pp. 226–227) |
 | Parameters | β = **0.278*** (Table A9, PDF p. 234). **Firm fixed effects α_b: estimated but NOT disclosed** (source-stated, PDF p. 234) |
-| Projection to dollars | INTERPRETATION (working method per decision D-002): apply projected Ratio to net trading assets at lift-off (constant-balance assumption); the ratio→dollar step is not spelled out in the source — OQ-007 |
-| Fixed-effect values | CODING CONSIDERATION (per D-002): backsolve α_b from lift-off actuals; flagged INTERPRETATION everywhere — OQ-009 |
+| Projection to dollars | INTERPRETATION (working method per decision D-002): apply projected Ratio to net trading assets at the launch point (constant-balance assumption); the ratio→dollar step is not spelled out in the source — OQ-007 |
+| Fixed-effect values | CODING CONSIDERATION (per D-002): backsolve α_b from launch-point actuals; flagged INTERPRETATION everywhere — OQ-009 |
 | Rationale for net treatment | Avoids cross-firm comparability issues from balance-sheet offsetting in reported trading assets/liabilities (PDF p. 225) |
 | Replaces | Current iv.g (trading-asset income regression) + trading-liabilities portion of iv.i(4) |
 | Open questions | OQ-007, OQ-009 |
@@ -213,12 +213,12 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Fed name | Interest Expense on Other Borrowing (PDF pp. 230–234; md sec-220) |
 | Component / side | Other borrowing — interest expense (Table A6: Regression). Covers short-term borrowing + subordinated debt + all other interest-bearing liabilities, modeled as a single quantity |
 | Model family | Proposed regression |
-| Model | `Expense(b,t) = (Treasury3m(t) + δ(b,t)) × B(b,t)` — **Eq A53(1)**; `δ(b,t) = β1·BBB(t) + β2·CommercialPaper(b,t) + β3·Subdebt(b,t) + α_b + ε(b,t)` — **Eq A53(2)** (PDF p. 230). OLS on unbalanced FR Y-14Q panel **2020:Q2–2021:Q4** (deliberately a low-rate window). Projection: `Expense(b,q) = (Treasury3m(q) + δ(b,q)) × B(b,0)` with composition shares frozen at lift-off (PDF p. 231) |
+| Model | `Expense(b,t) = (Treasury3m(t) + δ(b,t)) × B(b,t)` — **Eq A53(1)**; `δ(b,t) = β1·BBB(t) + β2·CommercialPaper(b,t) + β3·Subdebt(b,t) + α_b + ε(b,t)` — **Eq A53(2)** (PDF p. 230). OLS on unbalanced FR Y-14Q panel **2020:Q2–2021:Q4** (deliberately a low-rate window). Projection: `Expense(b,q) = (Treasury3m(q) + δ(b,q)) × B(b,0)` with composition shares frozen at the launch point (PDF p. 231) |
 | Firm data inputs | Balances: Schedule G NII Worksheet items 44C (Other Short-Term Borrowing), 46 (Subordinated Notes/TruPS), 47 (Other Interest-Bearing Liabilities) — noting parts of sub debt may sit in 44C/47 per reporting instructions (source-stated); composition shares from FR Y-9C: sub debt BHDM4062 + BHDMC699, commercial paper BHCK2309 |
 | Scenario inputs | 3-month Treasury yield; BBB corporate bond yield |
 | Parameters | β1 = **0.254**\*\*, β2 = **−0.036**\*\*\*, β3 = **0.066**\*\* (Table A9). **Firm fixed effects α_b: estimated but NOT disclosed** |
-| Fixed-effect values | CODING CONSIDERATION (per D-002): backsolve α_b from lift-off actuals; flagged INTERPRETATION — OQ-009 |
-| Constant over horizon | Balance B(b,0); composition shares at lift-off |
+| Fixed-effect values | CODING CONSIDERATION (per D-002): backsolve α_b from launch-point actuals; flagged INTERPRETATION — OQ-009 |
+| Constant over horizon | Balance B(b,0); composition shares at the launch point |
 | Absorbs | Current structural sub-debt model iv.m(3) (cf. Question A190: should sub debt stay separate?) |
 | Integrity flags | CA-2g/h (stray pipes in where-list); SQ-13 ("(a.)" heading) |
 | Open questions | OQ-006, OQ-009 |

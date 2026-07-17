@@ -69,7 +69,7 @@ another authoritative source explicitly establishes that status.
 ### Cross-cutting topics
 
 - Common structural-model conventions
-- Lift-off-quarter assumptions
+- Launch-point (PQ0) assumptions
 - Constant-balance and constant-composition assumptions
 - Fixed-rate and variable-rate treatment
 - Repricing and maturity treatment

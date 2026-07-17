@@ -1,7 +1,7 @@
 # Independent Source-Grounding Review — `ie_foreign_dep` chapter and YAML
 
 **Review date: 2026-07-17.** Reviewer: this session, against the authoritative PDF page images (pp. 211–219 re-opened and read in full this session; not from the Markdown alone and not from the completed `ie_dom_time_dep` chapter, which was used as a formatting reference only).
-Files under review: `handbook/models/ie_foreign_dep.md`, `handbook/models/ie_foreign_dep.yaml`.
+Files under review: `handbook/models/interest-expense/deposits/ie_foreign_dep.md`, `specifications/interest-expense/deposits/ie_foreign_dep.yaml`.
 
 ## 1. Method
 
@@ -52,7 +52,7 @@ Recorded here only — shared files were deliberately not edited (task constrain
 
 ## 5. Proposed shared-file updates (for the later integration session — not applied)
 
-1. **`handbook/open-questions.md`**: file the two OQ-candidates from §4 (suggested IDs OQ-016 beta-item mapping, OQ-017 median recomputation vs. Table A7, OQ-018 44B collision — final numbering at integration); extend the D-004 "Where applied" column to name this chapter; record candidate PIDs for user confirmation: (a) expense balance = 35A + 35B, (b) beta-item mapping, (c) recursion seeds = lift-off 43A/44B, (d) MEV column name for the 3M Treasury (PID-5 analog), (e) Treasury3m = 25 bp → non-ELB branch (OQ-013 working choice).
+1. **`handbook/open-questions.md`**: file the two OQ-candidates from §4 (suggested IDs OQ-016 beta-item mapping, OQ-017 median recomputation vs. Table A7, OQ-018 44B collision — final numbering at integration); extend the D-004 "Where applied" column to name this chapter; record candidate PIDs for user confirmation: (a) expense balance = 35A + 35B, (b) beta-item mapping, (c) recursion seeds = launch-point 43A/44B, (d) MEV column name for the 3M Treasury (PID-5 analog), (e) Treasury3m = 25 bp → non-ELB branch (OQ-013 working choice).
 2. **`inventory/source-integrity-review.md` §8**: add the two SQ-candidates (44B double use; elided Spread comparator), verbatim quotes as in §4 above.
 3. **`inventory/model-inventory.md` #9**: add Question A179 to the record; note the INT-b flag on beta items and the 44B collision flag.
 4. **Cross-chapter consistency**: when `ie_other_dom_dep` is drafted, Equations A45–A47 must be stated there as primary and cross-referenced from this chapter (this chapter already frames them as "by reference"); the two chapters must share one statement of the 2020:Q2–2021:Q4 spread window and the OQ-013 boundary choice.

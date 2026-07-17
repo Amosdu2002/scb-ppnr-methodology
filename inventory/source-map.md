@@ -26,7 +26,7 @@ Conventions (established in `inventory/source-integrity-review.md`):
 | B.i | i. Statement of Purpose | sec-2, line 310 | 6–8 | Equation A1 (PPNR identity); 23-component census of the current suite | BACKGROUND | all |
 | B.ii | ii. Model Framework | sec-3, line 358 | 8–12 | Model-type taxonomy | BACKGROUND | all |
 | B.ii.a | a. Regression Models (+ 6 subsections, sec-4…sec-13) | sec-4, line 435 | 12–32 | Current regression conventions: AR terms, scaling balances, fixed effects, projection mechanics | BACKGROUND (helps read v.d) | nii_trading_al, ie_other_borrowing |
-| B.ii.b | b. Structural Models (+ sec-15) | sec-14, line 717 | 32–33 | Definition and rationale for structural models; lift-off/contract framing | BACKGROUND (core for v.a) | all structural |
+| B.ii.b | b. Structural Models (+ sec-15) | sec-14, line 717 | 32–33 | Definition and rationale for structural models; launch-point/contract framing (source: "lift-off") | BACKGROUND (core for v.a) | all structural |
 | B.ii.c | c. Nonparametric Models (+ sec-17, sec-18) | sec-16, line 742 | 33–35 | Current-suite nonparametric approach | OUT-OF-SCOPE | — |
 | B.ii.d | d. Data Sources and Treatment (+ sec-20, sec-21) | sec-19, line 773 | 35–39 | Pro forma adjustments; FR Y-14/Y-9C data conventions | BACKGROUND | all |
 | B.ii.e | e. Subordinated Debt Data Construction | sec-22, line 857 | 39 | Current sub-debt data build | COMPARISON (context for ie_other_borrowing absorbing sub debt) | ie_other_borrowing |

@@ -1,6 +1,6 @@
 # Independent Source-Grounding Review — `ie_other_dom_dep` chapter + YAML spec
 
-Review date: 2026-07-17. Reviewer: this session, against the authoritative PDF (pages re-read as page images: 211, 212, 213, 214, 215, 219). Files reviewed: `handbook/models/ie_other_dom_dep.md`, `handbook/models/ie_other_dom_dep.spec.yaml`. Method: every equation, line item, parameter value, quoted passage, and citation in both files compared line-by-line against the PDF page images; interpretations checked for correct [INT]/[PID]/UNKNOWN labeling; cross-checked against `inventory/source-integrity-review.md`, `inventory/model-inventory.md` (#8), `inventory/source-map.md` (§4.2), and `handbook/open-questions.md`.
+Review date: 2026-07-17. Reviewer: this session, against the authoritative PDF (pages re-read as page images: 211, 212, 213, 214, 215, 219). Files reviewed: `handbook/models/interest-expense/deposits/ie_other_dom_dep.md`, `specifications/interest-expense/deposits/ie_other_dom_dep.yaml` (formerly `ie_other_dom_dep.spec.yaml`). Method: every equation, line item, parameter value, quoted passage, and citation in both files compared line-by-line against the PDF page images; interpretations checked for correct [INT]/[PID]/UNKNOWN labeling; cross-checked against `inventory/source-integrity-review.md`, `inventory/model-inventory.md` (#8), `inventory/source-map.md` (§4.2), and `handbook/open-questions.md`.
 
 ## 1. Verification results (all PASS unless noted)
 

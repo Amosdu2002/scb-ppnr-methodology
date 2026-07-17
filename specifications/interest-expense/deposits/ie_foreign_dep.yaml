@@ -22,30 +22,30 @@ dimensions:
     - foreign_nontime                  # FACT items (PDF p. 215)
     - foreign_time
   scenario: s
-  quarter: "t = 1..9 (nine-quarter horizon, FACT PDF p. 6); q0 = lift-off (jump-off) quarter"
+  quarter: "t = 1..9 (nine-quarter horizon, FACT PDF p. 6); PQ0 = launch point (source: lift-off / jump-off quarter)"
 
 inputs:
   firm_data:                           # all FR Y-14Q, Schedule G (FACT, PDF p. 215)
-    - name: foreign_nontime_rate_liftoff
+    - name: foreign_nontime_rate_launchpoint
       fed_item: "43A (foreign deposits)"          # FACT
       dims: [b]
       units: annualized_rate                       # PID (D-004); scale normalization: CODE
-      timing: "q0; seeds Eq A46 recursion"         # seed role: INT-c (source states no seed)
-    - name: foreign_time_rate_liftoff
+      timing: "PQ0; seeds Eq A46 recursion"         # seed role: INT-c (source states no seed)
+    - name: foreign_time_rate_launchpoint
       fed_item: "44B (foreign deposits-time)"      # FACT; NOTE 44B also names the repo balance
       dims: [b]                                    # item in v.a(10) (PDF p. 217) — collision flag, OQ-NEW-1
       units: annualized_rate
-      timing: "q0; seeds Eq A46 recursion"         # INT-c
+      timing: "PQ0; seeds Eq A46 recursion"         # INT-c
     - name: foreign_nontime_balance
       fed_item: "35A"                              # FACT
       dims: [b]
       units: USD
-      timing: "q0; constant over horizon"          # INT-d (general constant-balance convention)
+      timing: "PQ0; constant over horizon"          # INT-d (general constant-balance convention)
     - name: foreign_time_balance
       fed_item: "35B"                              # FACT
       dims: [b]
       units: USD
-      timing: "q0; constant over horizon"          # INT-d
+      timing: "PQ0; constant over horizon"          # INT-d
     - name: foreign_rate_history_elb
       fed_item: "43A / 44B, historical 2020:Q2-2021:Q4"   # window FACT (PDF p. 212, by reference); items INT
       dims: [b, subcomponent, hist_quarter]
@@ -55,13 +55,13 @@ inputs:
       fed_item: "83A, 83B, 84A, 84B"               # FACT items; (subcomponent, direction) mapping unstated
       dims: [b, subcomponent, direction]           # INT-b: 83A/83B = nontime up/down, 84A/84B = time up/down
       units: fraction                              # by ordering parallel — immaterial: model uses Table A7 medians
-      timing: "lift-off; feeds median computation only, not projection"
+      timing: "launch point; feeds median computation only, not projection"
   scenario_data:
     - name: usd_3m_treasury
       fed_name: Treasury3m
       dims: [s, quarter]
       units: annualized_rate
-      timing: "q0..PQ9; q0 value needed for delta at t=1 (INT-f)"
+      timing: "PQ0..PQ9; PQ0 value needed for delta at t=1 (INT-f)"
       physical_mapping: "MEV workbook, Date column + one column per MEV (PID-5 pattern); exact column name UNCONFIRMED"
 
 parameters:
@@ -94,15 +94,15 @@ equations:
     first_elb_treasury3m: "min(25bp, first scenario observation of Treasury3m below 25bp, if available)"  # FACT verbatim
   A47_aggregation:                                           # FACT (PDF p. 213), verified
     formula: "Rate(b,t) = sum_i(Rate(i,b,t)*Balance(i,b,t)) / sum_i(Balance(i,b,t))"
-    balance_note: "Balance(i,b,t) = Balance(i,b,q0), items 35A/35B (INT-d, constant-balance convention)"
+    balance_note: "Balance(i,b,t) = Balance(i,b,PQ0), items 35A/35B (INT-d, constant-balance convention)"
 
 initial_conditions:
-  rate_seed: "Rate(i,b,0) = lift-off items 43A / 44B (INT-c; source names the rate items but not the seed role)"
-  treasury_seed: "Treasury3m(q0) required for dTreasury3m at t=1 (INT-f)"
+  rate_seed: "Rate(i,b,0) = launch-point items 43A / 44B (INT-c; source names the rate items but not the seed role)"
+  treasury_seed: "Treasury3m(PQ0) required for dTreasury3m at t=1 (INT-f)"
 
 balance_behavior:
   convention: constant_balance                               # INT-d via general convention (PDF pp. 169-170, 218)
-  detail: "35A and 35B fixed at q0 for A47 weights and the expense balance; no growth, runoff, or FX translation (FACT: no exchange-rate effects, PDF p. 216)"
+  detail: "35A and 35B fixed at PQ0 for A47 weights and the expense balance; no growth, runoff, or FX translation (FACT: no exchange-rate effects, PDF p. 216)"
 
 constraints_and_floors:
   - "ELB regime: rate set exactly to floor = Treasury3m + Spread (Eq A45) — FACT"
@@ -115,7 +115,7 @@ quarterly_dollar_calculation:
   divide_by_four: "PID (D-004): annualized -> quarterly at the final step only; simple nominal quarterization; never attributed to the Fed (OQ-006 resolution)"
 
 validations:                                                 # CODE — non-normative; no invented fallbacks
-  - missing_or_negative_liftoff_rate_or_balance
+  - missing_or_negative_launchpoint_rate_or_balance
   - both_balances_zero_A47_division_by_zero
   - missing_elb_window_history_spread_incomputable
   - negative_spread_logged_not_clamped

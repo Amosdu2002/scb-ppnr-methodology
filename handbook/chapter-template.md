@@ -1,7 +1,7 @@
 # Handbook Chapter Template — Proposed 2026 PPNR Net-Interest Models
 
 **Deliverable 4 of Phase 1, Task 1.** Date: 2026-07-16.
-One chapter per Table A6 net-interest component plus one cross-cutting hedge chapter (~13 chapters, per decision D-003 in `handbook/open-questions.md`). The loans chapter carries six portfolio-specific sections inside the single common framework. Copy this file to `handbook/models/<model_id>.md` (component chapters) or `handbook/cross-cutting/<model_id>.md` (the hedge-adjustment chapter and the common-methodology chapter), matching the existing directory skeleton, and replace every `⟨…⟩` placeholder. Delete template comments (lines starting `<!--`) before review.
+One chapter per Table A6 net-interest component plus one cross-cutting hedge chapter (~13 chapters, per decision D-003 in `handbook/open-questions.md`). The loans chapter carries six portfolio-specific sections inside the single common framework. Copy this file to `handbook/models/<family>/<subfamily>/<model_id>.md` (component chapters; e.g. `handbook/models/interest-expense/deposits/ie_dom_time_dep.md`) or `handbook/cross-cutting/<model_id>.md` (the hedge-adjustment chapter and the common-methodology chapter), matching the existing directory skeleton, and replace every `⟨…⟩` placeholder. Delete template comments (lines starting `<!--`) before review.
 
 ## Non-negotiable conventions (from CLAUDE.md — restated so each chapter is self-auditing)
 
@@ -32,12 +32,12 @@ One chapter per Table A6 net-interest component plus one cross-cutting hedge cha
 
 ## 2. What the model projects
 
-<!-- Output quantity, dimensions (b, p, i, t), units ($ per quarter vs. rate), horizon (9 quarters), and whether output is income, expense, or a net item. State the lift-off quarter convention (q0 = last quarter before projection). -->
+<!-- Output quantity, dimensions (b, p, i, t), units ($ per quarter vs. rate), horizon (9 quarters), and whether output is income, expense, or a net item. State the launch-point convention (PQ0 = last quarter before projection; source terms "lift-off"/"jump-off", decision D-005). -->
 
 ## 3. Inputs
 
 ### 3.1 Firm data inputs
-| Input | Fed source (schedule, line item) | Dimensions | Units | Timing (lift-off definition: average vs. end-of-quarter, as-of date) | Label |
+| Input | Fed source (schedule, line item) | Dimensions | Units | Timing (launch-point definition: average vs. end-of-quarter, as-of date) | Label |
 |---|---|---|---|---|---|
 
 ### 3.2 Scenario inputs
@@ -60,11 +60,11 @@ One chapter per Table A6 net-interest component plus one cross-cutting hedge cha
 | Intermediate | Defined in step | Dimensions | Units | Label |
 |---|---|---|---|---|
 
-## 5. Lift-off vs. projection-quarter register
+## 5. Launch point (PQ0) vs. projection-quarter register
 
-| Quantity | Lift-off (q0) role | Projection-quarter (t ≥ 1) role | Label |
+| Quantity | Launch point (PQ0) role | Projection-quarter (t ≥ 1) role | Label |
 |---|---|---|---|
-<!-- Make the timing unambiguous: what is measured once at q0, what evolves, what a quarter-t value depends on (t vs. t−1 vs. q0). -->
+<!-- Make the timing unambiguous: what is measured once at PQ0, what evolves, what a quarter-t value depends on (t vs. t−1 vs. PQ0). -->
 
 ## 6. Constancy register
 
@@ -112,7 +112,7 @@ One chapter per Table A6 net-interest component plus one cross-cutting hedge cha
 - [ ] Every material statement labeled [FACT]/[INT]/[CODE]/[OQ]; unknowns say UNKNOWN.
 - [ ] Every equation verified against the PDF or flagged for verification.
 - [ ] Conversion artifacts (CA-) corrected per integrity review; source quirks (SQ-) preserved verbatim with [INT] notes.
-- [ ] Lift-off vs. projection timing unambiguous for every input and intermediate.
+- [ ] Launch-point vs. projection timing unambiguous for every input and intermediate.
 - [ ] Constancy register covers every input/parameter.
 - [ ] Units and rate-conversion conventions explicit at every step.
 - [ ] No production Python; no confidential material.
