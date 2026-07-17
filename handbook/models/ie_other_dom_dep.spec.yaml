@@ -1,0 +1,159 @@
+# Coding-oriented specification — ie_other_dom_dep — DRAFT (Phase 1; no production code).
+# Labels: FACT = Fed source-stated (cited); INT = interpretation; PID = user-confirmed project
+# decision (never a Fed statement); UNKNOWN = not stated anywhere authoritative — never defaulted.
+# Companion chapter: handbook/models/ie_other_dom_dep.md. Citations: (PDF p. N; md sec-M).
+
+model:
+  id: ie_other_dom_dep
+  fed_name: Interest Expense on Other Domestic Deposits
+  status: proposed_2026_stress_test__public_comment__NOT_adopted   # FACT (PDF pp. 6, 167; SQ-14 policy)
+  model_type: structural                                           # FACT Table A6 (PDF pp. 168-169)
+  source_section: B.v.a(8)
+  source_pages_pdf: [211, 215]
+  source_anchors_md: [sec-197, sec-200]
+  side: interest_expense
+  chapter_review_state: DRAFT
+
+dimensions:
+  firm: b
+  subcomponent:                       # FACT (PDF p. 211)
+    symbol: i
+    values: [mma, savings, transaction]   # transaction = NOW, ATS, and other accounts (FACT)
+  time:
+    liftoff_quarter: q0               # jump-off = last quarter before the projection horizon
+    projection_quarters: 9            # FACT (PDF p. 6)
+  output_grain: [firm, scenario, quarter]        # subcomponent paths kept as intermediates
+
+inputs:
+  firm_data:
+    - name: odd_rate_liftoff
+      fed_item: {schedule: FR Y-14Q Schedule G, items: {mma: 42B, savings: 42C, transaction: 42D}}  # FACT (PDF p. 213)
+      dims: [firm, subcomponent]
+      units: annualized_rate          # PID D-004; scale normalization required (percent vs decimal UNKNOWN)
+      timing: liftoff
+      role: seeds Rate(i,b,t-1) at t=1   # INT (proposed OQ-018) — retrieval is FACT, seed role unstated
+    - name: odd_subcomponent_balance
+      fed_item: UNKNOWN               # FACT absence — "balance reported in the Y-14Q corresponding to the rate i" (PDF p. 213)
+      hypothesis_unconfirmed: items 34B/34C/34D by 42X<->34X analogy   # flagged working hypothesis, NOT a mapping (proposed OQ-016)
+      dims: [firm, subcomponent]
+      units: USD
+      timing: liftoff, held constant  # INT — flat-balance convention; Eq A47 subscript is t
+    - name: odd_total_average_balance
+      fed_item: UNKNOWN               # FACT absence — "average balance on other domestic deposits as reported in the FR Y-14Q" (PDF p. 214; "average" per Dec 2025 revision item 5)
+      hypothesis_unconfirmed: sum of odd_subcomponent_balance          # flagged working hypothesis (proposed OQ-016)
+      dims: [firm]
+      units: USD
+      timing: liftoff average balance, held constant  # INT constancy
+    - name: odd_rate_history_elb
+      fed_item: same rate series as 42B/42C/42D over 2020:Q2-2021:Q4   # INT — series identity implied
+      dims: [firm, subcomponent, history_quarter]
+      units: annualized_rate
+      role: spread estimation window  # FACT window (PDF p. 212)
+    - name: odd_firm_beta_up / odd_firm_beta_down
+      fed_item: {schedule: FR Y-14Q Schedule G, items: {mma: [79A, 79B], savings: [80A, 80B], transaction: [81A, 81B]}}  # FACT (PDF p. 213)
+      role: raw material for the Board's median only; individual firm betas do NOT enter projections  # FACT
+  scenario:
+    - name: usd_3m_treasury
+      fed_name: 3-month Treasury yield                               # FACT (PDF pp. 211-213)
+      dims: [scenario, quarter]       # q0..PQ9; q0 value needed for delta at t=1 (INT, proposed OQ-018)
+      units: annualized_rate
+      enters_via: [regime_trigger_25bp, elb_rate_level_A45, quarterly_change_A46, first_elb_treasury3m]
+      physical_source: MEV workbook per PID-5 pattern; column name "USD 3M Treasury" UNCONFIRMED (working assumption, flagged)
+
+parameters:
+  - name: beta_up / beta_down
+    kind: supplied                    # FACT — Board-computed median of firm-reported betas at lift-off
+    source: Table A7 (PDF p. 219; quirks SQ-1, SQ-2 preserved)
+    values:                           # verified against the PDF page image 2026-07-17
+      mma:         {up: 0.620, down: 0.645}
+      savings:     {up: 0.310, down: 0.335}
+      transaction: {up: 0.465, down: 0.490}   # Table A7 row label "Other Domestic: Other"
+    dims: [subcomponent, direction]   # no firm dimension — FACT (where-list subscripts)
+    constant_over_horizon: true       # FACT "constant betas"
+  - name: elb_spread                  # Spread(i,b)
+    kind: estimated_from_firm_data    # FACT — not published; not in Table A7
+    definition: average distance of firm's deposit rate to the 3-month Treasury yield over 2020:Q2-2021:Q4
+      # FACT window; source sentence truncated in the PDF (candidate SQ-15); endpoint "to the 3-month
+      # Treasury yield" is INT from the A45 where-list. Sign convention INT: signed difference
+      # (rate - treasury3m); averaging frequency and missing-history treatment UNKNOWN (proposed OQ-017)
+    dims: [firm, subcomponent]
+    units: annualized_rate_spread
+    constant_over_horizon: true       # INT — no re-estimation described
+  - name: first_elb_treasury3m
+    kind: derived_per_scenario        # FACT (PDF p. 213)
+    definition: min(25bp, first observation of usd_3m_treasury below 25bp in the scenario); 25bp if none  # "(if available)" INT
+    dims: [scenario]
+  - name: regression_coefficients_or_fixed_effects
+    kind: none                        # FACT — structural models "avoid statistical estimation" (PDF pp. 172-173); D-002 n/a
+
+timing_rules:
+  regime_classification: per projection quarter t, on usd_3m_treasury[t]   # FACT
+  elb_regime: usd_3m_treasury[t] < 25bp                                    # FACT (PDF p. 211)
+  non_elb_regime: usd_3m_treasury[t] > 25bp                                # FACT
+  boundary_equal_25bp: UNASSIGNED — OQ-013; implementation must pick and document one branch
+  recursion_order: t = 1..9 sequentially; lag = previous modeled rate regardless of prior regime  # INT
+  delta_definition: usd_3m_treasury[t] - usd_3m_treasury[t-1]; t=1 uses the q0 value              # INT (proposed OQ-018)
+
+equations:
+  A45_elb_rate:                       # FACT (PDF p. 212, verified)
+    formula: rate[i,b,t] = usd_3m_treasury[t] + elb_spread[i,b]
+    applies: ELB quarters; no max() — rate may sit below assumed_floor or go negative
+  A46_non_elb_rate:                   # FACT (PDF p. 213, verified)
+    formula: rate[i,b,t] = max(rate[i,b,t-1] + delta[i,t], assumed_floor[i,b])
+    delta: max(d_t3m, 0)*beta_up[i] + min(d_t3m, 0)*beta_down[i]   # identical across firms (no b subscript)
+    assumed_floor: first_elb_treasury3m + elb_spread[i,b]
+  A47_aggregation:                    # FACT (PDF p. 213, verified)
+    formula: agg_rate[b,t] = sum_i(rate[i,b,t] * balance[i,b]) / sum_i(balance[i,b])
+    weights: odd_subcomponent_balance, constant at liftoff values   # INT constancy
+  expense:                            # FACT product form (PDF p. 214); /4 is PID D-004, never a Fed statement
+    formula: odd_interest_expense[b,t] = odd_total_average_balance[b] * agg_rate[b,t] / 4
+
+initial_conditions:
+  rate_seed: odd_rate_liftoff (items 42B/42C/42D) as rate[i,b,0]    # INT seed role (proposed OQ-018)
+  treasury_seed: q0 value of usd_3m_treasury for delta[1]           # INT (proposed OQ-018)
+
+balance_behavior:
+  subcomponent_balances: constant at liftoff                        # INT — general flat-balance convention
+  total_average_balance: constant at liftoff                        # INT
+  composition: constant by construction (constant weights in A47)
+
+constraints_and_floors:
+  non_elb_floor: assumed_floor[i,b] binds inside Eq A46 only        # FACT
+  elb_quarters: NO floor — A45 is an equality; sub-floor and negative rates are legal outputs; log, never clamp
+  caps_or_nonnegativity: none exist                                 # FACT absence
+
+quarterly_dollar_calculation:
+  convention: PID D-004 — annualized rates throughout; divide by 4 only at the final expense step
+  source_status: the Fed states no annual->quarterly conversion for this component (FACT absence, preserved; OQ-006 resolution)
+
+validations:
+  - betas equal Table A7 values exactly (verify against PDF p. 219, not retyped copies)
+  - required inputs present (rates 42B-42D, balances, ELB-window history); failures surface; no invented fallbacks
+  - rate-scale normalization metadata-driven, identical for firm rates and MEV series; 25bp trigger in normalized scale
+  - unit tests: both regimes, ELB<->non-ELB transitions, boundary branch (OQ-013), floor binding, up/down beta asymmetry
+  - weights: balance[i,b] >= 0 and sum > 0 before A47; cross-check A47 denominator vs expense balance if hypothesis confirmed
+  - assert delta has no firm dependence; monitor negative rates and ELB sub-floor rates (legal; log only)
+
+dependencies:
+  upstream_models: none               # FACT — no proposed model's output enters
+  shared_inputs: [usd_3m_treasury, Table A7, FR Y-14Q Schedule G]
+  downstream_by_reference: ie_foreign_dep reuses this specification with items 43A/44B, 35A/35B, 83A-84B (PDF p. 215)
+  hedge_interface: exposes expense path for cross-cutting v.c adjustment (Eqs A49-A51, contingent on proposed
+    FR Y-14Q B.2/B.3 collection); no hedge term inside this model; allocation unresolved (OQ-005)
+
+open_questions:
+  existing: [OQ-005, OQ-013]
+  resolved_applied: [OQ-006 via D-004]
+  proposed_in_review_file:            # not yet filed in handbook/open-questions.md (this session may not edit it)
+    - OQ-016: balance line-item mappings (subcomponent + total average balance) unnamed in source
+    - OQ-017: spread estimation mechanics (truncated sentence / candidate SQ-15; sign; averaging; missing history)
+    - OQ-018: seed timing for rate lag and delta at t=1
+
+source_references:
+  - {claim: component + subcomponents + two regimes + 25bp thresholds, pdf_page: 211, md: sec-197}
+  - {claim: Eq A45 + spread estimation + ELB window 2020:Q2-2021:Q4, pdf_page: 212, md: sec-198}
+  - {claim: Eq A46 + items 42B-42D, 79A-81B + median rationale + Eq A47, pdf_page: 213, md: sec-198}
+  - {claim: expense sentence + assumptions (SQ-12), pdf_page: 214, md: sec-198/199, note: Dec 2025 revision item 5}
+  - {claim: Question A178, pdf_page: 215, md: sec-200}
+  - {claim: Table A7 median betas, pdf_page: 219, md: sec-209, note: SQ-1/SQ-2}
+  - {claim: Table A6 structural classification, pdf_page: 168-169, md: sec-148}
