@@ -34,13 +34,17 @@ inputs:
       role: seeds Rate(i,b,t-1) at t=1   # INT (proposed OQ-018) — retrieval is FACT, seed role unstated
     - name: odd_subcomponent_balance
       fed_item: UNKNOWN               # FACT absence — "balance reported in the Y-14Q corresponding to the rate i" (PDF p. 213)
-      hypothesis_unconfirmed: items 34B/34C/34D by 42X<->34X analogy   # flagged working hypothesis, NOT a mapping (proposed OQ-016)
+      project_mapping:                # PID-ODD-1, user-confirmed 2026-07-17 — project context, never a Fed statement
+        schedule: FR Y-14Q Schedule G
+        items: {mma: 34B, savings: 34C, transaction: 34D}   # 34D = NOW, ATS, and other Transaction Accounts
       dims: [firm, subcomponent]
       units: USD
       timing: liftoff, held constant  # INT — flat-balance convention; Eq A47 subscript is t
     - name: odd_total_average_balance
       fed_item: UNKNOWN               # FACT absence — "average balance on other domestic deposits as reported in the FR Y-14Q" (PDF p. 214; "average" per Dec 2025 revision item 5)
-      hypothesis_unconfirmed: sum of odd_subcomponent_balance          # flagged working hypothesis (proposed OQ-016)
+      project_mapping:                # PID-ODD-2, user-confirmed 2026-07-17 — recorded exactly as confirmed
+        mdrm_sum: [BHCB3187, BHOD3187, BHCB2389, BHOD2389]
+        note: source sentence says "FR Y-14Q" (FACT) while the confirmed mapping is in MDRM codes; mapping governs for implementation
       dims: [firm]
       units: USD
       timing: liftoff average balance, held constant  # INT constancy
@@ -128,10 +132,10 @@ quarterly_dollar_calculation:
 
 validations:
   - betas equal Table A7 values exactly (verify against PDF p. 219, not retyped copies)
-  - required inputs present (rates 42B-42D, balances, ELB-window history); failures surface; no invented fallbacks
+  - required inputs present (rates 42B-42D; balances 34B-34D; MDRM items BHCB3187/BHOD3187/BHCB2389/BHOD2389; ELB-window history); failures surface; no invented fallbacks
   - rate-scale normalization metadata-driven, identical for firm rates and MEV series; 25bp trigger in normalized scale
   - unit tests: both regimes, ELB<->non-ELB transitions, boundary branch (OQ-013), floor binding, up/down beta asymmetry
-  - weights: balance[i,b] >= 0 and sum > 0 before A47; cross-check A47 denominator vs expense balance if hypothesis confirmed
+  - weights: balance[i,b] >= 0 and sum > 0 before A47; consistency monitor sum(34B-34D) vs PID-ODD-2 MDRM sum (different physical sources; log divergence, never force equality)
   - assert delta has no firm dependence; monitor negative rates and ELB sub-floor rates (legal; log only)
 
 dependencies:
@@ -143,9 +147,8 @@ dependencies:
 
 open_questions:
   existing: [OQ-005, OQ-013]
-  resolved_applied: [OQ-006 via D-004]
+  resolved_applied: [OQ-006 via D-004, OQ-016 via PID-ODD-1/PID-ODD-2 (user-confirmed 2026-07-17, before filing)]
   proposed_in_review_file:            # not yet filed in handbook/open-questions.md (this session may not edit it)
-    - OQ-016: balance line-item mappings (subcomponent + total average balance) unnamed in source
     - OQ-017: spread estimation mechanics (truncated sentence / candidate SQ-15; sign; averaging; missing history)
     - OQ-018: seed timing for rate lag and delta at t=1
 
