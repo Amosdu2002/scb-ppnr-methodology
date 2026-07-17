@@ -34,8 +34,8 @@
 |---|---|---|---|---|---|
 | Subcomponent rates, Rate(i,b,0) (`odd_rate_launchpoint`) | FR Y-14Q Schedule G items **42B** (MMA), **42C** (Savings), **42D** (Transaction) | b × i | Annualized rate [D-004]; scale normalization §10 | Retrieved at the launch point; seed the A46 recursion at t = 1 [INT — seed role; see §4] | [FACT] items (PDF p. 213; md sec-198) |
 | Firm-reported betas (`odd_firm_beta_up/down`) | Schedule G items **79A/79B** (MMA up/down), **80A/80B** (Savings), **81A/81B** (Transaction) | b × i × {up,down} | Dimensionless | At the launch point; enter only the Fed's cross-firm **median** — individual firm betas do not drive projections (Table A7 supplies the medians) | [FACT] (PDF pp. 213, 219; md sec-198, sec-209) |
-| Subcomponent balances, Balance(i,b,t) (`odd_subcomponent_balance`) | "the balance reported in the Y-14Q corresponding to the rate i" — **line items not named** ([FACT] absence) | b × i | USD | Launch-point values, held constant [INT — general flat-balance convention; A47 carries a t subscript] | [FACT] role (PDF p. 213; md sec-198); mapping UNKNOWN (proposed OQ-016) |
-| Average balance on other domestic deposits (`odd_total_average_balance`) | "the average balance on other domestic deposits as reported in the FR Y-14Q" — **item not named** ([FACT] absence); "average" per December 2025 revision item 5 | b | USD | Launch-point average balance, held flat [INT — flat-balance convention] | [FACT] role (PDF p. 214; md sec-198; revision PDF pp. 4–5); mapping UNKNOWN (proposed OQ-016) |
+| Subcomponent balances, Balance(i,b,t) (`odd_subcomponent_balance`) | Source: "the balance reported in the Y-14Q corresponding to the rate i" — **line items not named** ([FACT] absence). Project: FR Y-14Q Schedule G items **34B** (MMA), **34C** (Savings), **34D** (NOW, ATS, and other Transaction Accounts) [PID-ODD-1] | b × i | USD | Launch-point values, held constant [INT — general flat-balance convention; A47 carries a t subscript] | [FACT] role (PDF p. 213; md sec-198); [PID-ODD-1] mapping (user-confirmed 2026-07-17) |
+| Average balance on other domestic deposits (`odd_total_average_balance`) | Source: "the average balance on other domestic deposits as reported in the FR Y-14Q" — **item not named** ([FACT] absence); "average" per December 2025 revision item 5. Project: sum of MDRM items **BHCB3187 + BHOD3187 + BHCB2389 + BHOD2389** [PID-ODD-2] | b | USD | Launch-point average balance, held flat [INT — flat-balance convention] | [FACT] role (PDF p. 214; md sec-198; revision PDF pp. 4–5); [PID-ODD-2] mapping (user-confirmed 2026-07-17) |
 | Historical subcomponent rates, 2020:Q2–2021:Q4 (`odd_rate_history_elb`) | Same rate items over the ELB window [INT — series identity implied, not stated] | b × i × history | Annualized rate | Fixed historical window for Spread(i,b) estimation | [FACT] window (PDF p. 212; md sec-198) |
 
 ### 3.2 Scenario inputs
@@ -92,7 +92,7 @@ $$Rate_{b,t} = \left(\sum_i Rate_{i,b,t} \cdot Balance_{i,b,t}\right) / \left(\s
 
 ## 6. Calculation workflow
 
-1. **Launch-point extraction (PQ0).** Read rates 42B/42C/42D → Rate(i,b,0); read subcomponent balances and the total average balance (mappings UNKNOWN — proposed OQ-016); load Table A7 betas. Validate per §10; no fallback treatment is invented [CODE].
+1. **Launch-point extraction (PQ0).** Read rates 42B/42C/42D → Rate(i,b,0); read subcomponent balances from items 34B/34C/34D [PID-ODD-1] and the total average balance as BHCB3187 + BHOD3187 + BHCB2389 + BHOD2389 [PID-ODD-2]; load Table A7 betas. Validate per §10; no fallback treatment is invented [CODE].
 2. **Spread estimation.** Spread(i,b) = average distance of the firm's subcomponent deposit rate to the 3-month Treasury yield over 2020:Q2–2021:Q4 [FACT window; INT endpoint per truncated sentence; sign convention [INT]: signed difference rate − Treasury3m — proposed OQ-017].
 3. **Scenario preparation.** Align Treasury3m to PQ0…PQ9; ΔTreasury3m(t) = Treasury3m(t) − Treasury3m(t−1), with t = 1 using the jump-off value [INT — proposed OQ-018]; First_ELB_Treasury3m = min(25 bp, first sub-25bp observation in the scenario path, else 25 bp [INT on "(if available)"]).
 4. **Assumed floor.** assumed_floor(i,b) = First_ELB_Treasury3m + Spread(i,b) [FACT].
@@ -129,15 +129,17 @@ All [FACT] (PDF p. 214; md sec-199), restated faithfully:
 ## 9. User-confirmed implementation mappings
 
 - [PID — D-004, project-wide, user-confirmed 2026-07-17] Annualized-rate convention: all rates annualized; ÷4 only at the final quarterly-dollar step (§7).
-- **No component-specific mapping is confirmed for this model.** The PID-1 balance mapping (item 34E) belongs to `ie_dom_time_dep` only. **Flagged working hypotheses — NOT confirmed, not used as facts** (per the project's flagged-working-assumption preference): (a) subcomponent balances follow the 42X↔34X pattern (MMA/Savings/Transaction balances = items 34B/34C/34D by analogy with 42E↔34E); (b) total average balance = Σ of subcomponent balances (which would make the A47 denominator and the §7 multiplicand the same number); (c) MEV column name "USD 3M Treasury" per the PID-5 workbook pattern. All three await user confirmation — listed in the review file for the integration session (proposed OQ-016).
+- **[PID-ODD-1 — user-confirmed 2026-07-17]** Subcomponent balance mapping: `odd_subcomponent_balance` = FR Y-14Q Schedule G items **34B** (MMA), **34C** (Savings), **34D** (NOW, ATS, and other Transaction Accounts). These items appear nowhere in the Fed source for this component; the mapping is project context, never a Fed statement.
+- **[PID-ODD-2 — user-confirmed 2026-07-17]** Total balance mapping: `odd_total_average_balance` = sum of MDRM items **BHCB3187 + BHOD3187 + BHCB2389 + BHOD2389**. Recorded exactly as confirmed; note the source sentence attributes the average balance to "the FR Y-14Q" ([FACT], PDF p. 214) while the confirmed mapping is expressed in MDRM codes — the mapping governs for implementation, the tension is merely noted, not resolved here. Consequence: the A47 weights (34B–34D) and the §7 multiplicand (MDRM sum) come from **different physical sources**; their consistency is a §10 monitor, not an identity.
+- **Still unconfirmed (flagged working assumption, not a PID):** MEV column name "USD 3M Treasury" per the PID-5 workbook pattern.
 
 ## 10. Validation requirements ([CODE] — non-normative)
 
 - **Parameter fidelity:** configured betas must equal Table A7 exactly (0.620/0.645, 0.310/0.335, 0.465/0.490); verify against the PDF, not retyped copies.
-- **Input presence (no invented fallbacks; failures surface):** rates 42B/42C/42D; subcomponent balances; total average balance; 2020:Q2–2021:Q4 rate history for spreads (firms without ELB-window history: treatment UNKNOWN — proposed OQ-017).
+- **Input presence (no invented fallbacks; failures surface):** rates 42B/42C/42D; subcomponent balances 34B/34C/34D [PID-ODD-1]; the four MDRM items BHCB3187/BHOD3187/BHCB2389/BHOD2389 [PID-ODD-2]; 2020:Q2–2021:Q4 rate history for spreads (firms without ELB-window history: treatment UNKNOWN — proposed OQ-017).
 - **Rate-scale normalization:** percent vs. decimal never assumed; metadata-driven, identical for firm rates and the MEV series, before any regime logic (the 25 bp trigger must be expressed in the normalized scale).
 - **Regime boundary:** document the chosen branch for Treasury3m(t) = 25 bp (OQ-013); unit-test both regimes and the ELB↔non-ELB transitions.
-- **Weights:** Balance(i,b) ≥ 0 and ΣBalance > 0 before A47; if hypothesis (b) in §9 is confirmed, cross-check A47 denominator vs. the §7 balance.
+- **Weights:** Balance(i,b) ≥ 0 and ΣBalance > 0 before A47. **Consistency monitor:** Σ(34B+34C+34D) vs. the [PID-ODD-2] MDRM sum — different physical sources that should be economically close; log divergences, never force equality.
 - **Edge monitors:** ELB-quarter rates below assumed_floor are legal (A45 has no max); negative projected rates possible if Treasury3m + Spread < 0 — log, never clamp; δ identical across firms — assert no accidental b-dependence.
 
 ## 11. Dependencies and hedge interface
@@ -151,7 +153,7 @@ All [FACT] (PDF p. 214; md sec-199), restated faithfully:
 - **OQ-005 — OPEN.** Hedge-adjustment allocation across components (§11).
 - **OQ-006 — RESOLVED FOR PROJECT IMPLEMENTATION (D-004).** ÷4 convention applied in §7; the source-side absence is preserved.
 - **OQ-013 — OPEN (minor).** Treasury3m = 25 bp boundary unassigned; branch choice is a documented [CODE] decision.
-- **Proposed OQ-016 (filed in the review file, not yet in `open-questions.md`).** Balance line-item mappings: subcomponent balances and the total average balance are unnamed in the source; §9 hypotheses (a)/(b) need confirmation.
+- **OQ-016 — RESOLVED FOR PROJECT IMPLEMENTATION before filing (2026-07-17).** Balance mappings user-confirmed as PID-ODD-1 (items 34B/34C/34D) and PID-ODD-2 (MDRM sum BHCB3187 + BHOD3187 + BHCB2389 + BHOD2389); the source-side absence of named items remains a preserved [FACT]. Integration session: record both PIDs in the `open-questions.md` decision log.
 - **Proposed OQ-017 (review file).** Spread estimation mechanics: truncated source sentence (candidate SQ-15); sign convention (signed vs. absolute distance); averaging frequency; treatment of firms without 2020:Q2–2021:Q4 history.
 - **Proposed OQ-018 (review file).** Seed timing: Rate(i,b,0) as the t = 1 lag and the jump-off Treasury3m in ΔTreasury3m(1) are [INT], not source-stated.
 
@@ -170,4 +172,4 @@ All [FACT] (PDF p. 214; md sec-199), restated faithfully:
 | Hedge adjustment (v.c) | (PDF pp. 220–223; md sec-210–212) |
 | Nine-quarter horizon; PPNR identity (Eq A1) | (PDF pp. 6–8; md sec-2) |
 | Current 2025 comparison model (panel regression, iv.i(2)) — context for Question A178 only | (PDF pp. 80–84; md sec-70) |
-| D-004 convention; PID-5 pattern; flagged hypotheses | `handbook/open-questions.md` decision log; `ie_dom_time_dep.md` §12; §9 above |
+| D-004 convention; PID-5 pattern; PID-ODD-1/PID-ODD-2 mappings | `handbook/open-questions.md` decision log; `ie_dom_time_dep.md` §12; user confirmation 2026-07-17 (§9 above) |
