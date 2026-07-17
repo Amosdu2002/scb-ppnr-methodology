@@ -26,11 +26,12 @@
 
 | Input | Fed source | Dimensions | Units | Timing | Label |
 |---|---|---|---|---|---|
-| Total other-borrowing balance, B(b,0) (`ob_total_balance_launchpoint`) | FR Y-14Q Schedule G items **44C + 46 + 47** | b | USD | Launch-point (PQ0) value, held constant over the horizon | [FACT] items and constancy (PDF pp. 230–231; md sec-220–221) |
+| Total other-borrowing balance, B(b,0) (`ob_total_balance_launchpoint`) | Fed-stated: Schedule G items **44C + 46 + 47** [FACT]. Physical input: Schedule G items **36C + 38 + 39** [PID-OB-2, user-confirmed 2026-07-17] — mapping governs for implementation; the item-number tension with the source statement is recorded, not resolved (§13) | b | USD | Launch-point (PQ0) value, held constant over the horizon | [FACT] scope and constancy (PDF pp. 230–231; md sec-220–221); [PID-OB-2] physical mapping |
 | Commercial-paper balance (`ob_cp_balance`) | FR Y-9C **BHCK2309** | b | USD | Launch-point value for the frozen share | [FACT] MDRM (PDF p. 232; md sec-221); see share-form note below |
 | Subordinated-debt balance (`ob_subdebt_balance`) | FR Y-9C **BHDM4062 + BHDMC699** | b | USD | Launch-point value for the frozen share | [FACT] MDRM (PDF p. 232; md sec-221) |
 | Commercial-paper share, CP(b,0) (`ob_cp_share_launchpoint`) | "balance of commercial paper divided by the total balance of other borrowing" | b | Share ∈ [0,1] | Frozen at PQ0 | [FACT] definition (PDF p. 231; md sec-221) |
 | Subordinated-debt share, Subdebt(b,0) (`ob_subdebt_share_launchpoint`) | "balance of subordinated debt divided by the total balance of other borrowing" | b | Share ∈ [0,1] | Frozen at PQ0 | [FACT] definition (PDF p. 231; md sec-221) |
+| PQ0 actual interest expense on other borrowing (`ob_expense_actual_launchpoint`) | Physical line item **TO BE CONFIRMED** — no Schedule G expense item is stated in the source and none is guessed | b | USD per quarter | PQ0 only; used solely in the §9 backsolve | [PID-OB-3] role (user-confirmed 2026-07-17); item UNRESOLVED [OQ-009] |
 
 **Share-form note [INT → OQ-OB-A]:** the share numerators are stated as FR Y-9C items (in the estimation-context Variable Selection discussion) while B(b,0) is a Schedule G sum. Whether the projection-side share denominator is the Schedule G total, a Y-9C equivalent, or the same mixed ratio is **not stated**. No additional MDRM mapping is invented; the mixed form is recorded as the literal reading.
 
@@ -39,7 +40,7 @@
 | Scenario variable | Enters via | Frequency | Units | Label |
 |---|---|---|---|---|
 | 3-month Treasury yield, Treasury3m(q) (`usd_3m_treasury`) | Base of the rate in A53(1), **coefficient of one by construction** — it is not an estimated coefficient (Table A9's A53(2) row has an empty 3M-Treasury cell) | Quarterly, q = 1…9 (PQ0 value needed only for the α_b backsolve, §9) | Annualized rate [D-004] | [FACT] (PDF pp. 230, 234; md sec-221, sec-224) |
-| BBB corporate bond yield, BBB(q) (`bbb_corporate_yield`) | Sole macro driver of the credit spread in A53(2), ×β1 | Quarterly, q = 1…9 | Annualized rate [D-004] | [FACT] (PDF pp. 230–231; md sec-221). MEV column name unconfirmed — working assumption per the PID-5 workbook pattern, flagged, not a PID |
+| BBB corporate bond yield, BBB(q) (`bbb_corporate_yield`) | Sole macro driver of the credit spread in A53(2), ×β1 | Quarterly, q = 1…9 | Annualized rate [D-004] | [FACT] model definition — Eq A53 uses the BBB corporate bond **yield** (PDF pp. 230–231; md sec-221). **[PID-OB-4, user-confirmed 2026-07-17]** physical source = project MEV file. TO BE CONFIRMED: exact column name; whether the workbook quantity is a BBB yield or a BBB **spread** (never interchangeable); if a spread, the applicable Treasury-yield addition; unit scale (decimal / percentage points / bp). β1 = 0.254 unchanged regardless (§13 MATERIAL item) |
 
 ### 3.3 Parameters
 
@@ -97,9 +98,9 @@ Constancy register: **constant** — balance, both composition shares, α_b, β1
 
 ## 7. Calculation workflow
 
-1. **Launch-point balance.** B(b,0) = Schedule G items 44C + 46 + 47. Validate presence of all three items and B(b,0) > 0 (§11); no fallback invented [CODE].
+1. **Launch-point balance.** B(b,0) = Schedule G items 36C + 38 + 39 [PID-OB-2; the Fed-stated items 44C/46/47 remain the [FACT] scope definition, §3.1]. Validate presence of all three items and B(b,0) > 0 (§11); no fallback invented [CODE].
 2. **Launch-point composition.** `ob_cp_share_launchpoint` = BHCK2309 / B(b,0); `ob_subdebt_share_launchpoint` = (BHDM4062 + BHDMC699) / B(b,0) [FACT numerators and ratio definition; INT that the projection-side denominator is the Schedule G sum — OQ-OB-A]. Validate shares ∈ [0,1] and sum ≤ 1 (§11).
-3. **Fixed effect.** Obtain α_b via the §9 backsolve [PID-OB-1]; validate presence per firm.
+3. **Fixed effect.** Obtain α_b via the §9 backsolve [PID-OB-1/PID-OB-3]; validate presence per firm.
 4. **Coefficients.** Load β1 = 0.254, β2 = −0.036, β3 = 0.066; store the significance stars as metadata, never in the numeric path (§3.3).
 5. **Scenario preparation.** Align `usd_3m_treasury` and `bbb_corporate_yield` to q = 1…9 (plus PQ0 for the backsolve); normalize percent-vs-decimal scale identically for both series and the firm-side rate used in §9 [CODE].
 6. **Credit spread, each q.** δ(b,q) = β1·BBB(q) + β2·CP(b,0) + β3·Subdebt(b,0) + α_b.
@@ -119,8 +120,9 @@ Constancy register: **constant** — balance, both composition shares, α_b, β1
 
   $$\alpha_b = R_{actual}(b,0) - Treasury3m(0) - \beta_1 BBB(0) - \beta_2\, CP(b,0) - \beta_3\, Subdebt(b,0)$$
 
-  where R_actual(b,0) is the firm's observed annualized rate on other borrowing at the launch point. This is the handbook's working method (D-002) with the identity confirmed for this component (PID-OB-1); it is never attributable to the Federal Reserve.
-- **Unresolved mechanics [OQ-009, still open]:** (a) whether R_actual(b,0) is a single-quarter PQ0 observation or an average over several quarters; (b) the physical source of the launch-point actual expense/rate on other borrowing (no Schedule G expense item is stated for this component and none is guessed); (c) treatment if PQ0 rates sit outside the low-rate regime of the 2020:Q2–2021:Q4 estimation window. The YAML spec marks these as UNRESOLVED; the model is implementable only once they are fixed in the approved environment.
+  This is the handbook's working method (D-002) with the identity confirmed for this component (PID-OB-1); it is never attributable to the Federal Reserve.
+- **[PID-OB-3, user-confirmed 2026-07-17] Actuals mechanics.** R_actual(b,0) comes from the **single PQ0 quarter**: the PQ0 balance and the PQ0 actual interest expense on other borrowing give the launch-point rate, and with the Fed-supplied coefficients α_b follows directly from the identity above. Under D-004, R_actual(b,0) = 4 × QuarterlyExpense_actual(b,0) / B(b,0) [CODE — annualization mirrors §8's ÷4 in reverse].
+- **Residual unresolved items [OQ-009, narrowed]:** (a) the physical line item for `ob_expense_actual_launchpoint` — TO BE CONFIRMED (none is stated in the source, none is guessed); (b) treatment if PQ0 rates sit outside the low-rate regime of the 2020:Q2–2021:Q4 estimation window (minor; no rule confirmed). These are the only remaining gaps recorded in the YAML.
 
 ## 10. Fed-stated assumptions and limitations
 
@@ -134,7 +136,8 @@ Board questions on this component: A189 (overall approach), A190 (modeling subde
 
 ## 11. Validation requirements ([CODE] — non-normative; no invented fallbacks, failures surface)
 
-- **Input presence:** Schedule G items 44C, 46, 47 all present per firm; BHCK2309, BHDM4062, BHDMC699 present; α_b present per firm (missing α_b blocks the firm, never defaults to zero).
+- **Input presence:** Schedule G items 36C, 38, 39 [PID-OB-2] all present per firm; BHCK2309, BHDM4062, BHDMC699 present; PQ0 actual expense present for the backsolve; α_b present per firm (missing α_b blocks the firm, never defaults to zero).
+- **BBB input gate [PID-OB-4]:** before first use, confirm the four §3.2 items (MEV column name; yield vs. spread; any Treasury-yield addition; unit scale). A spread series must never be passed where Eq A53 expects the BBB corporate bond yield.
 - **Balance sanity:** B(b,0) > 0 — zero or negative totals fail (zero also breaks the share denominators).
 - **Shares:** `ob_cp_share_launchpoint` and `ob_subdebt_share_launchpoint` each ∈ [0,1]; their **sum ≤ 1**; violations surface (possible under the mixed Y-9C/Schedule G form — OQ-OB-A), never clipped.
 - **Scenario paths:** `usd_3m_treasury` and `bbb_corporate_yield` complete for q = 1…9 (plus PQ0 for the backsolve) — full nine-quarter alignment per scenario, no gaps.
@@ -149,11 +152,13 @@ Board questions on this component: A189 (overall approach), A190 (modeling subde
 
 ## 13. Remaining implementation questions
 
-- **OQ-009 — OPEN (narrowed).** Backsolve identity confirmed (PID-OB-1, §9); still open: actuals quarter(s), physical source of R_actual(b,0), low-rate-regime mismatch treatment.
+- **OQ-009 — OPEN (further narrowed).** Identity (PID-OB-1) and single-PQ0-quarter actuals mechanics (PID-OB-3) confirmed (§9); still open: the physical line item for the PQ0 actual expense; low-rate-regime mismatch treatment (minor).
+- **MATERIAL implementation item — BBB physical input [PID-OB-4, §3.2].** Confirm (1) the exact MEV column name; (2) whether the workbook quantity is a yield or a spread; (3) any Treasury-yield addition; (4) the unit scale (decimal / percentage points / bp). β1 = 0.254 is unchanged regardless.
+- **Balance item-number tension [PID-OB-2, §3.1].** The source states items 44C/46/47; the user-confirmed physical mapping is 36C + 38 + 39 — the mapping governs for implementation; the tension is recorded, not resolved.
 - **OQ-005 — OPEN.** Hedge-adjustment allocation (§12).
 - **OQ-006 — RESOLVED FOR PROJECT IMPLEMENTATION (D-004).** ÷4 convention applied in §8; source-side absence preserved.
 - **Proposed OQ-OB-A (review file; number assigned at integration).** Share-denominator physical form: Y-9C numerators over a Schedule G total is the literal mixed reading; projection-side source form unstated.
-- **Flagged working assumption (not a PID):** MEV column names for the 3-month Treasury and BBB corporate bond yield per the PID-5 workbook pattern.
+- **Flagged working assumption (not a PID):** MEV column name for the 3-month Treasury per the PID-5 workbook pattern (the BBB input is now governed by PID-OB-4 above).
 
 ## 14. Key source references
 
@@ -171,4 +176,4 @@ Board questions on this component: A189 (overall approach), A190 (modeling subde
 | Current subordinated-debt structural model (comparison only) — Eq A28, swap adjustment, Question A134 | (PDF pp. 153–159; md sec-136–139) |
 | Hedge adjustment (v.c) | (PDF pp. 220–223; md sec-210–212) |
 | Nine-quarter horizon; PPNR identity (Eq A1) | (PDF pp. 6–8; md sec-2) |
-| D-002, D-004, D-005 conventions; PID-OB-1 confirmation | `handbook/open-questions.md` decision log; user confirmation 2026-07-17 (§9) |
+| D-002, D-004, D-005 conventions; PID-OB-1…PID-OB-4 confirmations | `handbook/open-questions.md` decision log; user confirmations 2026-07-17 (§3.1, §3.2, §9) |
