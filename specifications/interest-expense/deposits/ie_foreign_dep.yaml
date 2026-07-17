@@ -1,147 +1,198 @@
-# Structured model specification — ie_foreign_dep
-# Interest Expense on Foreign Deposits (proposed 2026 PPNR suite)
+# Coding-oriented specification — ie_foreign_dep (Phase 1; no production code).
+# Interest Expense on Foreign Deposits (proposed 2026 PPNR suite).
 # STATUS: PROPOSED for the 2026 stress test (public comment) — NOT adopted.
-# Labels: FACT = Fed source statement (cited); INT = interpretation; PID = user-confirmed
-# project decision; CODE = coding consideration; OQ = open question. Nothing labeled
-# INT/PID/CODE is attributable to the Federal Reserve. No MDRM codes are known; none invented.
+# Labels: FACT = Fed source-stated (cited); INT = interpretation; PID = user-confirmed project
+# decision (never a Fed statement); CODE = coding consideration; UNKNOWN = not stated anywhere
+# authoritative — never defaulted. No MDRM codes are known for this component; none invented.
+# Citations: (PDF p. N; md sec-M).
+# Standardized to specifications/model-spec-guidelines.md at the liability-side integration gate 2026-07-17.
 
 model:
   id: ie_foreign_dep
   fed_name: "Interest Expense on Foreign Deposits"
-  fed_section: "B.v.a(9)"
-  source: "PDF pp. 215-216; md sec-201..204; framework by reference from B.v.a(8), PDF pp. 211-214; md sec-197..199"
-  table_a6_type: Structural            # FACT (PDF pp. 168-169)
+  fed_section: B.v.a(9)
+  source_pages_pdf: [215, 216]
+  source_anchors_md: [sec-201, sec-204]
+  model_type: structural                # FACT — Table A6 (PDF pp. 168-169)
+  model_form: two_regime_deposit_beta   # Equations A45-A47 applied with foreign line items
+  reuses: "Equations A45-A47 of ie_other_dom_dep, 'identical ... with the exception' of line items
+    (FACT, PDF p. 215; framework by reference from B.v.a(8), PDF pp. 211-214, sec-197..199)"
   side: interest_expense
-  status: proposed_2026_not_adopted
-  reuses: "Equations A45-A47 of ie_other_dom_dep, 'identical ... with the exception' of line items (FACT, PDF p. 215)"
-  estimation: none                     # FACT — structural; no regression coefficients, no firm fixed effects
+  status: proposed_2026_stress_test__public_comment__NOT_adopted
+  estimation: none                      # FACT — structural; no regression coefficients, no firm fixed effects
+  chapter: handbook/models/interest-expense/deposits/ie_foreign_dep.md
+  review: reviews/interest-expense/deposits/ie_foreign_dep.review.md
+  chapter_review_state: REVIEWED        # independent source-grounding review passed 2026-07-17 (source-faithful as drafted)
 
 dimensions:
   firm: b
-  subcomponent:                        # exists only before Eq A47 aggregation
-    - foreign_nontime                  # FACT items (PDF p. 215)
-    - foreign_time
-  scenario: s
-  quarter: "t = 1..9 (nine-quarter horizon, FACT PDF p. 6); PQ0 = launch point (source: lift-off / jump-off quarter)"
+  subcomponent:                         # exists only before Eq A47 aggregation
+    symbol: i
+    values: [foreign_nontime, foreign_time]   # FACT items (PDF p. 215)
+  time:
+    launchpoint_quarter: PQ0            # launch point (source: lift-off / jump-off quarter) (D-005)
+    projection_quarters: 9              # FACT (PDF p. 6)
+  output_grain: [firm, scenario, quarter]
 
 inputs:
-  firm_data:                           # all FR Y-14Q, Schedule G (FACT, PDF p. 215)
+  firm_data:                            # all FR Y-14Q, Schedule G (FACT, PDF p. 215)
     - name: foreign_nontime_rate_launchpoint
-      fed_item: "43A (foreign deposits)"          # FACT
-      dims: [b]
-      units: annualized_rate                       # PID (D-004); scale normalization: CODE
-      timing: "PQ0; seeds Eq A46 recursion"         # seed role: INT-c (source states no seed)
+      fed_item: "43A (foreign deposits)"           # FACT
+      dims: [firm]
+      units: annualized_rate            # PID D-004; scale normalization: CODE
+      timing: launchpoint
+      role: seeds the Eq A46 recursion  # seed role INT-c (source states no seed; OQ-018 analog)
     - name: foreign_time_rate_launchpoint
-      fed_item: "44B (foreign deposits-time)"      # FACT; NOTE 44B also names the repo balance
-      dims: [b]                                    # item in v.a(10) (PDF p. 217) — collision flag, OQ-NEW-1
+      fed_item: "44B (foreign deposits-time)"      # FACT; NOTE 44B is also named as the repo BALANCE item
+      dims: [firm]                                 # in v.a(10) (PDF p. 217) — line-item collision, OQ-019 / SQ-16
       units: annualized_rate
-      timing: "PQ0; seeds Eq A46 recursion"         # INT-c
+      timing: launchpoint
+      role: seeds the Eq A46 recursion  # INT-c
     - name: foreign_nontime_balance
       fed_item: "35A"                              # FACT
-      dims: [b]
+      dims: [firm]
       units: USD
-      timing: "PQ0; constant over horizon"          # INT-d (general constant-balance convention)
+      timing: launchpoint, held constant           # INT-d (general constant-balance convention)
+      role: A47 weight; expense-balance component (INT-a)
     - name: foreign_time_balance
       fed_item: "35B"                              # FACT
-      dims: [b]
+      dims: [firm]
       units: USD
-      timing: "PQ0; constant over horizon"          # INT-d
+      timing: launchpoint, held constant           # INT-d
+      role: A47 weight; expense-balance component (INT-a)
     - name: foreign_rate_history_elb
       fed_item: "43A / 44B, historical 2020:Q2-2021:Q4"   # window FACT (PDF p. 212, by reference); items INT
-      dims: [b, subcomponent, hist_quarter]
+      dims: [firm, subcomponent, history_quarter]
       units: annualized_rate
-      timing: "spread-estimation window only"
+      timing: spread-estimation window only (before PQ0)
+      role: Spread(i,b) estimation
     - name: foreign_beta_reported
-      fed_item: "83A, 83B, 84A, 84B"               # FACT items; (subcomponent, direction) mapping unstated
-      dims: [b, subcomponent, direction]           # INT-b: 83A/83B = nontime up/down, 84A/84B = time up/down
-      units: fraction                              # by ordering parallel — immaterial: model uses Table A7 medians
-      timing: "launch point; feeds median computation only, not projection"
-  scenario_data:
+      fed_item: "83A, 83B, 84A, 84B"               # FACT items; (subcomponent, direction) mapping unstated (OQ-020)
+      dims: [firm, subcomponent, direction]        # INT-b: 83A/83B = nontime up/down, 84A/84B = time up/down, by
+      units: fraction                              # ordering parallel with 79A-81B — immaterial: model uses Table A7 medians
+      timing: launchpoint
+      role: feeds the Board's median computation only, not projection
+  scenario:
     - name: usd_3m_treasury
-      fed_name: Treasury3m
-      dims: [s, quarter]
+      fed_name: 3-month Treasury yield (Treasury3m)
+      dims: [scenario, quarter]         # PQ0..PQ9; PQ0 value needed for delta at t=1 (INT-f)
       units: annualized_rate
-      timing: "PQ0..PQ9; PQ0 value needed for delta at t=1 (INT-f)"
-      physical_mapping: "MEV workbook, Date column + one column per MEV (PID-5 pattern); exact column name UNCONFIRMED"
+      enters_via: [regime_trigger_25bp, elb_rate_level_A45, quarterly_change_A46, first_elb_treasury3m]
+      physical_source: "MEV workbook, Date column + one column per MEV (PID-5 pattern); exact column name UNCONFIRMED"
 
 parameters:
   - name: beta_up
-    values: {foreign_nontime: 0.890, foreign_time: 1.000}   # FACT — Table A7 (PDF p. 219)
-    constant: true
+    kind: supplied                      # FACT — Table A7 (PDF p. 219)
+    values: {foreign_nontime: 0.890, foreign_time: 1.000}
+    dims: [subcomponent]
+    constant_over_horizon: true         # hard-code-vs-recompute at lift-off is OQ-021 (minor)
   - name: beta_down
-    values: {foreign_nontime: 0.790, foreign_time: 1.000}   # FACT — Table A7; SQ-1 down-row labels
-    constant: true
-  - name: elb_spread                                        # Spread(i,b)
-    derivation: "mean over 2020:Q2-2021:Q4 of (firm subcomponent rate - Treasury3m)"
-    # FACT method+window by reference (PDF p. 212); the source sentence elides the comparator
-    # ("average distance between the deposit rate paid by the firm during ...") — INT, quirk candidate
+    kind: supplied                      # FACT — Table A7; SQ-1 down-row labels
+    values: {foreign_nontime: 0.790, foreign_time: 1.000}
+    dims: [subcomponent]
+    constant_over_horizon: true
+  - name: elb_spread                    # Spread(i,b)
+    kind: estimated_from_firm_data      # FACT method+window by reference (PDF p. 212); values not published
+    definition: mean over 2020:Q2-2021:Q4 of (firm subcomponent rate - Treasury3m)
+      # the source sentence elides the comparator (SQ-15) — endpoint "and the 3-month Treasury yield"
+      # is INT from the A45 where-list; sign/averaging/missing-history mechanics are OQ-017
     values: UNKNOWN_until_computed_from_firm_history
-    dims: [b, subcomponent]
-    constant: true                                           # INT — no re-estimation mechanism stated
+    dims: [firm, subcomponent]
+    units: annualized_rate_spread
+    constant_over_horizon: true         # INT — no re-estimation mechanism stated
   - name: elb_threshold_bps
-    value: 25                                                # FACT (PDF p. 211)
+    kind: fixed
+    value: 25                           # FACT (PDF p. 211)
     boundary_case: "Treasury3m == 25bp unassigned (OQ-013); working branch: non-ELB (CODE)"
 
 equations:
   regime_test: "per quarter t: ELB if Treasury3m(t) < 25bp; non-ELB if > 25bp"   # FACT
-  A45_elb_rate:                                              # FACT (PDF p. 212), verified vs page image
+  A45_elb_rate:                         # FACT (PDF p. 212), verified vs page image
     formula: "Rate(i,b,t) = floor(i,b,t) = Treasury3m(t) + Spread(i,b)"
-  A46_non_elb_rate:                                          # FACT (PDF p. 213), verified
+  A46_non_elb_rate:                     # FACT (PDF p. 213), verified
     formula: "Rate(i,b,t) = max(Rate(i,b,t-1) + delta(i,t), assumed_floor(i,b))"
     delta: "delta(i,t) = max(dTreasury3m(t),0)*beta_up(i) + min(dTreasury3m(t),0)*beta_down(i)"
-    d_treasury3m: "Treasury3m(t) - Treasury3m(t-1)"          # INT-f: 'the change', difference form not spelled out
+    d_treasury3m: "Treasury3m(t) - Treasury3m(t-1)"          # INT-f: "the change", difference form not spelled out
     assumed_floor: "First_ELB_Treasury3m + Spread(i,b)"
     first_elb_treasury3m: "min(25bp, first scenario observation of Treasury3m below 25bp, if available)"  # FACT verbatim
-  A47_aggregation:                                           # FACT (PDF p. 213), verified
+  A47_aggregation:                      # FACT (PDF p. 213), verified
     formula: "Rate(b,t) = sum_i(Rate(i,b,t)*Balance(i,b,t)) / sum_i(Balance(i,b,t))"
     balance_note: "Balance(i,b,t) = Balance(i,b,PQ0), items 35A/35B (INT-d, constant-balance convention)"
+  expense:                              # FACT product form by reference (PDF p. 214); /4 is PID D-004
+    formula: "foreign_interest_expense[b,t] = (foreign_nontime_balance[b] + foreign_time_balance[b]) * Rate(b,t) / 4"
 
 initial_conditions:
   rate_seed: "Rate(i,b,0) = launch-point items 43A / 44B (INT-c; source names the rate items but not the seed role)"
   treasury_seed: "Treasury3m(PQ0) required for dTreasury3m at t=1 (INT-f)"
 
 balance_behavior:
-  convention: constant_balance                               # INT-d via general convention (PDF pp. 169-170, 218)
-  detail: "35A and 35B fixed at PQ0 for A47 weights and the expense balance; no growth, runoff, or FX translation (FACT: no exchange-rate effects, PDF p. 216)"
+  convention: constant_balance          # INT-d via general convention (PDF pp. 169-170, 218)
+  detail: "35A and 35B fixed at PQ0 for A47 weights and the expense balance; no growth, runoff, or FX
+    translation (FACT: no exchange-rate effects, PDF p. 216)"
+  varying_over_horizon: [usd_3m_treasury, regime classification, subcomponent rates, aggregate rate, foreign_interest_expense]
 
 constraints_and_floors:
-  - "ELB regime: rate set exactly to floor = Treasury3m + Spread (Eq A45) — FACT"
-  - "Non-ELB regime: rate floored at assumed_floor(i,b) (Eq A46) — FACT"
-  - "No cap, no non-negativity constraint beyond the assumed floor — FACT absence; negative rates possible if Spread < 0; log, do not clamp (CODE)"
+  elb_regime: rate set exactly to floor = Treasury3m + Spread (Eq A45)   # FACT — an equality, not a max()
+  non_elb_regime: rate floored at assumed_floor[i,b] (Eq A46)            # FACT
+  caps_or_nonnegativity: none beyond the assumed floor                   # FACT absence; negative rates possible
+                                                                         # if Spread < 0 — log, never clamp (CODE)
 
 quarterly_dollar_calculation:
-  formula: "Expense(b,t) = (Balance_35A(b) + Balance_35B(b)) * Rate(b,t) / 4"
-  expense_balance: "35A + 35B is a working assumption (INT-a); the source says 'average balance ... as reported in the FR Y-14Q' without naming an item (FACT absence, PDF p. 214 by reference)"
-  divide_by_four: "PID (D-004): annualized -> quarterly at the final step only; simple nominal quarterization; never attributed to the Fed (OQ-006 resolution)"
+  formula: "foreign_interest_expense[b,t] = (foreign_nontime_balance[b] + foreign_time_balance[b]) * Rate(b,t) / 4"
+  expense_balance: "35A + 35B is a working assumption (INT-a); the source says 'average balance ... as reported
+    in the FR Y-14Q' without naming an item (FACT absence, PDF p. 214 by reference)"
+  convention: PID D-004 — annualized rates throughout; divide by 4 only at the final expense step
+    (simple nominal quarterization, not compounding)
+  source_status: the Fed states no annual->quarterly conversion for this component (FACT absence, preserved; OQ-006 resolution)
 
-validations:                                                 # CODE — non-normative; no invented fallbacks
-  - missing_or_negative_launchpoint_rate_or_balance
-  - both_balances_zero_A47_division_by_zero
-  - missing_elb_window_history_spread_incomputable
-  - negative_spread_logged_not_clamped
-  - reproduce_table_a7_foreign_medians_from_83A_84B_when_available
-  - every_quarter_assigned_exactly_one_regime_log_25bp_hits   # OQ-013
-  - foreign_time_rate_tracks_dTreasury3m_one_for_one_non_elb  # betas = 1.000 sanity
+outputs:
+  - name: foreign_interest_expense
+    dims: [firm, scenario, quarter]
+    units: USD_per_quarter
+    description: quarterly dollar interest expense on foreign deposits
+
+validations:                            # CODE — non-normative; no invented fallbacks
+  - missing or negative launchpoint rate (43A, 44B) or balance (35A, 35B)
+  - both balances zero -> A47 division by zero
+  - missing ELB-window history -> Spread(i,b) incomputable (no Fed fallback stated)
+  - negative spread logged, not clamped (no non-negativity constraint exists beyond the assumed floor)
+  - reproduce Table A7 foreign medians (0.890/0.790/1.000/1.000) from items 83A-84B when available (needs the OQ-020 mapping)
+  - every quarter assigned exactly one regime; log Treasury3m == 25bp hits (OQ-013)
+  - foreign-time rate tracks dTreasury3m one-for-one in non-ELB periods (betas = 1.000 sanity)
 
 dependencies:
-  upstream_models: none                                       # FACT — shared inputs only
+  upstream_models: none                 # FACT — shared inputs only
   methodology: "A45-A47 by reference from ie_other_dom_dep; final-rule changes there propagate here"
   parameters_shared: "Table A7 with ie_other_dom_dep (SQ-2 caption)"
-  hedge_interface: "no hedge term in-model (FACT absence); cross-cutting v.c adjustment (Eqs A49-A51, contingent on proposed FR Y-14Q B.2/B.3) may apply later; allocation unresolved (OQ-005)"
+  hedge_interface: "no hedge term in-model (FACT absence); cross-cutting v.c adjustment (Eqs A49-A51,
+    contingent on proposed FR Y-14Q B.2/B.3) may apply later; allocation unresolved (OQ-005)"
+
+project_decisions:                      # user-confirmed; never attributable to the Federal Reserve; registry in handbook/open-questions.md
+  - {id: D-004, scope: project_wide, summary: annualized rates; /4 only at the final quarterly-dollar step}
+  - {id: D-005, scope: project_wide, summary: launch point (PQ0) terminology; source words preserved in quotes}
+  # No foreign-deposit-specific PID exists yet. Candidate PIDs awaiting user confirmation (chapter §9):
+  # (a) expense balance = 35A + 35B (INT-a); (b) beta-item mapping (INT-b / OQ-020); (c) recursion
+  # seeds = launch-point 43A/44B (INT-c); (d) spread comparator (OQ-017); (e) = 25bp branch (OQ-013).
 
 open_questions:
-  - {id: OQ-005, status: OPEN, topic: hedge-adjustment allocation}
-  - {id: OQ-006, status: RESOLVED_D-004, topic: annualized units and final-step /4}
-  - {id: OQ-013, status: OPEN_minor, topic: "Treasury3m == 25bp regime boundary"}
-  - {id: OQ-NEW-1_proposed, status: proposed_in_review_file, topic: "item 44B collision: foreign-time rate (p. 215) vs repo balance (p. 217)"}
-  - {id: OQ-NEW-2_proposed, status: proposed_in_review_file, topic: "Spread sentence elides comparator; beta item->subcomponent mapping unstated (INT-b)"}
+  open:
+    - {id: OQ-005, topic: hedge-adjustment allocation across components}
+    - {id: OQ-013, topic: "Treasury3m == 25bp regime boundary (minor)"}
+    - {id: OQ-017, topic: "spread estimation mechanics (SQ-15 truncated sentence; sign; averaging; missing history) — shared with ie_other_dom_dep"}
+    - {id: OQ-018, topic: "recursion seed timing at t=1 (INT-c / INT-f) — shared with ie_other_dom_dep"}
+    - {id: OQ-019, topic: "item 44B collision: foreign-time rate (p. 215) vs repo balance (p. 217) — SQ-16; resolve against Schedule G instructions in the coding phase"}
+    - {id: OQ-020, topic: "beta item -> (subcomponent, direction) mapping unstated (INT-b; minor, validation only)"}
+    - {id: OQ-021, topic: "hard-code Table A7 medians vs recompute at lift-off (minor)"}
+  resolved_for_project:
+    - {id: OQ-006, via: D-004, topic: annualized units; final-step /4}
 
 source_references:
-  - "PDF p. 215; md sec-201..202 — component proposal; line items 43A/44B, 35A/35B, 83A-84B"
-  - "PDF pp. 211-214; md sec-197..199 — Eqs A45-A47, ELB definition, spread window, expense step (by reference)"
-  - "PDF pp. 215-216; md sec-203 — assumptions: one model for time/non-time; 3M-Treasury re-origination; no FX"
-  - "PDF p. 216; md sec-204 — Question A179"
-  - "PDF p. 219; md sec-209 — Table A7 foreign betas (SQ-1/SQ-2)"
-  - "PDF pp. 168-169, 172-173; md sec-148..149 — Table A6 row; structural, no estimation"
-  - "PDF pp. 6-8; md sec-2 — nine-quarter horizon; PPNR identity"
-  - "handbook/open-questions.md — decisions D-004 (units), D-002 n/a (no fixed effects)"
+  - {claim: component proposal + Y-9C equivalence + smaller impact, pdf_page: 215, md: sec-201}
+  - {claim: "'identical ... with the exception' clause + items 43A/44B, 35A/35B, 83A-84B", pdf_page: 215, md: sec-202}
+  - {claim: Eqs A45-A47 + ELB definition + spread window + expense step (by reference), pdf_page: 211-214, md: sec-197-199}
+  - {claim: assumptions — one model for time and non-time; 3M-Treasury re-origination; no FX effects, pdf_page: 215-216, md: sec-203}
+  - {claim: Question A179, pdf_page: 216, md: sec-204}
+  - {claim: Table A7 foreign betas (SQ-1/SQ-2), pdf_page: 219, md: sec-209}
+  - {claim: Table A6 row; structural, no estimation, pdf_page: 168-169 and 172-173, md: sec-148-149}
+  - {claim: nine-quarter horizon; PPNR identity, pdf_page: 6-8, md: sec-2}
+  - {claim: 44B as repo balance item in v.a(10) (collision flag), pdf_page: 217, md: sec-205}

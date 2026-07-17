@@ -2,8 +2,8 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Source: Section B.v.a(8) (PDF pp. 211–215; md sec-197–200). Model type per Table A6: **Structural** (PDF pp. 168–169; md sec-148).
-> Integrity flags affecting this chapter: SQ-1 (Table A7 Down-row labels are internal parameter names), SQ-2 (Table A7 caption cites "(Equations A46)"), SQ-9 (Eq A45 where-list "indicats"), SQ-12 (two consecutive "A third assumption" labels, PDF p. 214); candidate new source quirk — truncated spread-estimation sentence (PDF p. 212) — proposed as SQ-15 in `reviews/interest-expense/deposits/ie_other_dom_dep.review.md`. December 2025 revision item 5 applies to p. 214 ("end of quarter" → "average"; "FR Y-9C" → "FR Y-14Q"; subsection (a.) → (b); "contradicts" → "abstracts from"; PDF pp. 4–5; md sec-0). Conversion artifacts in v.a(8): none.
-> Chapter review state: **DRAFT** — independent source-grounding review recorded in `reviews/interest-expense/deposits/ie_other_dom_dep.review.md`. Approved content is never silently overwritten.
+> Integrity flags affecting this chapter: SQ-1 (Table A7 Down-row labels are internal parameter names), SQ-2 (Table A7 caption cites "(Equations A46)"), SQ-9 (Eq A45 where-list "indicats"), SQ-12 (two consecutive "A third assumption" labels, PDF p. 214); source quirk **SQ-15** — truncated spread-estimation sentence (PDF p. 212; raised in `reviews/interest-expense/deposits/ie_other_dom_dep.review.md`, filed in `inventory/source-integrity-review.md` §8 at integration, 2026-07-17). December 2025 revision item 5 applies to p. 214 ("end of quarter" → "average"; "FR Y-9C" → "FR Y-14Q"; subsection (a.) → (b); "contradicts" → "abstracts from"; PDF pp. 4–5; md sec-0). Conversion artifacts in v.a(8): none.
+> Chapter review state: **REVIEWED** — independent source-grounding review passed 2026-07-17 with no corrections required (`reviews/interest-expense/deposits/ie_other_dom_dep.review.md`). Specification: `specifications/interest-expense/deposits/ie_other_dom_dep.yaml`. Approved content is never silently overwritten.
 > Labels: **[FACT]** Fed source, cited · **[INT]** interpretation with stated basis · **[CODE]** coding consideration, non-normative · **[OQ]** open question by ID · **[PID]** PROJECT IMPLEMENTATION DECISION — user-confirmed, never attributable to the Federal Reserve · **[ALT]** alternative discussed by the Fed but not proposed. Citations: (PDF p. N; md sec-M).
 
 ## 1. Status and purpose
@@ -153,9 +153,10 @@ All [FACT] (PDF p. 214; md sec-199), restated faithfully:
 - **OQ-005 — OPEN.** Hedge-adjustment allocation across components (§11).
 - **OQ-006 — RESOLVED FOR PROJECT IMPLEMENTATION (D-004).** ÷4 convention applied in §7; the source-side absence is preserved.
 - **OQ-013 — OPEN (minor).** Treasury3m = 25 bp boundary unassigned; branch choice is a documented [CODE] decision.
-- **OQ-016 — RESOLVED FOR PROJECT IMPLEMENTATION before filing (2026-07-17).** Balance mappings user-confirmed as PID-ODD-1 (items 34B/34C/34D) and PID-ODD-2 (MDRM sum BHCB3187 + BHOD3187 + BHCB2389 + BHOD2389); the source-side absence of named items remains a preserved [FACT]. Integration session: record both PIDs in the `open-questions.md` decision log.
-- **Proposed OQ-017 (review file).** Spread estimation mechanics: truncated source sentence (candidate SQ-15); sign convention (signed vs. absolute distance); averaging frequency; treatment of firms without 2020:Q2–2021:Q4 history.
-- **Proposed OQ-018 (review file).** Seed timing: Rate(i,b,0) as the t = 1 lag and the jump-off Treasury3m in ΔTreasury3m(1) are [INT], not source-stated.
+- **OQ-016 — RESOLVED FOR PROJECT IMPLEMENTATION (2026-07-17).** Balance mappings user-confirmed as PID-ODD-1 (items 34B/34C/34D) and PID-ODD-2 (MDRM sum BHCB3187 + BHOD3187 + BHCB2389 + BHOD2389); the source-side absence of named items remains a preserved [FACT]. Both PIDs recorded in the `handbook/open-questions.md` decision-log PID registry (integration, 2026-07-17).
+- **OQ-017 — OPEN (filed at integration, 2026-07-17).** Spread estimation mechanics: truncated source sentence (SQ-15); sign convention (signed vs. absolute distance); averaging frequency; treatment of firms without 2020:Q2–2021:Q4 history. Shared with `ie_foreign_dep` (by-reference framework).
+- **OQ-018 — OPEN (filed at integration, 2026-07-17).** Seed timing: Rate(i,b,0) as the t = 1 lag and the jump-off Treasury3m in ΔTreasury3m(1) are [INT], not source-stated. Shared with `ie_foreign_dep`.
+- **OQ-021 — OPEN (minor; filed at integration, 2026-07-17).** Whether an implementation hard-codes the published Table A7 medians or recomputes firm-reported-beta medians at lift-off — shared with `ie_foreign_dep`.
 
 ## 13. Key source references
 

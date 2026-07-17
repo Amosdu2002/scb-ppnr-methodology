@@ -1,0 +1,172 @@
+# Coding-oriented specification — ie_dom_time_dep — Phase 1; no production code.
+# Interest Expense on Domestic Time Deposits (proposed 2026 PPNR suite).
+# STATUS: PROPOSED for the 2026 stress test (public comment) — NOT adopted.
+# Created at the liability-side integration gate 2026-07-17 as a mechanical translation of the
+# REVIEWED chapter handbook/models/interest-expense/deposits/ie_dom_time_dep.md and the approved
+# source brief research/source-briefs/interest-expense/deposits/ie_dom_time_dep.source-brief.md —
+# no new methodology introduced here.
+# Labels: FACT = Fed source-stated (cited); INT = interpretation; PID = user-confirmed project
+# decision (never a Fed statement); CODE = coding consideration; UNKNOWN = not stated anywhere
+# authoritative — never defaulted. Citations: (PDF p. N; md sec-M).
+
+model:
+  id: ie_dom_time_dep
+  fed_name: "Interest Expense on Domestic Time Deposits"
+  fed_section: B.v.a(7)
+  source_pages_pdf: [209, 211]
+  source_anchors_md: [sec-193, sec-196]
+  model_type: structural                # FACT — Table A6 (PDF pp. 168-169)
+  model_form: wal_repricing_recursion   # Equation A44 partial-adjustment recursion on the reported rate
+  side: interest_expense
+  status: proposed_2026_stress_test__public_comment__NOT_adopted
+  estimation: none                      # FACT — proposed structural models "avoid statistical estimation" (PDF pp. 172-173)
+  chapter: handbook/models/interest-expense/deposits/ie_dom_time_dep.md
+  review: null                          # MISSING — the Step 5 review ran 2026-07-17 (chapter banner; brief) but no
+                                        # report file was preserved; follow-up focused review flagged at the
+                                        # liability-side integration gate (see reviews/interest-expense/liability-side-integration.review.md)
+  chapter_review_state: REVIEWED
+
+dimensions:
+  firm: b
+  time:
+    launchpoint_quarter: PQ0            # launch point (source: jump-off / lift-off quarter) = last quarter before the projection horizon (D-005)
+    projection_quarters: 9              # FACT (PDF p. 6)
+  output_grain: [firm, scenario, quarter]
+  no_subcomponent_dimension: true       # FACT absence — one aggregate portfolio, one rate path, one balance (PDF pp. 209-210)
+
+inputs:
+  firm_data:
+    - name: domestic_time_deposit_rate_launchpoint    # Rate(b,0)
+      fed_item: {schedule: FR Y-14Q Schedule G, item: 42E, label: Time Deposits}   # FACT (PDF p. 209)
+      dims: [firm]
+      units: annualized_rate            # PID-6 / D-004; percent-vs-decimal scale metadata-driven (CODE)
+      timing: launchpoint
+      role: average rate in the jump-off quarter; used once as the Equation A44 recursion seed
+    - name: domestic_time_deposit_wal_months          # WAL_b
+      fed_item: {schedule: FR Y-14Q Schedule G, item: 71, label: "Domestic Deposits - Time"}   # FACT (PDF p. 209)
+      dims: [firm]
+      units: months                     # PID-3 — unit not stated in the PPNR source (FACT absence; OQ-008 resolution)
+      timing: launchpoint               # as-of quarter not stated; taken at PQ0 consistent with the other inputs (INT)
+      role: sole maturity input; feeds the repricing fraction
+    - name: domestic_time_deposit_balance
+      fed_item: UNKNOWN                 # FACT absence — "the average balance on domestic time deposits as reported in
+                                        # the FR Y-14Q", item not named (PDF p. 209; "average" per Dec 2025 revision, PDF pp. 4-5)
+      project_mapping:                  # PID-1, user-confirmed 2026-07-17 — project context, never a Fed statement
+        schedule: FR Y-14Q Schedule G
+        item: 34E
+      dims: [firm]
+      units: USD
+      timing: launchpoint, held constant    # PID-1 — launch-point average balance, flat for t = 1..9
+  scenario:
+    - name: usd_1y_treasury             # Treasury1y(t)
+      fed_name: 1-year Treasury yield   # FACT (PDF p. 209) — the model's only scenario input; the 3M Treasury is NOT used here
+      dims: [scenario, quarter]         # t = 1..9; no PQ0 value needed (the recursion seed is item 42E, not a scenario value)
+      units: annualized_rate
+      enters_via: Equation A44, weight rho_b, contemporaneous at each t
+      physical_source: MEV workbook per PID-5 — column named exactly "USD 1Y Treasury" (confirmed for this model)
+
+parameters:
+  - name: repricing_fraction_rho        # rho_b = 1/WAL_b
+    kind: derived_from_firm_data        # FACT — neither estimated nor published
+    derivation: rho_b = 1 / wal_quarters[b] = 3 / domestic_time_deposit_wal_months[b]   # PID-3/PID-4 months->quarters
+    dims: [firm]
+    units: fraction                     # per quarter
+    constant_over_horizon: true         # FACT — "remains constant throughout the projection" (PDF p. 209)
+  - name: estimated_coefficients_or_fixed_effects
+    kind: none                          # FACT — no statistical estimation (PDF pp. 172-173); D-002 backsolving does not apply
+  - name: deposit_betas_table_a7
+    kind: not_applicable                # FACT — Table A7 has no domestic-time row; it serves the Equations A45-A47 models
+                                        # (PDF p. 219; quirks SQ-1/SQ-2 recorded, never corrected)
+
+transformations:
+  wal_months_to_quarters:
+    formula: wal_quarters[b] = domestic_time_deposit_wal_months[b] / 3    # PID-3/PID-4 — named transform, never a hidden literal
+    units: quarters
+
+equations:
+  A44_rate_recursion:                   # FACT (PDF p. 209; md sec-194) — verified against the PDF page image (chapter review 2026-07-17)
+    formula: "Rate(b,t) = rho_b * Treasury1y(t) + (1 - rho_b) * Rate(b,t-1)"
+    coding_restatement: "dtd_rate[b,t] = rho_b * usd_1y_treasury[t] + (1 - rho_b) * dtd_rate[b,t-1], t = 1..9 in order"
+    where: rho_b = 1/WAL_b is the fraction of the portfolio repricing each quarter; Treasury1y(t) is the 1-year
+      Treasury yield at quarter t; the recursion runs entirely in annualized units — nothing divided by 4 inside it (PID-6)
+  expense:                              # FACT product form — "multiplying the modeled rate by the average balance ...
+                                        # as reported in the FR Y-14Q" (PDF p. 209); /4 is PID-6/D-004, never a Fed statement
+    formula: dtd_interest_expense[b,t] = domestic_time_deposit_balance[b] * dtd_rate[b,t] / 4
+
+initial_conditions:
+  rate_seed: dtd_rate[b,0] = domestic_time_deposit_rate_launchpoint (item 42E)    # FACT — jump-off average rate seeds t = 1
+  treasury_seed: none                   # no delta term exists; the scenario enters in levels only
+
+balance_behavior:
+  balance: constant at launchpoint item 34E value    # PID-1; general constant-balance convention (PDF pp. 169-170, 181-182, 207, 221) applied (INT)
+  composition: no composition dimension exists       # FACT absence — single aggregate portfolio
+  varying_over_horizon: [usd_1y_treasury, dtd_rate, dtd_interest_expense]
+
+constraints_and_floors:
+  all: none                             # FACT absence — no floor, cap, non-negativity constraint, or regime switch in v.a(7);
+                                        # contrast the assumed floor of v.a(8) (PDF pp. 211-213). Negative projected rates are
+                                        # possible only if the scenario path or item 42E is negative — log, never clamp (CODE)
+
+quarterly_dollar_calculation:
+  formula: dtd_interest_expense[b,t] = domestic_time_deposit_balance[b] * dtd_rate[b,t] / 4
+  convention: PID-6 / D-004 — annualized rates throughout; divide by 4 only at the final
+    quarterly-dollar step (simple nominal quarterization, not compounding)
+  source_status: the source states no annual->quarterly conversion for this component (FACT absence,
+    preserved; OQ-006 resolution); current-suite footnote 54 (subordinated debt) is a supporting
+    parallel only, never an attribution (PDF p. 155)
+
+outputs:
+  - name: dtd_interest_expense
+    dims: [firm, scenario, quarter]
+    units: USD_per_quarter
+    description: quarterly dollar interest expense on domestic time deposits
+  - name: dtd_rate                      # retained intermediate — chapter §2 keeps the rate path for traceability (CODE, not a Fed requirement)
+    dims: [firm, scenario, quarter]     # includes the t = 0 seed
+    units: annualized_rate
+
+validations:                            # CODE — non-normative; failures surface as errors, no invented fallbacks
+  - missing WAL (item 71); zero or negative WAL
+  - WAL implying rho outside (0, 1] — WAL_months < 3 gives rho > 1; very large WAL gives rho ~ 0 (thresholds configurable)
+  - missing starting rate (item 42E); missing balance (item 34E [PID-1])
+  - rate-scale normalization metadata-driven, identical for item 42E and the MEV series, before the recursion
+  - named transforms only — the /3 (months->quarters) and final-step /4 are documented, never hidden literals; the /4 is not configurable
+  - edge monitor — negative projected rates possible only from negative inputs (convex combination); log, never clamp
+  - pattern caveat — the recursion resembles but is NOT the v.a(8) Equation A46 mechanism (beta-scaled changes with a floor);
+    any shared implementation keeps the equations distinct and traceable
+
+dependencies:
+  upstream_models: none                 # FACT — shared inputs only (usd_1y_treasury; FR Y-14Q Schedule G)
+  shared_inputs: [usd_1y_treasury, FR Y-14Q Schedule G]
+  hedge_interface: exposes the expense path for the cross-cutting v.c adjustment (Eqs A49-A51,
+    contingent on the proposed FR Y-14Q B.2/B.3 collection; PDF pp. 220-223); no hedge term inside
+    this model (FACT absence); allocation across components unresolved (OQ-005)
+
+project_decisions:                      # user-confirmed 2026-07-17; never attributable to the Federal Reserve;
+                                        # registry in handbook/open-questions.md (PID-2 was superseded by D-005)
+  - {id: D-004, scope: project_wide, summary: annualized rates; /4 only at the final quarterly-dollar step}
+  - {id: D-005, scope: project_wide, summary: launch point (PQ0) terminology; source words preserved in quotes}
+  - {id: PID-1, summary: balance = Schedule G item 34E, launch-point value held flat ("34E" appears nowhere in the Fed source)}
+  - {id: PID-3, summary: item 71 WAL is reported in months}
+  - {id: PID-4, summary: wal_quarters = wal_months / 3; rho_b = 3 / wal_months}
+  - {id: PID-5, summary: scenario source = MEV workbook (Date column + one column per MEV); this model's column is "USD 1Y Treasury"}
+  - {id: PID-6, summary: dollar basis — D-004 applied to this component (expense = balance x rate / 4 at the final step only)}
+
+open_questions:
+  open:
+    - {id: OQ-005, topic: hedge-adjustment allocation across components}
+  resolved_for_project:
+    - {id: OQ-006, via: D-004/PID-6, topic: annualized units; final-step /4 (source-side absence preserved)}
+    - {id: OQ-008, via: PID-3/PID-4, topic: item 71 WAL unit = months (source-side absence preserved)}
+
+source_references:
+  - {claim: component name + structural proposal + dependent variable is a rate + expense = rate x average balance, pdf_page: 209, md: sec-193}
+  - {claim: Equation A44 + where-list + item 42E seed + item 71 WAL + rho constancy, pdf_page: 209, md: sec-194}
+  - {claim: assumptions — constant repricing share; 1Y re-origination pricing / no market power, pdf_page: 210, md: sec-195}
+  - {claim: limitation — no richer maturity structure; Call Report alternative discussed not proposed (ALT), pdf_page: 210-211, md: sec-195}
+  - {claim: Question A177 (SQ-4 intro quirk recorded), pdf_page: 211, md: sec-196}
+  - {claim: Table A6 row Domestic time deposits — Structural, pdf_page: 168-169, md: sec-148}
+  - {claim: ten-component list; Schedule G basis; "avoid statistical estimation", pdf_page: 172-173, md: sec-149}
+  - {claim: nine-quarter horizon; PPNR identity (Eq A1), pdf_page: 6-8, md: sec-2}
+  - {claim: Table A7 not applicable (no domestic-time row; SQ-1/SQ-2), pdf_page: 219, md: sec-209}
+  - {claim: hedge adjustment v.c (Eqs A49-A51; proposed B.2/B.3), pdf_page: 220-223, md: sec-210-212}
+  - {claim: "'average' balance wording per December 2025 revision", pdf_page: 4-5, md: sec-0}

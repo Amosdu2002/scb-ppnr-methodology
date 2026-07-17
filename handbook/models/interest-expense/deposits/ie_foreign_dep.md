@@ -2,8 +2,8 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Source: Section B.v.a(9) (PDF pp. 215–216; md sec-201–204), which incorporates the v.a(8) framework — Equations A45–A47 — **by reference** (PDF pp. 211–214; md sec-197–199). Model type per Table A6: **Structural** (PDF pp. 168–169; md sec-148).
-> Integrity flags: SQ-1/SQ-2 (Table A7 down-row labels and "(Equations A46)" caption, PDF p. 219); SQ-9 ("indicats", Eq A45) and SQ-12 (two "third assumption"s, PDF p. 214) in the referenced v.a(8) text. Conversion artifacts in v.a(9): none.
-> Chapter review state: **DRAFT** — see `reviews/interest-expense/deposits/ie_foreign_dep.review.md` for the independent PDF-grounding review.
+> Integrity flags: SQ-1/SQ-2 (Table A7 down-row labels and "(Equations A46)" caption, PDF p. 219); SQ-9 ("indicats", Eq A45), SQ-12 (two "third assumption"s, PDF p. 214), and SQ-15 (truncated spread-estimation sentence, PDF p. 212; filed 2026-07-17) in the referenced v.a(8) text. Conversion artifacts in v.a(9): none.
+> Chapter review state: **REVIEWED** — independent PDF-grounding review passed 2026-07-17, source-faithful as drafted (`reviews/interest-expense/deposits/ie_foreign_dep.review.md`). Specification: `specifications/interest-expense/deposits/ie_foreign_dep.yaml`.
 > Labels: **[FACT]** = FED FACT (cited); **[PID]** = PROJECT IMPLEMENTATION DECISION (user-confirmed, never attributable to the Fed); **[INT]** = INTERPRETATION (basis stated); **[CODE]** = CODING CONSIDERATION (non-normative); **[OQ]** = OPEN QUESTION (by ID); **[ALT]** = ALTERNATIVE DISCUSSED BUT NOT PROPOSED. Unknowns are written UNKNOWN.
 
 ## 1. Status and purpose
@@ -143,7 +143,11 @@ Inherited by reference from v.a(8) (PDF pp. 214; md sec-199): ELB = 25 bp thresh
 - **OQ-005 — OPEN.** Hedge-adjustment allocation across components (§11).
 - **OQ-006 — RESOLVED (D-004).** Annualized units; ÷4 at the final step only (§7).
 - **OQ-013 — OPEN (minor).** Treasury3m = 25 bp regime boundary unassigned; §6 step 5 records the working branch choice.
-- **NEW (proposed OQ, filed in the review file for the integration session):** item **44B** denotes the foreign-deposits–time *rate* (PDF p. 215) and the repo *balance* (PDF p. 217) — apparent line-item collision in the source; also the Spread-estimation sentence's elided comparator and the beta-item mapping [INT-b] (see `reviews/interest-expense/deposits/ie_foreign_dep.review.md` §4).
+- **OQ-017 — OPEN (shared with `ie_other_dom_dep`).** Spread-estimation mechanics, including the elided comparator of the truncated source sentence (SQ-15).
+- **OQ-018 — OPEN (shared with `ie_other_dom_dep`).** Recursion seed timing (INT-c / INT-f).
+- **OQ-019 — OPEN (filed at integration, 2026-07-17; quirk SQ-16).** Item **44B** denotes the foreign-deposits–time *rate* (PDF p. 215) while v.a(10) names it a *balance* (PDF p. 217) — line-item collision in the source; resolve against the FR Y-14Q Schedule G instructions in the coding phase (PID-FFR-1 indicates v.a(10)'s balance usage is the misname).
+- **OQ-020 — OPEN (minor; filed at integration, 2026-07-17).** Beta item → (subcomponent, direction) mapping [INT-b] — matters only for the Table A7 reproduction validation.
+- **OQ-021 — OPEN (minor; filed at integration, 2026-07-17).** Hard-code published Table A7 medians vs. recompute firm-reported-beta medians at lift-off — shared with `ie_other_dom_dep`.
 
 ## 13. Key source references
 

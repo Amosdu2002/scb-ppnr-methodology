@@ -1,115 +1,159 @@
-# Structured model specification — ie_fed_funds_repo
+# Coding-oriented specification — ie_fed_funds_repo (Phase 1; no production code).
 # Interest Expense on Federal Funds Purchased and Securities Sold under Agreements to Repurchase
-# (proposed 2026 PPNR suite)
+# (proposed 2026 PPNR suite).
 # STATUS: PROPOSED for the 2026 stress test (public comment) — NOT adopted.
-# Labels: FACT = Fed source statement (cited); INT = interpretation; PID = user-confirmed
-# project decision; CODE = coding consideration; OQ = open question. Nothing labeled
-# INT/PID/CODE is attributable to the Federal Reserve. No MDRM codes are known; none invented.
-# Source-integrity note: the Equation A48 TITLE in the PDF (p. 217) reads "...Securities Sold
-# under the Agreement to Purchase" — a typo; the correct component name uses "Repurchase".
+# Labels: FACT = Fed source-stated (cited); INT = interpretation; PID = user-confirmed project
+# decision (never a Fed statement); CODE = coding consideration; UNKNOWN = not stated anywhere
+# authoritative — never defaulted. No MDRM codes are stated in v.a(10); none invented.
+# Source-integrity notes: (1) the Equation A48 TITLE in the PDF (p. 217) reads "...Securities Sold
+# under the Agreement to Purchase" — quirk SQ-10; the component name uses "Repurchase". (2) v.a(10)
+# names Schedule G RATE items 44A/44B as "the liabilities reported" — quirk SQ-16; balances are
+# 36A/36B per PID-FFR-1. (3) The source's own headings vary: v.a(10) heading "under the Agreement to
+# Repurchase" (singular); Table A6 row and section prose "under agreements to repurchase" (plural).
+# Citations: (PDF p. N; md sec-M).
+# Standardized to specifications/model-spec-guidelines.md at the liability-side integration gate 2026-07-17.
 
 model:
   id: ie_fed_funds_repo
   fed_name: "Interest Expense on Federal Funds Purchased and Securities Sold under Agreements to Repurchase"
-  fed_section: "B.v.a(10)"
-  source: "PDF pp. 216-219; md sec-205..208"
-  table_a6_type: Structural            # FACT (PDF pp. 168-169)
+    # per the section prose (PDF p. 216) and Table A6 row; the v.a(10) heading itself prints
+    # "under the Agreement to Repurchase" (singular) — source-internal variant, recorded, not corrected
+  fed_section: B.v.a(10)
+  source_pages_pdf: [216, 219]
+  source_anchors_md: [sec-205, sec-208]
+  model_type: structural                # FACT — Table A6 (PDF pp. 168-169)
+  model_form: structural_calculator     # FACT — rate is the contemporaneous 3M Treasury, no transformation
   side: interest_expense
-  status: proposed_2026_not_adopted
-  model_form: structural_calculator    # FACT — rate is the contemporaneous 3M Treasury, no transformation
-  estimation: none                     # FACT — "it does not involve coefficients estimation" (PDF p. 218);
-                                       # no firm scalar, no deposit beta, no autoregression, no fixed effects
+  status: proposed_2026_stress_test__public_comment__NOT_adopted
+  estimation: none                      # FACT — "it does not involve coefficients estimation" (PDF p. 218);
+                                        # no firm scalar, no deposit beta, no autoregression, no fixed effects
+  chapter: handbook/models/interest-expense/funding/ie_fed_funds_repo.md
+  review: reviews/interest-expense/funding/ie_fed_funds_repo.review.md
+  chapter_review_state: REVIEWED        # independent source-grounding review 2026-07-17 — verdict APPROVE
 
 dimensions:
   firm: b
-  scenario: s
-  quarter: "q = 1..9 (nine-quarter horizon, FACT PDF p. 6); PQ0 = launch point (source: lift-off quarter q0)"
+  time:
+    launchpoint_quarter: PQ0            # launch point (source: "lift-off quarter" q0) (D-005)
+    projection_quarters: 9              # FACT (PDF p. 6)
+  output_grain: [firm, scenario, quarter]
+  no_subcomponent_dimension: true       # no dimension survives past the balance aggregation
 
 inputs:
-  firm_data:                           # FR Y-14Q, Schedule G, Net Interest Income Worksheet (FACT, PDF pp. 216-217)
+  firm_data:                            # FR Y-14Q, Schedule G, Net Interest Income Worksheet (FACT, PDF pp. 216-217)
     - name: fed_funds_purchased_balance
-      fed_item: "36A (federal funds purchased)"                    # PID-FFR-1 (user-confirmed 2026-07-17)
-      source_stated_item: "44A"                                    # FACT — source misnames the RATE item
-      dims: [b]                                                    # as the balance (SQ-candidate, review §3)
+      fed_item: "44A ('federal funds purchased') — source-stated as the balance (PDF pp. 216-217), but 44A
+        is a Schedule G liability RATE item (SQ-16)"       # FACT wording preserved; never used as the mapping
+      project_mapping:                  # PID-FFR-1, user-confirmed 2026-07-17 — never a Fed statement
+        schedule: FR Y-14Q Schedule G
+        item: 36A
+      dims: [firm]
       units: USD
-      timing: "PQ0; constant over horizon"                          # FACT flat-balance (PDF p. 218)
+      timing: launchpoint, held constant                   # FACT flat-balance (PDF p. 218)
+      role: component of the total balance B(b,0)
     - name: repo_sold_balance
-      fed_item: "36B (securities sold under agreements to repurchase)"  # PID-FFR-1
-      source_stated_item: "44B"                                    # FACT; NOTE 44B is also the
-      dims: [b]                                                    # foreign-deposits-time RATE item in
-      units: USD                                                   # v.a(9) (PDF p. 215) — collision flag,
-      timing: "PQ0; constant over horizon"                          # see ie_foreign_dep review §4
-  scenario_data:
+      fed_item: "44B ('securities sold under agreements to repurchase') — source-stated as the balance
+        (PDF p. 217), but 44B is the foreign-deposits-time RATE item in v.a(9) (PDF p. 215) —
+        collision OQ-019 / SQ-16"                          # FACT wording preserved
+      project_mapping:                  # PID-FFR-1
+        schedule: FR Y-14Q Schedule G
+        item: 36B
+      dims: [firm]
+      units: USD
+      timing: launchpoint, held constant
+      role: component of the total balance B(b,0)
+  scenario:
     - name: usd_3m_treasury
-      fed_name: Treasury3m
-      dims: [s, quarter]
-      units: annualized_rate            # PID (D-004); scale normalization percent-vs-decimal: CODE
-      timing: "q = 1..9 only; no PQ0 value needed (no recursion, no delta)"
-      physical_mapping: "MEV workbook column name UNCONFIRMED — implementation-mapping TODO (CODE), not a methodology uncertainty"
+      fed_name: 3-month Treasury yield (Treasury3m)        # FACT role (PDF p. 217) — the model rate itself
+      dims: [scenario, quarter]
+      units: annualized_rate            # PID D-004; percent-vs-decimal scale normalization: CODE
+      timing: q = 1..9 only; no PQ0 value needed (no recursion, no delta)
+      enters_via: used directly as the rate — unscaled, untransformed, unlagged
+      physical_source: MEV workbook per PID-5 pattern; column name UNCONFIRMED — implementation-mapping TODO (CODE), not a methodology uncertainty
 
 parameters: none                        # FACT — no beta, scalar, spread, floor, or threshold;
                                         # Tables A7-A9 contain no row for this component
 
-balance_aggregation:
-  formula: "Balance(b,0) = fed_funds_purchased_balance(b) + repo_sold_balance(b)"   # = 36A + 36B
-  label: "PID-FFR-1 (user-confirmed 2026-07-17) — balance items are 36A/36B; the source-stated
-    44A/44B (PDF pp. 216-217) are Schedule G liability RATE items (v.a(9) itself uses 44B as the
-    foreign-time rate and 35-series for balances, PDF p. 215). Sum follows 'Let B_b be the total
-    balance' (PDF p. 217)"
-
-balance_behavior:
-  convention: constant_balance          # FACT (PDF p. 218): "B(b,q) = B(b,q0) for all periods"
-  detail: "Balance(b,q) = Balance(b,0) for q = 1..9; measured once at the launch point; no growth or runoff"
+transformations:
+  balance_aggregation:                  # PID-FFR-1 (user-confirmed 2026-07-17)
+    formula: "Balance(b,0) = fed_funds_purchased_balance(b) + repo_sold_balance(b)"   # = 36A + 36B
+    note: "the explicit sum is not written in the source; 'Let B_b be the total balance' (PDF p. 217)
+      supports it. The source-stated 44A/44B are rate items (SQ-16); v.a(9) itself uses 44B as the
+      foreign-time rate and 35-series items for balances (PDF p. 215)"
 
 equations:
   A48_expense:                          # FACT (PDF p. 217), verified against the page image
-    source_title_verbatim: "Equation A48 - Interest Expense on Federal Funds Purchased and Securities Sold under the Agreement to Purchase"   # typo preserved as integrity note only
+    source_title_verbatim: "Equation A48 - Interest Expense on Federal Funds Purchased and Securities Sold under the Agreement to Purchase"   # SQ-10, preserved as integrity note only
     formula: "F(b,t) = B(b,t) * Treasury3m(t)"
     projection_form: "F(b,q) = B(b,q) * Treasury3m(q)"
     rate_definition: "Treasury3m is the 3-month Treasury yield for quarter t (FACT verbatim);
       used directly — no spread, no scaling, no lag (FACT: no other term appears in A48)"
   rate_assignment:
-    formula: "AnnualizedRate(q) = usd_3m_treasury[q]"               # FACT role; annualized units (PID D-004)
+    formula: "AnnualizedRate(q) = usd_3m_treasury[q]"      # FACT role; annualized units (PID D-004)
     note: "do NOT divide the Treasury rate before this assignment (PID D-004)"
+
+initial_conditions: none                # no recursion, no delta, no seed — the only PQ0 quantity is the balance
+
+balance_behavior:
+  convention: constant_balance          # FACT (PDF p. 218): "B(b,q) = B(b,q0) for all periods"
+  detail: "Balance(b,q) = Balance(b,0) for q = 1..9; measured once at the launch point; no growth or runoff"
+  varying_over_horizon: [usd_3m_treasury, fed_funds_repo_interest_expense]
+
+constraints_and_floors:
+  all: none                             # FACT absence — no floor, cap, or regime; a negative Treasury3m flips
+                                        # the expense sign (arithmetically valid under A48) — log, never clamp (CODE)
 
 quarterly_dollar_calculation:
   formula: "QuarterlyExpense(b,q) = Balance(b,0) * AnnualizedRate(q) / 4"
-  divide_by_four: "PID (D-004): annualized -> quarterly at the final step only; simple nominal
-    quarterization; never attributed to the Fed — the source states no conversion for this
-    component (FACT absence; OQ-006 resolution)"
+  convention: PID D-004 — annualized rates throughout; divide by 4 only at the final expense step
+    (simple nominal quarterization, not compounding)
+  source_status: the source states no annual->quarterly conversion for this component (FACT absence,
+    preserved; OQ-006 resolution)
+
+outputs:
+  - name: fed_funds_repo_interest_expense
+    dims: [firm, scenario, quarter]
+    units: USD_per_quarter
+    description: quarterly dollar interest expense on federal funds purchased and repo
 
 validations:                            # CODE — non-normative; no invented fallbacks
-  - missing_or_negative_launchpoint_balance_36A_or_36B
-  - launchpoint_crosscheck_implied_expense_vs_reported_rate_items_44A_44B   # flags item-mapping/scale errors
-  - both_balances_zero_expense_identically_zero_log_reporting_gap
-  - usd_3m_treasury_present_all_quarters_all_scenarios
-  - negative_treasury_rate_logged_expense_sign_flips_arithmetically_valid
-  - rate_scale_sanity_annualized_decimal_range
-  - flat_balance_invariant_balance_identical_all_quarters
-  - linearity_invariant_expense_proportional_to_treasury_path
+  - missing or negative launchpoint balance in 36A or 36B [PID-FFR-1]
+  - launchpoint cross-check — implied expense (36A+36B) x Treasury3m(PQ0) / 4 vs reported rate items 44A/44B x balances (flags item-mapping or scale errors)
+  - both balances zero -> expense identically zero (log; likely a reporting gap)
+  - usd_3m_treasury present for all q = 1..9 in every scenario
+  - negative Treasury rate logged (expense sign flips; arithmetically valid)
+  - rate-scale sanity — annualized decimal in a plausible range to catch percent/decimal errors
+  - flat-balance invariant — balance identical for all q
+  - linearity invariant — expense path exactly proportional to the scenario Treasury3m path (any deviation is a coding error)
 
 dependencies:
   upstream_models: none                 # FACT — shared inputs only (usd_3m_treasury; FR Y-14Q Schedule G)
   current_model_separation: "current Eq A27 (PDF pp. 149-152) uses a firm-specific launch-point
     scalar k_b on FR Y-9C balances; the proposed A48 model has NO scalar — the two must not be mixed"
-  hedge_interface: "no hedge term in-model (FACT absence); cross-cutting v.c adjustment
-    (Eqs A49-A51, contingent on proposed FR Y-14Q B.2/B.3) may apply later; allocation unresolved (OQ-005)"
+  asset_side_note: "the approach is equivalent to the asset-side fed-funds-sold treatment, whose
+    positions are subsumed within other interest/dividend-bearing assets (FACT, PDF p. 217)"
+  hedge_interface: "no hedge term in-model (FACT absence); cross-cutting v.c adjustment (Eqs A49-A51,
+    contingent on proposed FR Y-14Q B.2/B.3) may apply later; allocation unresolved (OQ-005)"
+
+project_decisions:                      # user-confirmed; never attributable to the Federal Reserve; registry in handbook/open-questions.md
+  - {id: D-004, scope: project_wide, summary: annualized rates; /4 only at the final quarterly-dollar step}
+  - {id: D-005, scope: project_wide, summary: launch point (PQ0) terminology; source words preserved in quotes}
+  - {id: PID-FFR-1, summary: balance items = 36A + 36B; source-stated 44A/44B are Schedule G rate items (SQ-16), never used as balances}
 
 open_questions:
-  - {id: OQ-005, status: OPEN, topic: hedge-adjustment allocation}
-  - {id: OQ-006, status: RESOLVED_D-004, topic: annualized units and final-step /4}
-  - {id: PID-FFR-1, status: user_confirmed_2026-07-17_file_in_decision_log_at_integration, topic: "balance items = 36A + 36B; source-stated 44A/44B are rate items"}
-  - {id: SQ-candidate, status: proposed_in_review_file, topic: "v.a(10) misnames rate items 44A/44B as 'the liabilities reported' (PDF pp. 216-217)"}
-  - {id: CODE-TODO, status: open_implementation_mapping, topic: "physical MEV column name for usd_3m_treasury (PID-5 pattern)"}
-  - {id: OQ-NEW-1_proposed, status: tracked_in_ie_foreign_dep_review, topic: "item 44B double use: foreign-time rate (p. 215) vs repo balance (p. 217)"}
+  open:
+    - {id: OQ-005, topic: hedge-adjustment allocation across components}
+    - {id: OQ-019, topic: "item 44B double use: foreign-time rate (p. 215) vs repo balance (p. 217) — SQ-16; resolve against Schedule G instructions in the coding phase"}
+  resolved_for_project:
+    - {id: OQ-006, via: D-004, topic: annualized units; final-step /4}
 
 source_references:
-  - "PDF pp. 216-217; md sec-205 — component proposal; short durations; source-stated balance items 44A/44B of the Schedule G NII Worksheet (corrected to 36A/36B by PID-FFR-1)"
-  - "PDF p. 217; md sec-206 — Equation A48 (title typo); Treasury3m definition; projection form; asset-side equivalence note"
-  - "PDF p. 218; md sec-206 — flat balance B(b,q) = B(b,q0) at lift-off"
-  - "PDF p. 218; md sec-207 — assumptions: 3M Treasury rate; special/rare collateral caveat; no-estimation rationale; gross/net reporting discretion"
-  - "PDF pp. 218-219; md sec-208 — Question A180"
-  - "PDF pp. 168-169; md sec-148 — Table A6 row (Structural)"
-  - "PDF pp. 4-5; md sec-0 — December 2025 revision: p. 216 'federal funds sold' -> 'federal funds purchased'"
-  - "PDF pp. 6-8; md sec-2 — nine-quarter horizon"
-  - "handbook/open-questions.md — decisions D-004 (units), D-005 (launch-point terminology)"
+  - {claim: component proposal + short durations + source-stated balance items 44A/44B of the Schedule G NII Worksheet (corrected to 36A/36B by PID-FFR-1), pdf_page: 216-217, md: sec-205}
+  - {claim: Equation A48 (title typo SQ-10) + Treasury3m definition + projection form + asset-side equivalence, pdf_page: 217, md: sec-206}
+  - {claim: flat balance B(b,q) = B(b,q0) at lift-off, pdf_page: 218, md: sec-206}
+  - {claim: assumptions — 3M Treasury rate; special/rare collateral caveat; no-estimation rationale; gross/net reporting discretion, pdf_page: 218, md: sec-207}
+  - {claim: Question A180, pdf_page: 218-219, md: sec-208}
+  - {claim: Table A6 row (Structural), pdf_page: 168-169, md: sec-148}
+  - {claim: "December 2025 revision: p. 216 'federal funds sold' -> 'federal funds purchased'", pdf_page: 4-5, md: sec-0}
+  - {claim: nine-quarter horizon, pdf_page: 6, md: sec-2}
+  - {claim: current model Eq A27 (comparison only; firm scalar k_b on FR Y-9C balances), pdf_page: 149-152, md: sec-132-134}
