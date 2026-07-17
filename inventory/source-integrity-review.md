@@ -134,12 +134,16 @@ The Markdown source file is read-only; none of these are corrected in place. App
 | SQ-12 | 214 | Two consecutive assumptions both labeled "A third assumption" | The second should be a fourth assumption |
 | SQ-13 | 231 | Subsection label "(a.) Variable Selection" follows "(a) Model Description" in v.d(2) | Labeling quirk (same "(a.)" style appears in current-suite iv.n(1), p. 162) |
 | SQ-14 | 2 vs. 167 | Page 2 says the Board "intends to use" this PPNR model in the 2026 test; Section v (p. 167) and the B intro (p. 6) say the Board "is proposing" the new suite and seeks public input on both suites | Per project rules, all deliverables state the Section v suite is **proposed, not adopted**; do not rely on the page 2 phrasing |
+| SQ-15 | 212 | "The firm-specific spread to the 3-month Treasury yield is empirically estimated as the average distance between the deposit rate paid by the firm during the most recent effective lower-bound period." — "between …" lacks its second endpoint | Omitted endpoint = "and the 3-month Treasury yield", per the sentence's own subject and the Eq A45 where-list (high confidence). Raised in the `ie_other_dom_dep`/`ie_foreign_dep` chapter reviews; filed at the liability-side integration gate 2026-07-17. See OQ-017 |
+| SQ-16 | 216–217 | v.a(10): "the liabilities reported in line items 44A ('federal funds purchased') and 44B ('securities sold under agreements to repurchase') of the Net Interest Income Worksheet of FR Y-14Q, Schedule G" — 44A/44B are Schedule G liability *rate* items | Balance items are 36A/36B per PID-FFR-1 (user-confirmed project mapping, never a Fed statement). Also fixes the direction of the 44B double use with v.a(9) (44B = foreign-deposits–time rate item, p. 215): v.a(10)'s balance usage is the misname. Filed 2026-07-17. See OQ-019 |
+| SQ-17 | 231 | Eq A53 where-list: "the sum of other short-term, borrowing, subordinated debt, and other interest-bearing liabilities" — comma inside "other short-term, borrowing", present in the PDF page image (not a conversion artifact) | Read as "other short-term borrowing" (line-break typo). Raised in the `ie_other_borrowing` chapter review; filed 2026-07-17 |
 
 ## 9. Verification coverage and residual items
 
 - **PDF pages visually verified (33):** 4–5, 167–169, 173–175, 181–184, 189–191, 193, 196, 201, 206–207, 209–217, 219–220, 222, 225–226, 230–231, 234–235.
 - **Verified in full:** every in-scope equation (A32–A53), every in-scope table (A6–A9), footnotes 61–66, all December-revision items within scope, the Section v start boundary (p. 167) and end boundary (v.f begins p. 235).
 - **Not verified (accepted residual):** current-suite sections B.i–iv beyond the heading census (BACKGROUND/COMPARISON use only — verify on demand when a chapter cites them); out-of-scope December-revision items (pp. 237, 240, 243, 251–255); footnotes 1–60 (outside scope).
+- **Chapter-review re-verification (2026-07-17):** pp. 209–219 and 230–234 re-read as page images during the five liability-side chapter reviews; no new conversion defects found; source quirks SQ-15–SQ-17 added at the liability-side integration gate. Two duplicate filings were prevented at integration: the Equation A48 title typo was already logged as SQ-10, and the md stray pipes at lines 4645–4646 were already logged as CA-2g/CA-2h.
 
 ## 10. Fitness conclusion
 

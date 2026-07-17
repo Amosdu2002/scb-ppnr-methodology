@@ -135,7 +135,7 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Component / side | Domestic time deposits — interest expense (Table A6: Structural) |
 | Model family | Deposit-rate framework (WAL repricing) |
 | Projects | Rate path per firm: `Rate(b,t) = ρ(b) × Treasury1y(t) + (1 − ρ(b)) × Rate(b,t−1)` — **Eq A44** (PDF p. 209); expense = modeled rate × **average** balance on domestic time deposits per FR Y-14Q ("average" per December 2025 revision) |
-| Firm data inputs | Initial rate: FR Y-14Q Schedule G line item 42E (Time Deposits), jump-off average rate; WAL: Schedule G line item 71 (Domestic Deposits – Time); average balances from FR Y-14Q |
+| Firm data inputs | Initial rate: FR Y-14Q Schedule G line item 42E (Time Deposits), jump-off average rate; WAL: Schedule G line item 71 (Domestic Deposits – Time); average balances from FR Y-14Q — item unnamed in source; project mapping: item 34E [PID-1, user-confirmed 2026-07-17] |
 | Scenario inputs | 1-year Treasury yield |
 | Parameters | ρ(b) ≡ 1/WAL(b), computed from firm data — constant over horizon; no estimated coefficients |
 | Launch-point inputs | Rate(b,0) = jump-off average rate (42E); WAL(b) |
@@ -143,7 +143,8 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Varies over horizon | Rate recursion with 1Y Treasury |
 | Assumptions (source-stated) | Constant repricing share; re-originations priced at 1Y Treasury (no market power); no contractual maturity structure (Call Report maturity-profile alternative discussed but not proposed, PDF pp. 210–211) |
 | Integrity flags | SQ-4 (Questions intro says "interest income") |
-| Open questions | OQ-006, OQ-008 |
+| Open questions | OQ-005 open; OQ-006, OQ-008 resolved for project implementation (D-004/PID-6; PID-3/PID-4) |
+| Artifacts (integration 2026-07-17) | Chapter `handbook/models/interest-expense/deposits/ie_dom_time_dep.md` — REVIEWED (review report artifact not preserved — follow-up focused review required); spec `specifications/interest-expense/deposits/ie_dom_time_dep.yaml` (created at integration); brief `research/source-briefs/interest-expense/deposits/ie_dom_time_dep.source-brief.md` |
 
 ## 8. `ie_other_dom_dep` — Interest Expense on Other Domestic Deposits
 
@@ -156,13 +157,14 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Regime 1 — effective lower bound (3M Treasury < 25 bp) | `Rate(i,b,t) = floor(i,b,t) = Treasury3m(t) + Spread(i,b)` — **Eq A45** (PDF p. 212). Spread(i,b) = firm/deposit-type average distance to 3M Treasury during the most recent ELB period, **2020:Q2–2021:Q4** |
 | Regime 2 — non-ELB (3M Treasury > 25 bp) | `Rate(i,b,t) = max(Rate(i,b,t−1) + δ(i,t), assumed_floor(i,b))` — **Eq A46** (PDF p. 213); δ(i,t) = max(ΔTreasury3m,0)·β_up(i) + min(ΔTreasury3m,0)·β_down(i); assumed_floor = First_ELB_Treasury3m + Spread(i,b), where First_ELB_Treasury3m = min(25 bp, first sub-25bp 3M Treasury observation in the scenario) |
 | Aggregation | Balance-weighted across subcomponents — **Eq A47** (PDF p. 213) |
-| Firm data inputs | Rates: Schedule G items 42B (MMA), 42C (Savings), 42D (Transaction); betas: items 79A/79B, 80A/80B, 81A/81B; balances per corresponding Y-14Q items; average balance for expense |
+| Firm data inputs | Rates: Schedule G items 42B (MMA), 42C (Savings), 42D (Transaction); betas: items 79A/79B, 80A/80B, 81A/81B; balances per corresponding Y-14Q items — unnamed in source, project mapping 34B/34C/34D [PID-ODD-1]; average balance for expense — project mapping MDRM sum BHCB3187 + BHOD3187 + BHCB2389 + BHOD2389 [PID-ODD-2] |
 | Scenario inputs | 3-month Treasury yield (level and change) |
 | Parameters | β_up/β_down per deposit type = **median of firm-reported betas at the launch point** — **Table A7** (PDF p. 219; supplied); Spread(i,b) estimated from 2020:Q2–2021:Q4 data |
 | Constant over horizon | Betas; spreads; balances |
 | Varies over horizon | Rate path; regime switching on the 3M Treasury path |
-| Integrity flags | SQ-1 (Table A7 down-row labels), SQ-2 (caption "(Equations A46)"), SQ-9, SQ-12 |
-| Open questions | OQ-006, OQ-013 |
+| Integrity flags | SQ-1 (Table A7 down-row labels), SQ-2 (caption "(Equations A46)"), SQ-9, SQ-12, SQ-15 (truncated spread sentence, p. 212) |
+| Open questions | OQ-005, OQ-013, OQ-017, OQ-018, OQ-021 open; OQ-006, OQ-016 resolved |
+| Artifacts (integration 2026-07-17) | Chapter `handbook/models/interest-expense/deposits/ie_other_dom_dep.md` — REVIEWED; spec `specifications/interest-expense/deposits/ie_other_dom_dep.yaml`; review `reviews/interest-expense/deposits/ie_other_dom_dep.review.md` (PASS, no corrections) |
 
 ## 9. `ie_foreign_dep` — Interest Expense on Foreign Deposits
 
@@ -174,20 +176,22 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Subcomponents | Foreign deposits (rate item 43A) and foreign deposits–time (rate item 44B); balances items 35A (non-time) and 35B (time); betas items 83A/83B, 84A/84B |
 | Parameters | Median betas — **Table A7**: foreign non-time up 0.890 / down 0.790; foreign time up 1.000 / down 1.000 |
 | Notable source-stated assumptions | Foreign time and non-time follow the same model (unlike domestic, where time deposits have their own model #7); re-originations priced at 3M Treasury (worldwide-recession scenario rationale); no exchange-rate effects (PDF p. 216) |
-| Open questions | OQ-006, OQ-013 |
+| Open questions | OQ-005, OQ-013, OQ-017, OQ-018, OQ-019, OQ-020, OQ-021 open; OQ-006 resolved |
+| Artifacts (integration 2026-07-17) | Chapter `handbook/models/interest-expense/deposits/ie_foreign_dep.md` — REVIEWED; spec `specifications/interest-expense/deposits/ie_foreign_dep.yaml`; review `reviews/interest-expense/deposits/ie_foreign_dep.review.md` (source-faithful) |
 
-## 10. `ie_ffp_repo` — Interest Expense on Federal Funds Purchased and Securities Sold under Agreements to Repurchase
+## 10. `ie_fed_funds_repo` — Interest Expense on Federal Funds Purchased and Securities Sold under Agreements to Repurchase
 
 | Field | Value |
 |---|---|
-| Fed name | Interest Expense on Federal Funds Purchased and Securities Sold under the Agreement to Repurchase (PDF pp. 216–219; md sec-205) |
+| Fed name | Interest Expense on Federal Funds Purchased and Securities Sold under the Agreement to Repurchase — v.a(10) heading (PDF pp. 216–219; md sec-205); the Table A6 row and section prose use "…under agreements to repurchase" (plural) — source-internal variant, recorded, not corrected |
 | Component / side | Fed funds purchased & repo — interest expense (Table A6: Structural) |
 | Model family | Short-rate calculator |
 | Projects | `F(b,t) = B(b,t) × Treasury3m(t)` — **Eq A48** (PDF p. 217); asset-side mirror is inside #6 (source-stated equivalence) |
-| Firm data inputs | Balances: Schedule G NII Worksheet items 44A (federal funds purchased) + 44B (securities sold under agreements to repurchase) |
+| Firm data inputs | Source-stated: Schedule G NII Worksheet items 44A + 44B — misnamed *rate* items (SQ-16); physical balance items **36A + 36B** [PID-FFR-1, user-confirmed 2026-07-17] |
 | Constant over horizon | Balance at PQ0 |
-| Integrity flags | SQ-10 (Eq A48 caption "Purchase"); CA-2f |
-| Open questions | OQ-006 |
+| Integrity flags | SQ-10 (Eq A48 caption "Purchase"); SQ-16 (44A/44B named as balances); CA-2f |
+| Open questions | OQ-005, OQ-019 open; OQ-006 resolved (D-004) |
+| Artifacts (integration 2026-07-17) | Chapter `handbook/models/interest-expense/funding/ie_fed_funds_repo.md` — REVIEWED; spec `specifications/interest-expense/funding/ie_fed_funds_repo.yaml`; review `reviews/interest-expense/funding/ie_fed_funds_repo.review.md` (APPROVE) |
 
 ## 11. `nii_trading_al` — Net Interest Income on Trading Assets and Liabilities
 
@@ -214,14 +218,15 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Component / side | Other borrowing — interest expense (Table A6: Regression). Covers short-term borrowing + subordinated debt + all other interest-bearing liabilities, modeled as a single quantity |
 | Model family | Proposed regression |
 | Model | `Expense(b,t) = (Treasury3m(t) + δ(b,t)) × B(b,t)` — **Eq A53(1)**; `δ(b,t) = β1·BBB(t) + β2·CommercialPaper(b,t) + β3·Subdebt(b,t) + α_b + ε(b,t)` — **Eq A53(2)** (PDF p. 230). OLS on unbalanced FR Y-14Q panel **2020:Q2–2021:Q4** (deliberately a low-rate window). Projection: `Expense(b,q) = (Treasury3m(q) + δ(b,q)) × B(b,0)` with composition shares frozen at the launch point (PDF p. 231) |
-| Firm data inputs | Balances: Schedule G NII Worksheet items 44C (Other Short-Term Borrowing), 46 (Subordinated Notes/TruPS), 47 (Other Interest-Bearing Liabilities) — noting parts of sub debt may sit in 44C/47 per reporting instructions (source-stated); composition shares from FR Y-9C: sub debt BHDM4062 + BHDMC699, commercial paper BHCK2309 |
+| Firm data inputs | Balances: Schedule G NII Worksheet items 44C (Other Short-Term Borrowing), 46 (Subordinated Notes/TruPS), 47 (Other Interest-Bearing Liabilities) — noting parts of sub debt may sit in 44C/47 per reporting instructions (source-stated); composition shares from FR Y-9C: sub debt BHDM4062 + BHDMC699, commercial paper BHCK2309; physical balance mapping: Schedule G items 36C + 38 + 39 [PID-OB-2, user-confirmed 2026-07-17] |
 | Scenario inputs | 3-month Treasury yield; BBB corporate bond yield |
 | Parameters | β1 = **0.254**\*\*, β2 = **−0.036**\*\*\*, β3 = **0.066**\*\* (Table A9). **Firm fixed effects α_b: estimated but NOT disclosed** |
-| Fixed-effect values | CODING CONSIDERATION (per D-002): backsolve α_b from launch-point actuals; flagged INTERPRETATION — OQ-009 |
+| Fixed-effect values | PROJECT IMPLEMENTATION DECISION (D-002 + PID-OB-1/PID-OB-3, user-confirmed 2026-07-17): backsolved from single-PQ0-quarter actuals, R_actual = 4 × PQ0 expense / B(b,0); remaining gaps tracked in OQ-009 (narrowed) |
 | Constant over horizon | Balance B(b,0); composition shares at the launch point |
 | Absorbs | Current structural sub-debt model iv.m(3) (cf. Question A190: should sub debt stay separate?) |
-| Integrity flags | CA-2g/h (stray pipes in where-list); SQ-13 ("(a.)" heading) |
-| Open questions | OQ-006, OQ-009 |
+| Integrity flags | CA-2g/h (stray pipes in where-list); SQ-13 ("(a.)" heading); SQ-17 ("other short-term, borrowing" comma, PDF p. 231) |
+| Open questions | OQ-005, OQ-009 (narrowed), OQ-022 open; OQ-006 resolved |
+| Artifacts (integration 2026-07-17) | Chapter `handbook/models/interest-expense/funding/ie_other_borrowing.md` — REVIEWED; spec `specifications/interest-expense/funding/ie_other_borrowing.yaml`; review `reviews/interest-expense/funding/ie_other_borrowing.review.md` (APPROVE WITH OPEN IMPLEMENTATION ITEM) |
 
 ## 13. `adj_irr_hedge` — Interest-Rate-Risk Hedge Adjustment (cross-cutting)
 
@@ -266,5 +271,5 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 - `ii_ust`, `ii_mbs`, `ii_other_sec` ← Securities Model Description (reinvestment assumptions; Agency RMBS vendor prepayment model) and proposed FR Y-14Q B.2/B.3 (hedge legs).
 - `adj_irr_hedge` ← proposed FR Y-14Q B.2/B.3 collection; applies across income/expense components.
 - `ie_foreign_dep` ← reuses `ie_other_dom_dep` methodology by reference (Eqs A45–A47).
-- `ie_ffp_repo` ↔ `ii_other_ida`: source states the approaches are equivalent, with asset-side fed funds subsumed in #6.
+- `ie_fed_funds_repo` ↔ `ii_other_ida`: source states the approaches are equivalent, with asset-side fed funds subsumed in #6.
 - No proposed net-interest model consumes another's output; dependencies are on shared inputs, external models, and proposed data collections.

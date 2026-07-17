@@ -2,8 +2,8 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Source: Section B.v.d(2) (PDF pp. 230–234; md sec-220–223); parameters in Section B.v.e, Table A9 (PDF p. 234; md sec-224). Model type per Table A6: **Regression** (PDF pp. 168–169; md sec-148).
-> Integrity flags affecting this chapter: CA-4 (the "(a.) Variable Selection" heading, md line 4664, has no anchor — cite via sec-221); conversion artifacts — stray `|` characters in the A53 where-list (md lines 4645–4646, "at time| *t*;" and "credit spread;|"), not present in the PDF page image; candidate new source quirk — "the sum of other short-term, borrowing" (comma inside the term) is **in the PDF itself** (p. 231 where-list) — proposed as an SQ entry in `reviews/interest-expense/funding/ie_other_borrowing.review.md`.
-> Chapter review state: **DRAFT** — independent source-grounding review recorded in `reviews/interest-expense/funding/ie_other_borrowing.review.md`. Approved content is never silently overwritten.
+> Integrity flags affecting this chapter: CA-4 (the "(a.) Variable Selection" heading, md line 4664, has no anchor — cite via sec-221); conversion artifacts **CA-2g/CA-2h** (stray `|` characters in the A53 where-list, md lines 4645–4646, "at time| *t*;" and "credit spread;|" — already logged in the integrity review §7), not present in the PDF page image; source quirk **SQ-17** — "the sum of other short-term, borrowing" (comma inside the term) is **in the PDF itself** (p. 231 where-list; raised in `reviews/interest-expense/funding/ie_other_borrowing.review.md`, filed in `inventory/source-integrity-review.md` §8 at integration, 2026-07-17).
+> Chapter review state: **REVIEWED** — independent source-grounding review 2026-07-17, verdict APPROVE WITH OPEN IMPLEMENTATION ITEM (`reviews/interest-expense/funding/ie_other_borrowing.review.md`). Specification: `specifications/interest-expense/funding/ie_other_borrowing.yaml`. Approved content is never silently overwritten.
 > Labels: **[FACT]** Fed source, cited · **[INT]** interpretation with stated basis · **[CODE]** coding consideration, non-normative · **[OQ]** open question by ID · **[PID]** PROJECT IMPLEMENTATION DECISION — user-confirmed, never attributable to the Federal Reserve · **[ALT]** alternative discussed by the Fed but not proposed. Citations: (PDF p. N; md sec-M).
 
 ## 1. Status and component scope
@@ -33,7 +33,7 @@
 | Subordinated-debt share, Subdebt(b,0) (`ob_subdebt_share_launchpoint`) | "balance of subordinated debt divided by the total balance of other borrowing" | b | Share ∈ [0,1] | Frozen at PQ0 | [FACT] definition (PDF p. 231; md sec-221) |
 | PQ0 actual interest expense on other borrowing (`ob_expense_actual_launchpoint`) | Physical line item **TO BE CONFIRMED** — no Schedule G expense item is stated in the source and none is guessed | b | USD per quarter | PQ0 only; used solely in the §9 backsolve | [PID-OB-3] role (user-confirmed 2026-07-17); item UNRESOLVED [OQ-009] |
 
-**Share-form note [INT → OQ-OB-A]:** the share numerators are stated as FR Y-9C items (in the estimation-context Variable Selection discussion) while B(b,0) is a Schedule G sum. Whether the projection-side share denominator is the Schedule G total, a Y-9C equivalent, or the same mixed ratio is **not stated**. No additional MDRM mapping is invented; the mixed form is recorded as the literal reading.
+**Share-form note [INT → OQ-022]:** the share numerators are stated as FR Y-9C items (in the estimation-context Variable Selection discussion) while B(b,0) is a Schedule G sum. Whether the projection-side share denominator is the Schedule G total, a Y-9C equivalent, or the same mixed ratio is **not stated**. No additional MDRM mapping is invented; the mixed form is recorded as the literal reading.
 
 ### 3.2 Scenario inputs
 
@@ -99,7 +99,7 @@ Constancy register: **constant** — balance, both composition shares, α_b, β1
 ## 7. Calculation workflow
 
 1. **Launch-point balance.** B(b,0) = Schedule G items 36C + 38 + 39 [PID-OB-2; the Fed-stated items 44C/46/47 remain the [FACT] scope definition, §3.1]. Validate presence of all three items and B(b,0) > 0 (§11); no fallback invented [CODE].
-2. **Launch-point composition.** `ob_cp_share_launchpoint` = BHCK2309 / B(b,0); `ob_subdebt_share_launchpoint` = (BHDM4062 + BHDMC699) / B(b,0) [FACT numerators and ratio definition; INT that the projection-side denominator is the Schedule G sum — OQ-OB-A]. Validate shares ∈ [0,1] and sum ≤ 1 (§11).
+2. **Launch-point composition.** `ob_cp_share_launchpoint` = BHCK2309 / B(b,0); `ob_subdebt_share_launchpoint` = (BHDM4062 + BHDMC699) / B(b,0) [FACT numerators and ratio definition; INT that the projection-side denominator is the Schedule G sum — OQ-022]. Validate shares ∈ [0,1] and sum ≤ 1 (§11).
 3. **Fixed effect.** Obtain α_b via the §9 backsolve [PID-OB-1/PID-OB-3]; validate presence per firm.
 4. **Coefficients.** Load β1 = 0.254, β2 = −0.036, β3 = 0.066; store the significance stars as metadata, never in the numeric path (§3.3).
 5. **Scenario preparation.** Align `usd_3m_treasury` and `bbb_corporate_yield` to q = 1…9 (plus PQ0 for the backsolve); normalize percent-vs-decimal scale identically for both series and the firm-side rate used in §9 [CODE].
@@ -139,7 +139,7 @@ Board questions on this component: A189 (overall approach), A190 (modeling subde
 - **Input presence:** Schedule G items 36C, 38, 39 [PID-OB-2] all present per firm; BHCK2309, BHDM4062, BHDMC699 present; PQ0 actual expense present for the backsolve; α_b present per firm (missing α_b blocks the firm, never defaults to zero).
 - **BBB input gate [PID-OB-4]:** before first use, confirm the four §3.2 items (MEV column name; yield vs. spread; any Treasury-yield addition; unit scale). A spread series must never be passed where Eq A53 expects the BBB corporate bond yield.
 - **Balance sanity:** B(b,0) > 0 — zero or negative totals fail (zero also breaks the share denominators).
-- **Shares:** `ob_cp_share_launchpoint` and `ob_subdebt_share_launchpoint` each ∈ [0,1]; their **sum ≤ 1**; violations surface (possible under the mixed Y-9C/Schedule G form — OQ-OB-A), never clipped.
+- **Shares:** `ob_cp_share_launchpoint` and `ob_subdebt_share_launchpoint` each ∈ [0,1]; their **sum ≤ 1**; violations surface (possible under the mixed Y-9C/Schedule G form — OQ-022), never clipped.
 - **Scenario paths:** `usd_3m_treasury` and `bbb_corporate_yield` complete for q = 1…9 (plus PQ0 for the backsolve) — full nine-quarter alignment per scenario, no gaps.
 - **Rate scale:** percent-vs-decimal never assumed; metadata-driven and identical across both MEV series, the coefficients' implied scale, and R_actual(b,0) in the backsolve.
 - **Parameter fidelity:** configured β values equal Table A9 exactly (0.254, −0.036, 0.066) — verify against the PDF page, not retyped copies; significance metadata (**, ***, **) stored separately and never used numerically.
@@ -157,7 +157,7 @@ Board questions on this component: A189 (overall approach), A190 (modeling subde
 - **Balance item-number tension [PID-OB-2, §3.1].** The source states items 44C/46/47; the user-confirmed physical mapping is 36C + 38 + 39 — the mapping governs for implementation; the tension is recorded, not resolved.
 - **OQ-005 — OPEN.** Hedge-adjustment allocation (§12).
 - **OQ-006 — RESOLVED FOR PROJECT IMPLEMENTATION (D-004).** ÷4 convention applied in §8; source-side absence preserved.
-- **Proposed OQ-OB-A (review file; number assigned at integration).** Share-denominator physical form: Y-9C numerators over a Schedule G total is the literal mixed reading; projection-side source form unstated.
+- **OQ-022 — OPEN (filed at integration, 2026-07-17; formerly component-scoped placeholder OQ-OB-A).** Share-denominator physical form: Y-9C numerators over a Schedule G total is the literal mixed reading; projection-side source form unstated.
 - **Flagged working assumption (not a PID):** MEV column name for the 3-month Treasury per the PID-5 workbook pattern (the BBB input is now governed by PID-OB-4 above).
 
 ## 14. Key source references

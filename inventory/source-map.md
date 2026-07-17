@@ -56,7 +56,7 @@ Mapped at model level; drill in only when a proposed model cites it. All are the
 | iv.l | l. Estimated Parameters of Regression Models (current suite) | sec-126, line 2763 | 141–144 | COMPARISON (current-suite parameters; not inputs to the proposed suite) | — |
 | iv.m | m. Structural Models | sec-127, line 2824 | 145 | COMPARISON | — |
 | iv.m(1) | (1) II from Fed Funds Sold & Reverse Repo | sec-128, line 2836 | 145–148 | COMPARISON (absorbed into proposed other interest/dividend-bearing assets) | ii_other_ida |
-| iv.m(2) | (2) IE on Fed Funds Purchased & Repo | sec-132, line 2928 | 149–152 | COMPARISON | ie_ffp_repo |
+| iv.m(2) | (2) IE on Fed Funds Purchased & Repo | sec-132, line 2928 | 149–152 | COMPARISON | ie_fed_funds_repo |
 | iv.m(3) | (3) IE on Subordinated Debt | sec-136, line 3018 | 153–159 | COMPARISON (absorbed into proposed other borrowing; cf. Question A190) | ie_other_borrowing |
 | iv.n | n. Nonparametric Models | sec-140, line 3156 | 160–166 | OUT-OF-SCOPE | — |
 
@@ -100,7 +100,7 @@ Mapped at model level; drill in only when a proposed model cites it. All are the
 | v.a(7) | (7) IE on Domestic Time Deposits | sec-193, line 4123 | 209–211 | **Eq A44**; items 42E, 71; "average" balance | ie_dom_time_dep |
 | v.a(8) | (8) IE on Other Domestic Deposits | sec-197, line 4177 | 211–215 | **Eqs A45–A47**; items 42B–42D, 79A–81B; ELB regime; 2020:Q2–2021:Q4 spread window | ie_other_dom_dep |
 | v.a(9) | (9) IE on Foreign Deposits | sec-201, line 4275 | 215–216 | Same framework by reference; items 43A/44B, 35A/35B, 83A–84B | ie_foreign_dep |
-| v.a(10) | (10) IE on Fed Funds Purchased & Repo | sec-205, line 4314 | 216–219 | **Eq A48**; items 44A/44B; caption typo SQ-10 | ie_ffp_repo |
+| v.a(10) | (10) IE on Fed Funds Purchased & Repo | sec-205, line 4314 | 216–219 | **Eq A48**; items 44A/44B (SQ-16 — misnamed as balances); caption typo SQ-10 | ie_fed_funds_repo |
 
 ### 4.3 v.b–v.e Parameters, hedges, regressions (PRIMARY, pp. 219–234)
 

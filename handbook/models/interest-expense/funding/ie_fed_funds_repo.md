@@ -2,9 +2,9 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Source: Section B.v.a(10) (PDF pp. 216–219; md sec-205–208). Model type per Table A6: **Structural** (PDF pp. 168–169; md sec-148).
-> Integrity flags: (1) the Equation A48 title reads "…Securities Sold under the **Agreement to Purchase**" (PDF p. 217) — a source typo; the correct component name ("…Repurchase") is used throughout the section prose and this chapter. (2) v.a(10) names items **44A/44B** as "the liabilities reported" (PDF pp. 216–217), but 44A/44B are Schedule G liability **rate** items — consistent with v.a(9)'s own usage of 44B as the foreign-deposits–time *rate* (PDF p. 215; collision flagged in `reviews/interest-expense/deposits/ie_foreign_dep.review.md` §4). The correct **balance** items are **36A/36B** [PID-FFR-1, user-confirmed 2026-07-17].
+> Integrity flags: (1) the Equation A48 title reads "…Securities Sold under the **Agreement to Purchase**" (PDF p. 217) — a source typo; the correct component name ("…Repurchase") is used throughout the section prose and this chapter. (2) v.a(10) names items **44A/44B** as "the liabilities reported" (PDF pp. 216–217), but 44A/44B are Schedule G liability **rate** items — consistent with v.a(9)'s own usage of 44B as the foreign-deposits–time *rate* (PDF p. 215; collision filed as **OQ-019** / quirk **SQ-16** at integration, 2026-07-17). The correct **balance** items are **36A/36B** [PID-FFR-1, user-confirmed 2026-07-17].
 > December 2025 revision: on p. 216, "federal funds sold" was corrected to "federal funds purchased" (PDF pp. 4–5).
-> Chapter review state: **DRAFT** — see `reviews/interest-expense/funding/ie_fed_funds_repo.review.md`.
+> Chapter review state: **REVIEWED** — independent source-grounding review 2026-07-17, verdict APPROVE (`reviews/interest-expense/funding/ie_fed_funds_repo.review.md`). Specification: `specifications/interest-expense/funding/ie_fed_funds_repo.yaml`.
 > Labels: **[FACT]** = Fed statement (cited); **[PID]** = project implementation decision (user-confirmed); **[INT]** = interpretation; **[CODE]** = coding consideration; **[OQ]** = open question.
 
 ## 1. Status and purpose
@@ -24,7 +24,7 @@
 | Repo balance (`repo_sold_balance`) | **36B** [PID-FFR-1]; source states 44B ("securities sold under agreements to repurchase") | b | USD | Launch point (PQ0); constant over horizon | [FACT] source wording (PDF p. 217; md sec-205); [PID-FFR-1] corrected item |
 
 - [FACT] Source wording: "The relevant balance for this component is the liabilities reported in line items 44A ('federal funds purchased') and 44B ('securities sold under agreements to repurchase') of the Net Interest Income Worksheet of FR Y-14Q, Schedule G" (PDF pp. 216–217; md sec-205).
-- [PID-FFR-1, user-confirmed 2026-07-17] Items 44A/44B are Schedule G liability **rate** items, not balances; the correct balance items are **36A** (federal funds purchased) and **36B** (securities sold under agreements to repurchase). Component balance B(b,PQ0) = item 36A + item 36B — the sum follows "Let B_b be the **total** balance" (PDF p. 217; md sec-206). The source's item naming is preserved above as a source quirk (SQ-candidate, review §3); internal corroboration: v.a(9) itself uses 44B as the foreign-deposits–time *rate* item and 35-series items for balances (PDF p. 215).
+- [PID-FFR-1, user-confirmed 2026-07-17] Items 44A/44B are Schedule G liability **rate** items, not balances; the correct balance items are **36A** (federal funds purchased) and **36B** (securities sold under agreements to repurchase). Component balance B(b,PQ0) = item 36A + item 36B — the sum follows "Let B_b be the **total** balance" (PDF p. 217; md sec-206). The source's item naming is preserved above as source quirk SQ-16 (filed 2026-07-17); internal corroboration: v.a(9) itself uses 44B as the foreign-deposits–time *rate* item and 35-series items for balances (PDF p. 215).
 - No MDRM codes are stated in v.a(10); none are invented [FACT absence].
 
 ### 2.2 Scenario data
@@ -98,12 +98,12 @@ Public-input request: Question A180 (PDF pp. 218–219; md sec-208) seeks commen
 
 ## 10. Open implementation items
 
-- [PID-FFR-1 — CONFIRMED 2026-07-17] Balance items are 36A + 36B, not the source-stated 44A/44B (rate items) (§2.1). To be filed in the decision log at integration (final ID there).
-- [SQ-candidate] v.a(10) misnames rate items 44A/44B as "the liabilities reported" (PDF pp. 216–217) — for `inventory/source-integrity-review.md` §8 at integration (review §3).
+- [PID-FFR-1 — CONFIRMED 2026-07-17] Balance items are 36A + 36B, not the source-stated 44A/44B (rate items) (§2.1). Filed in the `handbook/open-questions.md` decision-log PID registry at integration (2026-07-17), retaining the ID PID-FFR-1.
+- [SQ-16 — filed 2026-07-17] v.a(10) misnames rate items 44A/44B as "the liabilities reported" (PDF pp. 216–217) — logged in `inventory/source-integrity-review.md` §8.
 - [CODE, TODO] Physical MEV workbook column name for `usd_3m_treasury` (PID-5 pattern; unconfirmed for this model — implementation mapping, not methodology).
 - [OQ-005 — OPEN] Hedge-adjustment allocation (§9).
 - [OQ-006 — RESOLVED (D-004)] Annualized units; ÷4 at the final step only (§6).
-- Existing quirk (tracked in `ie_foreign_dep` review §4; not re-filed here): item 44B double use across v.a(9)/v.a(10) — resolve against FR Y-14Q Schedule G instructions in the coding phase.
+- [OQ-019 — OPEN] Item 44B double use across v.a(9)/v.a(10) (quirk SQ-16) — resolve against FR Y-14Q Schedule G instructions in the coding phase.
 - No other open item: no ELB regime, no seed rate, no history window applies to this model.
 
 ## 11. Key source references
