@@ -23,9 +23,9 @@ model:
   replaces_current_model: iv.m(3) instrument-level subordinated-debt structural model, absorbed
     into this single regression (PDF pp. 153-159, 230; Questions A134, A190) — contrast only,
     nothing imported from the current methodology
-  implementation_status: conditionally_implementable   # backsolve identity + PQ0 actuals mechanics
-    # confirmed (PID-OB-1/PID-OB-3); remaining gates: PQ0 actual-expense line item (OQ-009 residual)
-    # and the four BBB physical-input confirmations (PID-OB-4) — see fixed_effect and inputs.scenario
+  implementation_status: conditionally_implementable   # nine-quarter cumulative calibration confirmed
+    # (PID-OB-5, 2026-07-20; supersedes PID-OB-1/PID-OB-3); remaining gates: frb_total_interest_expense
+    # physical source (OQ-023) and the four BBB physical-input confirmations (PID-OB-4) — see fixed_effect and inputs
 
 dimensions:
   firm: b
@@ -49,13 +49,6 @@ inputs:
       dims: [firm]
       units: USD
       timing: launchpoint, held constant over horizon   # FACT — projection uses B(b,0) every quarter (PDF p. 231)
-    - name: ob_expense_actual_launchpoint           # PQ0 actual quarterly interest expense on other borrowing
-      fed_item: UNKNOWN                             # FACT absence — no Schedule G expense item stated for this component; none guessed
-      physical_item: TO_BE_CONFIRMED                # OQ-009 residual — sole remaining input gap for the backsolve
-      dims: [firm]
-      units: USD_per_quarter
-      timing: PQ0 single quarter only               # PID-OB-3
-      role: backsolve of alpha_b only — never enters projection quarters
     - name: ob_cp_balance
       fed_item: {schedule: FR Y-9C, mdrm: [BHCK2309]}   # FACT (PDF p. 232)
       dims: [firm]
@@ -84,7 +77,7 @@ inputs:
   scenario:
     - name: usd_3m_treasury                         # Treasury3m(q)
       fed_name: 3-month Treasury rate/yield         # FACT (PDF pp. 230-231)
-      dims: [scenario, quarter]                     # q = 1..9; PQ0 value needed only for the alpha_b backsolve
+      dims: [scenario, quarter]                     # q = 1..9; no PQ0 value required (PID-OB-5)
       units: annualized_rate                        # PID D-004; percent-vs-decimal scale UNKNOWN — metadata-driven
       coefficient: 1 by construction in A53(1)      # FACT — NOT an estimated coefficient; Table A9's A53(2) row has an empty 3M-Treasury cell (PDF p. 234)
       physical_source: MEV workbook per PID-5 pattern; column name UNCONFIRMED (working assumption, flagged)
@@ -99,6 +92,23 @@ inputs:
         source_quantity: TO_BE_CONFIRMED            # BBB yield or BBB spread
         transformation: TO_BE_CONFIRMED             # direct yield, or spread + applicable Treasury yield
         unit_scale: TO_BE_CONFIRMED                 # decimal, percentage points, or basis points
+  project_calibration:                              # PID-OB-5, user-confirmed 2026-07-20 — project-supplied; never Fed-stated
+    - name: frb_total_interest_expense              # FRBTotal(b,q)
+      fed_item: UNKNOWN                             # FACT absence — the source states no total-interest-expense
+                                                    # aggregation for the proposed suite (Section v is bottom-up)
+      physical_source: TO_BE_CONFIRMED              # OQ-023 — source/definition and scope alignment
+      dims: [firm, scenario, quarter]               # q = 1..9
+      units: USD_per_quarter
+      timing: projection_quarters
+      role: nine-quarter residual target for the alpha_b calibration (fixed_effect block)
+    - name: sibling_expense_paths                   # the four completed sibling model outputs
+      source: outputs of ie_dom_time_dep, ie_other_dom_dep, ie_foreign_dep, ie_fed_funds_repo
+        # supplied by the family orchestrator after those models complete — execution-order note in dependencies
+      components: [dtd_interest_expense, odd_interest_expense, foreign_interest_expense, fed_funds_repo_interest_expense]
+      dims: [firm, scenario, quarter]               # q = 1..9
+      units: USD_per_quarter
+      timing: projection_quarters
+      role: subtracted from frb_total_interest_expense to form the implied Other Borrowing path
 
 parameters:
   - name: beta_bbb                                  # beta_1
@@ -117,7 +127,7 @@ parameters:
     significance: "** (5% level)"
     source: Table A9 (PDF p. 234)
   - name: ob_firm_fixed_effect                      # alpha_b
-    kind: backsolved_per_project_decision           # see fixed_effect block — NOT published by the Fed
+    kind: calibrated_per_project_decision           # PID-OB-5 — see fixed_effect block; NOT published by the Fed
     fed_value: UNKNOWN                              # FACT — "Estimated coefficients for firm fixed-effects are not included in the table" (PDF p. 234)
     dims: [firm]
     constant_over_horizon: true                     # FACT — no time subscript on alpha_b
@@ -152,23 +162,38 @@ equations:
 fixed_effect:
   fed_status: estimated by the Board, values NOT disclosed (Table A9 marks "Yes" only)   # FACT (PDF p. 234)
   fed_rationale: absorbs cross-firm variation in borrowing mix and interest-rate-risk hedging intensity  # FACT (PDF pp. 232-233)
-  project_method: PROJECT IMPLEMENTATION DECISION — USER CONFIRMED (D-002 + PID-OB-1, 2026-07-17);
-    never attributable to the Federal Reserve
-  backsolve_identity: ob_firm_fixed_effect[b] = r_actual[b,PQ0] - usd_3m_treasury[PQ0]
-    - beta_bbb*bbb_corporate_yield[PQ0] - beta_cp*ob_cp_share_launchpoint[b]
-    - beta_subdebt*ob_subdebt_share_launchpoint[b]              # confirmed identity (PID-OB-1)
-  actuals_mechanics:                                # PID-OB-3, user-confirmed 2026-07-17
-    window: single PQ0 quarter                      # resolved — no multi-quarter averaging
-    r_actual_definition: 4 * ob_expense_actual_launchpoint[b] / ob_total_balance_launchpoint[b]
-      # CODE — annualization mirrors the D-004 final /4 in reverse; rates stay annualized in the identity
-  unresolved_mechanics:                             # OQ-009 — narrowed; remaining gaps only
-    - r_actual_physical_item: line item for ob_expense_actual_launchpoint — TO_BE_CONFIRMED
-    - regime_mismatch: treatment if PQ0 rates sit outside the low-rate 2020:Q2-2021:Q4 estimation
-        regime — UNRESOLVED (minor)
-  spec_rule: missing ob_firm_fixed_effect blocks the firm; never defaulted to zero
+  project_method: PROJECT IMPLEMENTATION DECISION — USER CONFIRMED (PID-OB-5, 2026-07-20);
+    nine-quarter cumulative calibration; never attributable to the Federal Reserve
+  supersedes: [PID-OB-1, PID-OB-3]                  # PQ0 backsolve identity + single-PQ0-quarter actuals;
+                                                    # D-002's launch-point method no longer applies to this model
+  pq0_actuals: never used                           # PID-OB-5 — ob_expense_actual_launchpoint removed from inputs
+  implied_residual: implied_ob_expense[b,q] = frb_total_interest_expense[b,q] -
+    dtd_interest_expense[b,q] - odd_interest_expense[b,q] -
+    foreign_interest_expense[b,q] - fed_funds_repo_interest_expense[b,q]
+    # q = 1..9, USD_per_quarter; negative quarters legal — log, never clamp
+  pre_alpha_rate: r0[b,q] = usd_3m_treasury[q] + beta_bbb*bbb_corporate_yield[q] +
+    beta_cp*ob_cp_share_launchpoint[b] + beta_subdebt*ob_subdebt_share_launchpoint[b]
+    # annualized decimal rate — the A53 rate with alpha_b excluded
+  calibration_constraint: sum over q=1..9 of balance[b,q]*(r0[b,q] + alpha_b)/4 equals
+    sum over q=1..9 of implied_ob_expense[b,q]      # cumulative match ONLY — individual quarters not forced
+  closed_form: alpha_b = (4*sum_q(implied_ob_expense[b,q]) - sum_q(balance[b,q]*r0[b,q]))
+    / sum_q(balance[b,q])                           # linear objective — closed form; no numerical optimization;
+                                                    # the x4 reverses the D-004 /4 once (annualized decimal result)
+  rules:
+    - one alpha_b per firm, constant across PQ1-PQ9 (never a per-quarter alpha)
+    - published betas unchanged (Table A9)
+    - alpha_b is a project calibration parameter, never a Fed published coefficient
+    - no floor or cap on alpha_b
+    - sum of PQ1-PQ9 balances zero or invalid -> validation error; no fallback
+  diagnostics_preserved: [implied quarterly path, modeled quarterly path, per-quarter differences,
+    nine-quarter cumulative reconciliation difference]
+  unresolved_mechanics:                             # OQ-023
+    - frb_total_source: physical source/definition of frb_total_interest_expense and its scope
+        alignment with the five modeled components — TO_BE_CONFIRMED
+  spec_rule: calibration failure blocks the firm; alpha_b never defaulted to zero
 
 initial_conditions: none                            # no lag structure — delta(b,q) has no dependence on q-1;
-                                                    # PQ0 scenario values are consumed only by the alpha_b backsolve
+                                                    # no PQ0 scenario values consumed (PID-OB-5)
 
 balance_behavior:
   total_balance: constant at launchpoint value B(b,0)            # FACT (PDF p. 231)
@@ -181,7 +206,7 @@ constraints_and_floors:
 
 quarterly_dollar_calculation:
   formula: ob_interest_expense[b,q] = ob_total_balance_launchpoint[b] * ob_annualized_rate[b,q] / 4
-  convention: PID D-004 — annualized rates throughout (including the backsolve); divide by 4 only at
+  convention: PID D-004 — annualized rates throughout (including the calibration); divide by 4 only at
     the final expense step (simple nominal quarterization, not compounding)
   source_status: the Fed states no annual->quarterly conversion for Eq A53(1) (FACT absence, preserved; OQ-006 resolution)
 
@@ -193,7 +218,8 @@ outputs:
 
 validations:                                        # CODE — non-normative; no invented fallbacks; failures surface
   - Schedule G items 36C, 38, 39 (PID-OB-2 physical mapping) all present per firm (missing item -> fail, no partial sum)
-  - ob_expense_actual_launchpoint present per firm at PQ0 (backsolve input; missing -> block firm)
+  - frb_total_interest_expense and all four sibling expense paths complete for q = 1..9 and aligned
+    on firm, scenario, and quarter before calibration (PID-OB-5; missing -> block firm)
   - BBB input gate (PID-OB-4) — column name, yield-vs-spread, Treasury-yield addition, and unit
     scale all confirmed before first use; a spread series must never be passed as the yield
   - ob_total_balance_launchpoint > 0 (zero or negative fails; zero also breaks share denominators)
@@ -201,42 +227,54 @@ validations:                                        # CODE — non-normative; no
   - ob_cp_share_launchpoint in [0,1]; ob_subdebt_share_launchpoint in [0,1]
   - ob_cp_share_launchpoint + ob_subdebt_share_launchpoint <= 1 (violation possible under the mixed
     Y-9C/Schedule G form — OQ-022; surface, never clip)
-  - usd_3m_treasury and bbb_corporate_yield complete for q = 1..9 plus PQ0 (backsolve); full
-    nine-quarter scenario alignment, no gaps
-  - percent-vs-decimal rate scale metadata-driven, identical across both MEV series and r_actual
-  - ob_firm_fixed_effect present per firm (missing -> block firm, never default)
+  - usd_3m_treasury and bbb_corporate_yield complete for q = 1..9; full nine-quarter scenario
+    alignment, no gaps; no PQ0 value required (PID-OB-5)
+  - percent-vs-decimal rate scale metadata-driven, identical across both MEV series
+  - calibration succeeds per firm — sum over q=1..9 of balance > 0 and finite (zero or invalid ->
+    validation error, no fallback); alpha_b never defaulted to zero
   - configured betas equal Table A9 exactly (0.254, -0.036, 0.066); verify against the PDF page;
     significance stars stored as metadata only
-  - edge monitors — negative ob_annualized_rate legal (log, never clamp); |alpha_b| magnitude
-    screen for scale mismatch
+  - nine-quarter cumulative reconciliation post-condition — abs(sum(modeled) - sum(implied)) within
+    float tolerance (exact by construction; PID-OB-5)
+  - edge monitors — negative ob_annualized_rate legal (log, never clamp); negative implied quarterly
+    residuals legal (log, never clamp); |alpha_b| magnitude screen for scale mismatch or a residual
+    target inconsistent with the modeled components
 
 dependencies:
-  upstream_models: none                             # FACT — no proposed model's output enters
+  upstream_models: none in the Fed-proposed suite   # FACT — no proposed model's output enters Eq A53
+  project_calibration_dependencies:                 # PID-OB-5 — project-level only, never a Fed statement
+    models: [ie_dom_time_dep, ie_other_dom_dep, ie_foreign_dep, ie_fed_funds_repo]
+    external_path: frb_total_interest_expense       # OQ-023
+    note: the four sibling models run first (mutually independent); the alpha_b calibration consumes
+      their completed PQ1-PQ9 expense paths plus the FRB total path; no circular dependency
   shared_inputs: [usd_3m_treasury, bbb_corporate_yield, FR Y-14Q Schedule G, FR Y-9C]
   hedge_interface: exposes expense path for cross-cutting v.c adjustment (Eqs A49-A51, contingent on
-    proposed FR Y-14Q B.2/B.3 collection; PDF pp. 220-223); no hedge term inside this model; hedge
-    intensity partially embedded in alpha_b (FACT rationale, PDF pp. 232-233) — double-counting
-    risk if v.c is later applied here (CODE); allocation unresolved (OQ-005)
+    proposed FR Y-14Q B.2/B.3 collection; PDF pp. 220-223); no hedge term inside this model; the
+    Fed's fixed-effect rationale names hedging intensity (FACT, PDF pp. 232-233), and under PID-OB-5
+    alpha_b absorbs the full residual to the FRB total path, including any hedge effects embedded
+    there — double-counting risk if v.c is later applied here (CODE); allocation unresolved (OQ-005)
 
 project_decisions:                                  # user-confirmed; never attributable to the Federal Reserve; registry in handbook/open-questions.md
-  - {id: D-002, scope: project_wide, summary: backsolving alpha_b from launch-point actuals is the handbook's working method}
+  - {id: D-002, scope: project_wide, summary: "launch-point backsolve working method — SUPERSEDED for this model by PID-OB-5 (2026-07-20); remains applicable to nii_trading_al only"}
   - {id: D-004, scope: project_wide, summary: annualized rates; /4 only at the final quarterly-dollar step}
   - {id: D-005, scope: project_wide, summary: launch point (PQ0) terminology; source words preserved in quotes}
-  - {id: PID-OB-1, summary: backsolve identity for alpha_b at PQ0 (fixed_effect block)}
+  - {id: PID-OB-1, summary: "PQ0 backsolve identity — SUPERSEDED by PID-OB-5 (2026-07-20)"}
   - {id: PID-OB-2, summary: physical balance = Schedule G 36C + 38 + 39 (Fed-stated 44C/46/47 preserved as FACT scope)}
-  - {id: PID-OB-3, summary: actuals = single PQ0 quarter; R_actual = 4 x PQ0 expense / PQ0 balance}
+  - {id: PID-OB-3, summary: "single-PQ0-quarter actuals — SUPERSEDED by PID-OB-5 (2026-07-20)"}
   - {id: PID-OB-4, summary: BBB physical source = project MEV file; four details TO_BE_CONFIRMED before first use}
+  - {id: PID-OB-5, summary: "nine-quarter cumulative calibration of alpha_b against the FRB total-interest-expense path (fixed_effect block); PQ0 actuals never used; closed form; supersedes PID-OB-1/PID-OB-3"}
 
 open_questions:
   open:
     - {id: OQ-005, topic: hedge-adjustment allocation across components}
-    - {id: OQ-009, topic: "firm fixed effects not disclosed — narrowed 2026-07-17 by PID-OB-1/PID-OB-3; remaining: PQ0 actual-expense line item; low-rate-regime mismatch (minor)"}
     - {id: OQ-022, topic: "share-denominator physical form: FR Y-9C numerators over Schedule G total (mixed literal reading); projection-side source form unstated (formerly OQ-OB-A)"}
+    - {id: OQ-023, topic: "physical source/definition of frb_total_interest_expense and its scope alignment with the five modeled components (filed 2026-07-20 with PID-OB-5)"}
   resolved_for_project:
     - {id: OQ-006, via: D-004, topic: annualized units; final-step /4}
+    - {id: OQ-009, via: PID-OB-5, topic: "alpha_b sourcing for this model — nine-quarter cumulative calibration; the former PQ0 residuals are moot (OQ-009 remains open for nii_trading_al)"}
   material_implementation_items:
     - BBB physical input (PID-OB-4) — four TO_BE_CONFIRMED items in inputs.scenario
-    - PQ0 actual-expense line item (OQ-009 residual)
+    - frb_total_interest_expense physical source (OQ-023)
     - balance item-number tension — Fed-stated 44C/46/47 vs confirmed physical 36C/38/39
         (PID-OB-2; mapping governs, tension recorded)
 

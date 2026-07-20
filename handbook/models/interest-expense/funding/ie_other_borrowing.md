@@ -3,7 +3,7 @@
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Source: Section B.v.d(2) (PDF pp. 230–234; md sec-220–223); parameters in Section B.v.e, Table A9 (PDF p. 234; md sec-224). Model type per Table A6: **Regression** (PDF pp. 168–169; md sec-148).
 > Integrity flags affecting this chapter: CA-4 (the "(a.) Variable Selection" heading, md line 4664, has no anchor — cite via sec-221); conversion artifacts **CA-2g/CA-2h** (stray `|` characters in the A53 where-list, md lines 4645–4646, "at time| *t*;" and "credit spread;|" — already logged in the integrity review §7), not present in the PDF page image; source quirk **SQ-17** — "the sum of other short-term, borrowing" (comma inside the term) is **in the PDF itself** (p. 231 where-list; raised in `reviews/interest-expense/funding/ie_other_borrowing.review.md`, filed in `inventory/source-integrity-review.md` §8 at integration, 2026-07-17).
-> Chapter review state: **REVIEWED** — independent source-grounding review 2026-07-17, verdict APPROVE WITH OPEN IMPLEMENTATION ITEM (`reviews/interest-expense/funding/ie_other_borrowing.review.md`). Specification: `specifications/interest-expense/funding/ie_other_borrowing.yaml`. Approved content is never silently overwritten.
+> Chapter review state: **REVIEWED** — independent source-grounding review 2026-07-17, verdict APPROVE WITH OPEN IMPLEMENTATION ITEM (`reviews/interest-expense/funding/ie_other_borrowing.review.md`). Specification: `specifications/interest-expense/funding/ie_other_borrowing.yaml`. Approved content is never silently overwritten. **Revision 2026-07-20 (user-directed, not silent):** the §9 firm fixed-effect treatment is replaced by PID-OB-5 (nine-quarter cumulative calibration; supersedes PID-OB-1/PID-OB-3) — see the review addendum and `handbook/open-questions.md`.
 > Labels: **[FACT]** Fed source, cited · **[INT]** interpretation with stated basis · **[CODE]** coding consideration, non-normative · **[OQ]** open question by ID · **[PID]** PROJECT IMPLEMENTATION DECISION — user-confirmed, never attributable to the Federal Reserve · **[ALT]** alternative discussed by the Fed but not proposed. Citations: (PDF p. N; md sec-M).
 
 ## 1. Status and component scope
@@ -16,7 +16,7 @@
 
 ## 2. Model summary
 
-[FACT] The rate a firm pays on its other borrowing is the scenario 3-month Treasury yield plus a firm-specific credit spread; the spread is a linear function of the contemporaneous BBB corporate bond yield, the firm's commercial-paper and subordinated-debt shares of other borrowing, and a firm fixed effect (Eq A53; PDF pp. 230–231; md sec-221). In projection, the balance and both composition shares are frozen at the lift-off quarter, so only the two scenario yields move the expense path. [FACT — absence] Equation A53 contains **no autoregressive term, no rolling fixed effect, no seasonality term, and no firm grouping** — verified against the PDF page images.
+[FACT] The rate a firm pays on its other borrowing is the scenario 3-month Treasury yield plus a firm-specific credit spread; the spread is a linear function of the contemporaneous BBB corporate bond yield, the firm's commercial-paper and subordinated-debt shares of other borrowing, and a firm fixed effect (Eq A53; PDF pp. 230–231; md sec-221). In projection, the balance and both composition shares are frozen at the lift-off quarter, so only the two scenario yields move the expense path. [FACT — absence] Equation A53 contains **no autoregressive term, no rolling fixed effect, no seasonality term, and no firm grouping** — verified against the PDF page images. [PID-OB-5, 2026-07-20] Project sourcing of α_b: calibrated so the nine-quarter cumulative modeled expense matches the expense implied by the FRB total-interest-expense path (§9) — a project method, never a Fed statement.
 
 [ALT] Variable selection (PDF pp. 231–232; md sec-221, heading affected by CA-4): the Board examined the 5-year and 10-year Treasury rates alongside the BBB yield; only the BBB coefficient was "consistently positive and statistically significant" across specifications; the instability of the others is attributed to high correlation among the three factors over the sample period. The 5y/10y factors are not in the proposed model.
 
@@ -31,7 +31,6 @@
 | Subordinated-debt balance (`ob_subdebt_balance`) | FR Y-9C **BHDM4062 + BHDMC699** | b | USD | Launch-point value for the frozen share | [FACT] MDRM (PDF p. 232; md sec-221) |
 | Commercial-paper share, CP(b,0) (`ob_cp_share_launchpoint`) | "balance of commercial paper divided by the total balance of other borrowing" | b | Share ∈ [0,1] | Frozen at PQ0 | [FACT] definition (PDF p. 231; md sec-221) |
 | Subordinated-debt share, Subdebt(b,0) (`ob_subdebt_share_launchpoint`) | "balance of subordinated debt divided by the total balance of other borrowing" | b | Share ∈ [0,1] | Frozen at PQ0 | [FACT] definition (PDF p. 231; md sec-221) |
-| PQ0 actual interest expense on other borrowing (`ob_expense_actual_launchpoint`) | Physical line item **TO BE CONFIRMED** — no Schedule G expense item is stated in the source and none is guessed | b | USD per quarter | PQ0 only; used solely in the §9 backsolve | [PID-OB-3] role (user-confirmed 2026-07-17); item UNRESOLVED [OQ-009] |
 
 **Share-form note [INT → OQ-022]:** the share numerators are stated as FR Y-9C items (in the estimation-context Variable Selection discussion) while B(b,0) is a Schedule G sum. Whether the projection-side share denominator is the Schedule G total, a Y-9C equivalent, or the same mixed ratio is **not stated**. No additional MDRM mapping is invented; the mixed form is recorded as the literal reading.
 
@@ -39,7 +38,7 @@
 
 | Scenario variable | Enters via | Frequency | Units | Label |
 |---|---|---|---|---|
-| 3-month Treasury yield, Treasury3m(q) (`usd_3m_treasury`) | Base of the rate in A53(1), **coefficient of one by construction** — it is not an estimated coefficient (Table A9's A53(2) row has an empty 3M-Treasury cell) | Quarterly, q = 1…9 (PQ0 value needed only for the α_b backsolve, §9) | Annualized rate [D-004] | [FACT] (PDF pp. 230, 234; md sec-221, sec-224) |
+| 3-month Treasury yield, Treasury3m(q) (`usd_3m_treasury`) | Base of the rate in A53(1), **coefficient of one by construction** — it is not an estimated coefficient (Table A9's A53(2) row has an empty 3M-Treasury cell) | Quarterly, q = 1…9 — no PQ0 value required (PID-OB-5 removed the PQ0 backsolve) | Annualized rate [D-004] | [FACT] (PDF pp. 230, 234; md sec-221, sec-224) |
 | BBB corporate bond yield, BBB(q) (`bbb_corporate_yield`) | Sole macro driver of the credit spread in A53(2), ×β1 | Quarterly, q = 1…9 | Annualized rate [D-004] | [FACT] model definition — Eq A53 uses the BBB corporate bond **yield** (PDF pp. 230–231; md sec-221). **[PID-OB-4, user-confirmed 2026-07-17]** physical source = project MEV file. TO BE CONFIRMED: exact column name; whether the workbook quantity is a BBB yield or a BBB **spread** (never interchangeable); if a spread, the applicable Treasury-yield addition; unit scale (decimal / percentage points / bp). β1 = 0.254 unchanged regardless (§13 MATERIAL item) |
 
 ### 3.3 Parameters
@@ -49,9 +48,16 @@
 | β1 on BBB yield (`beta_bbb`) | Supplied — Board OLS estimate | **0.254** | ** (5% level) | [FACT] Table A9 (PDF p. 234; md sec-224) |
 | β2 on CP share (`beta_cp`) | Supplied — Board OLS estimate | **−0.036** | *** (1% level) | [FACT] Table A9. Sign rationale: shorter duration, usually highly rated — the source calls this coefficient "economically significant" (PDF pp. 232, 234) |
 | β3 on subdebt share (`beta_subdebt`) | Supplied — Board OLS estimate | **0.066** | ** (5% level) | [FACT] Table A9. Sign rationale: subordinated debt is more expensive — "positive and statistically significant" (PDF pp. 232, 234) |
-| Firm fixed effect, α_b (`ob_firm_fixed_effect`) | backsolved | UNKNOWN from the source | Table A9 marks only "Yes" | [FACT] (PDF p. 234; md sec-224); project sourcing per §9 |
+| Firm fixed effect, α_b (`ob_firm_fixed_effect`) | Calibrated — project method [PID-OB-5] | UNKNOWN from the source | Table A9 marks only "Yes" | [FACT] (PDF p. 234; md sec-224); project sourcing per §9 |
 
 Table A9 note, verbatim: "Statistical significance levels of 1%, 5%, and 10% are indicated as ***, **, and *, respectively." The 0.278*** in the same table belongs to Equation A52 (trading NII, model #11), not to this model.
+
+### 3.4 Project calibration inputs [PID-OB-5 — never Fed-stated]
+
+| Input | Source | Dimensions | Units | Timing | Label |
+|---|---|---|---|---|---|
+| FRB total interest expense, FRBTotal(b,q) (`frb_total_interest_expense`) | Project-supplied. The Fed source states **no** total-interest-expense aggregation for the proposed suite ([FACT] absence — Section v models each component independently); physical source **TO BE CONFIRMED** [OQ-023] | b × scenario × q | USD per quarter | q = 1…9 | [PID-OB-5] |
+| Sibling modeled expense paths (`dtd_interest_expense`, `odd_interest_expense`, `foreign_interest_expense`, `fed_funds_repo_interest_expense`) | Outputs of `ie_dom_time_dep`, `ie_other_dom_dep`, `ie_foreign_dep`, `ie_fed_funds_repo` — supplied after those models complete (execution order, §9) | b × scenario × q | USD per quarter | q = 1…9 | [PID-OB-5] |
 
 ## 4. Equations
 
@@ -90,8 +96,8 @@ Dimensions: rate, spread, and expense are b × scenario × q; all firm inputs ar
 |---|---|---|---|
 | B(b,0) = 44C + 46 + 47 | Measured once | Held constant — B(b,0) in every quarter | [FACT] (PDF p. 231) |
 | CP(b,0), Subdebt(b,0) | Measured once | Frozen — "portfolio composition that is held constant at the lift-off quarter" | [FACT] (PDF p. 231) |
-| α_b | Fixed per firm (backsolved at PQ0 per §9) | Constant | [FACT] fixed; [PID] sourcing |
-| Treasury3m(q), BBB(q) | PQ0 values used only in the §9 backsolve | Contemporaneous scenario values | [FACT] |
+| α_b | Fixed per firm (calibrated over PQ1–PQ9 per §9 [PID-OB-5]; no PQ0 role) | Constant | [FACT] fixed; [PID] sourcing |
+| Treasury3m(q), BBB(q) | No PQ0 role [PID-OB-5] | Contemporaneous scenario values | [FACT] |
 | δ(b,q), R(b,q), Expense(b,q) | — | Computed each q; no dependence on q−1 | [FACT — absence of any lag] |
 
 Constancy register: **constant** — balance, both composition shares, α_b, β1–β3; **varying** — Treasury3m, BBB, credit spread, rate, expense.
@@ -100,29 +106,40 @@ Constancy register: **constant** — balance, both composition shares, α_b, β1
 
 1. **Launch-point balance.** B(b,0) = Schedule G items 36C + 38 + 39 [PID-OB-2; the Fed-stated items 44C/46/47 remain the [FACT] scope definition, §3.1]. Validate presence of all three items and B(b,0) > 0 (§11); no fallback invented [CODE].
 2. **Launch-point composition.** `ob_cp_share_launchpoint` = BHCK2309 / B(b,0); `ob_subdebt_share_launchpoint` = (BHDM4062 + BHDMC699) / B(b,0) [FACT numerators and ratio definition; INT that the projection-side denominator is the Schedule G sum — OQ-022]. Validate shares ∈ [0,1] and sum ≤ 1 (§11).
-3. **Fixed effect.** Obtain α_b via the §9 backsolve [PID-OB-1/PID-OB-3]; validate presence per firm.
-4. **Coefficients.** Load β1 = 0.254, β2 = −0.036, β3 = 0.066; store the significance stars as metadata, never in the numeric path (§3.3).
-5. **Scenario preparation.** Align `usd_3m_treasury` and `bbb_corporate_yield` to q = 1…9 (plus PQ0 for the backsolve); normalize percent-vs-decimal scale identically for both series and the firm-side rate used in §9 [CODE].
-6. **Credit spread, each q.** δ(b,q) = β1·BBB(q) + β2·CP(b,0) + β3·Subdebt(b,0) + α_b.
-7. **Annualized rate, each q.** R(b,q) = Treasury3m(q) + δ(b,q). Coding restatement: `ob_annualized_rate[b,q] = usd_3m_treasury[q] + ob_credit_spread[b,q]`. No floor, cap, or non-negativity constraint exists [FACT — absence].
-8. **Quarterly expense.** Per §8: `ob_interest_expense[b,q] = ob_total_balance_launchpoint[b] * ob_annualized_rate[b,q] / 4`.
-9. **Hedge hook.** Expose the expense path for the cross-cutting v.c adjustment (§12); no hedge computation inside this model.
+3. **Coefficients.** Load β1 = 0.254, β2 = −0.036, β3 = 0.066; store the significance stars as metadata, never in the numeric path (§3.3).
+4. **Scenario preparation.** Align `usd_3m_treasury` and `bbb_corporate_yield` to q = 1…9; normalize percent-vs-decimal scale identically for both series [CODE]. No PQ0 scenario value is consumed [PID-OB-5].
+5. **Pre-α rate, each q.** R0(b,q) = Treasury3m(q) + β1·BBB(q) + β2·CP(b,0) + β3·Subdebt(b,0) — the §4 rate with α_b excluded.
+6. **Implied residual target.** With the four sibling models complete (§3.4): ImpliedOB(b,q) = FRBTotal(b,q) − DomTime(b,q) − OtherDom(b,q) − Foreign(b,q) − FedFundsRepo(b,q) for q = 1…9 [PID-OB-5]. Negative quarters are legal — log, never clamp.
+7. **Fixed effect.** Calibrate α_b in closed form from the nine-quarter cumulative match (§9) [PID-OB-5]; validate Σ_q B(b,q) > 0 before dividing (§11).
+8. **Rate and quarterly expense, each q.** δ(b,q) = β1·BBB(q) + β2·CP(b,0) + β3·Subdebt(b,0) + α_b; R(b,q) = Treasury3m(q) + δ(b,q) — coding restatement `ob_annualized_rate[b,q] = usd_3m_treasury[q] + ob_credit_spread[b,q]`; no floor, cap, or non-negativity constraint exists [FACT — absence]. Per §8: `ob_interest_expense[b,q] = ob_total_balance_launchpoint[b] * ob_annualized_rate[b,q] / 4`.
+9. **Reconciliation diagnostic and hedge hook.** Record the implied and modeled quarterly paths, their per-quarter differences, and the nine-quarter cumulative reconciliation (§9); expose the expense path for the cross-cutting v.c adjustment (§12); no hedge computation inside this model.
 
 ## 8. Quarterly expense conversion
 
 - [FACT] Eq A53(1) is a rate × balance product; the source states **no annual→quarterly conversion** for this component ([FACT] absence, preserved — OQ-006 lists Eq A53(1) among the components whose conversion is unstated).
-- [PID — decision D-004] All rates in A53 are treated as annualized; QuarterlyExpense(b,q) = B(b,0) × R(b,q) / 4, the ÷4 applied **only** at this final annualized-rate → quarterly-dollar step (simple nominal quarterization, not compounding); never attributed to the Fed. Rates stay annualized everywhere else, including the §9 backsolve. Output: `ob_interest_expense`, b × scenario × q, USD per quarter.
+- [PID — decision D-004] All rates in A53 are treated as annualized; QuarterlyExpense(b,q) = B(b,0) × R(b,q) / 4, the ÷4 applied **only** at this final annualized-rate → quarterly-dollar step (simple nominal quarterization, not compounding); never attributed to the Fed. Rates stay annualized everywhere else, including the §9 calibration. Output: `ob_interest_expense`, b × scenario × q, USD per quarter.
 
 ## 9. Firm fixed-effect treatment
 
 - [FACT] α_b is estimated by the Board but not published (Table A9: firm fixed-effects "Yes", values excluded; PDF p. 234). The Fed's stated role for α_b: the mix of other borrowing "as well as interest rate risk hedging intensity" varies across firms beyond what the composition shares capture, and the fixed effects absorb this heterogeneity (PDF pp. 232–233; md sec-221).
-- **[PID — D-002 + PID-OB-1, user-confirmed 2026-07-17] PROJECT IMPLEMENTATION DECISION — USER CONFIRMED.** α_b is backsolved from launch-point actuals via the projection equations inverted at PQ0:
+- **[PID-OB-5, user-confirmed 2026-07-20] PROJECT IMPLEMENTATION DECISION — USER CONFIRMED.** α_b is calibrated so that the **nine-quarter cumulative** modeled expense equals the nine-quarter cumulative expense implied by the FRB total-interest-expense projection. PQ0 actual interest expense is **not used** anywhere in this calibration. This supersedes PID-OB-1 (PQ0 backsolve identity) and PID-OB-3 (single-PQ0-quarter actuals); D-002's launch-point backsolve no longer applies to this model (it remains the working method for `nii_trading_al` only). Never attributable to the Federal Reserve.
+- **Implied residual target [PID-OB-5].** With the four sibling interest-expense models' completed quarterly expense paths (§3.4; all USD per quarter):
 
-  $$\alpha_b = R_{actual}(b,0) - Treasury3m(0) - \beta_1 BBB(0) - \beta_2\, CP(b,0) - \beta_3\, Subdebt(b,0)$$
+  $$ImpliedOB(b,q) = FRBTotal(b,q) - DomTime(b,q) - OtherDom(b,q) - Foreign(b,q) - FedFundsRepo(b,q), \qquad q = 1,\dots,9$$
 
-  This is the handbook's working method (D-002) with the identity confirmed for this component (PID-OB-1); it is never attributable to the Federal Reserve.
-- **[PID-OB-3, user-confirmed 2026-07-17] Actuals mechanics.** R_actual(b,0) comes from the **single PQ0 quarter**: the PQ0 balance and the PQ0 actual interest expense on other borrowing give the launch-point rate, and with the Fed-supplied coefficients α_b follows directly from the identity above. Under D-004, R_actual(b,0) = 4 × QuarterlyExpense_actual(b,0) / B(b,0) [CODE — annualization mirrors §8's ÷4 in reverse].
-- **Residual unresolved items [OQ-009, narrowed]:** (a) the physical line item for `ob_expense_actual_launchpoint` — TO BE CONFIRMED (none is stated in the source, none is guessed); (b) treatment if PQ0 rates sit outside the low-rate regime of the 2020:Q2–2021:Q4 estimation window (minor; no rule confirmed). These are the only remaining gaps recorded in the YAML.
+  Equivalently FRBTotal(b,q) − TotalDepositExpense(b,q) − FedFundsRepo(b,q), where TotalDepositExpense is the sum of the three modeled deposit components. Individual quarters may be negative — legal; log, never clamp.
+- **Closed-form calibration [PID-OB-5].** Let R0(b,q) = Treasury3m(q) + β1·BBB(q) + β2·CP(b,0) + β3·Subdebt(b,0) — the pre-α annualized rate — and B(b,q) the average balance (= B(b,0) every quarter under the Fed's flat-balance statement). The single α_b, constant across q = 1…9, solves
+
+  $$\sum_{q=1}^{9} \frac{B(b,q)\,\left(R0(b,q) + \alpha_b\right)}{4} \;=\; \sum_{q=1}^{9} ImpliedOB(b,q)$$
+
+  The objective is linear in α_b, so the solution is closed-form (no numerical optimization):
+
+  $$\alpha_b = \frac{4 \sum_{q=1}^{9} ImpliedOB(b,q) \;-\; \sum_{q=1}^{9} B(b,q)\,R0(b,q)}{\sum_{q=1}^{9} B(b,q)}$$
+
+  α_b is an annualized decimal rate; the ×4 converts cumulative quarterly dollars back to the annualized-rate basis (the D-004 ÷4 in reverse, applied once). Under the flat balance this reduces to α_b = 4·Σ ImpliedOB / (9·B(b,0)) − mean of R0(b,q).
+- **Rules [PID-OB-5].** (i) The **cumulative** nine-quarter total is matched exactly — individual quarterly modeled expenses are *not* forced to equal the quarterly implied residuals. (ii) The published β1–β3 are unchanged. (iii) One α_b per firm, constant across PQ1–PQ9 — never a per-quarter α. (iv) α_b is a **project calibration parameter**, never a Federal Reserve published coefficient. (v) No floor or cap is imposed on α_b. (vi) If Σ_q B(b,q) is zero or invalid, calibration fails with a validation error — no fallback is invented.
+- **Diagnostics [PID-OB-5].** The implied quarterly path, the modeled quarterly path, their per-quarter differences (which sum to ≈ 0 by construction), and the nine-quarter cumulative reconciliation difference are all preserved for comparison, even though only the cumulative total is calibrated exactly.
+- **[OQ-023 — OPEN]** The physical source/definition of `frb_total_interest_expense` and its scope alignment with the five modeled components are TO BE CONFIRMED (§3.4). The former OQ-009 residuals under the superseded backsolve — the PQ0 actual-expense line item and the PQ0 low-rate-regime mismatch — are **moot** under PID-OB-5.
 
 ## 10. Fed-stated assumptions and limitations
 
@@ -136,23 +153,25 @@ Board questions on this component: A189 (overall approach), A190 (modeling subde
 
 ## 11. Validation requirements ([CODE] — non-normative; no invented fallbacks, failures surface)
 
-- **Input presence:** Schedule G items 36C, 38, 39 [PID-OB-2] all present per firm; BHCK2309, BHDM4062, BHDMC699 present; PQ0 actual expense present for the backsolve; α_b present per firm (missing α_b blocks the firm, never defaults to zero).
+- **Input presence:** Schedule G items 36C, 38, 39 [PID-OB-2] all present per firm; BHCK2309, BHDM4062, BHDMC699 present; `frb_total_interest_expense` and all four sibling expense paths complete for q = 1…9 and aligned on firm, scenario, and quarter before calibration [PID-OB-5]; a failed calibration blocks the firm — α_b never defaults to zero.
 - **BBB input gate [PID-OB-4]:** before first use, confirm the four §3.2 items (MEV column name; yield vs. spread; any Treasury-yield addition; unit scale). A spread series must never be passed where Eq A53 expects the BBB corporate bond yield.
 - **Balance sanity:** B(b,0) > 0 — zero or negative totals fail (zero also breaks the share denominators).
 - **Shares:** `ob_cp_share_launchpoint` and `ob_subdebt_share_launchpoint` each ∈ [0,1]; their **sum ≤ 1**; violations surface (possible under the mixed Y-9C/Schedule G form — OQ-022), never clipped.
-- **Scenario paths:** `usd_3m_treasury` and `bbb_corporate_yield` complete for q = 1…9 (plus PQ0 for the backsolve) — full nine-quarter alignment per scenario, no gaps.
-- **Rate scale:** percent-vs-decimal never assumed; metadata-driven and identical across both MEV series, the coefficients' implied scale, and R_actual(b,0) in the backsolve.
+- **Scenario paths:** `usd_3m_treasury` and `bbb_corporate_yield` complete for q = 1…9 — full nine-quarter alignment per scenario, no gaps; no PQ0 value required [PID-OB-5].
+- **Rate scale:** percent-vs-decimal never assumed; metadata-driven and identical across both MEV series and the coefficients' implied scale.
 - **Parameter fidelity:** configured β values equal Table A9 exactly (0.254, −0.036, 0.066) — verify against the PDF page, not retyped copies; significance metadata (**, ***, **) stored separately and never used numerically.
-- **Edge monitors:** negative R(b,q) is legal (no floor exists) — log, never clamp; monitor |α_b| magnitudes as a backsolve sanity screen (large values may indicate scale mismatch).
+- **Calibration guards [PID-OB-5]:** Σ_q B(b,q) > 0 and finite before the closed-form division (zero or invalid → validation error, no fallback); post-condition |Σ_q Modeled − Σ_q Implied| ≈ 0 within float tolerance (exact by construction).
+- **Edge monitors:** negative R(b,q) is legal (no floor exists) — log, never clamp; negative ImpliedOB(b,q) quarters are legal — log, never clamp; monitor |α_b| magnitudes as a calibration sanity screen (large values may indicate scale mismatch or a residual target inconsistent with the modeled components).
 
 ## 12. Hedge implications
 
 - [FACT] The Fed's fixed-effect rationale explicitly names "interest rate risk hedging intensity" as cross-firm variation absorbed by α_b (PDF pp. 232–233) — hedge behavior enters this model only through the constant fixed effect, and assumption 3 (§10) concedes hedging strategies may change over time.
-- [FACT — absence] v.d(2) contains no hedge term. The cross-cutting v.c adjustment (Eqs A49–A51, contingent on the proposed FR Y-14Q B.2/B.3 collection; PDF pp. 220–223; md sec-210–212) may later adjust this component; allocation across components is unresolved [OQ-005]. This model exposes its expense path and computes no hedge term. [CODE] If v.c is ever applied here, note the double-counting risk against the hedge intensity already embedded in a backsolved α_b.
+- [FACT — absence] v.d(2) contains no hedge term. The cross-cutting v.c adjustment (Eqs A49–A51, contingent on the proposed FR Y-14Q B.2/B.3 collection; PDF pp. 220–223; md sec-210–212) may later adjust this component; allocation across components is unresolved [OQ-005]. This model exposes its expense path and computes no hedge term. [CODE] If v.c is ever applied here, note the double-counting risk against the hedge intensity already embedded in the calibrated α_b — under PID-OB-5 the fixed effect absorbs the full residual to the FRB total-interest-expense path, including any hedge effects embedded there.
 
 ## 13. Remaining implementation questions
 
-- **OQ-009 — OPEN (further narrowed).** Identity (PID-OB-1) and single-PQ0-quarter actuals mechanics (PID-OB-3) confirmed (§9); still open: the physical line item for the PQ0 actual expense; low-rate-regime mismatch treatment (minor).
+- **OQ-009 — RESOLVED FOR THIS MODEL (2026-07-20, via PID-OB-5).** PQ0 actuals no longer enter; the former residuals (PQ0 actual-expense line item; PQ0 low-rate-regime mismatch) are moot. PID-OB-1/PID-OB-3 superseded. OQ-009 remains OPEN for `nii_trading_al`.
+- **OQ-023 — OPEN (filed 2026-07-20 with PID-OB-5).** Physical source/definition of `frb_total_interest_expense` and its scope alignment with the five modeled components (§3.4, §9).
 - **MATERIAL implementation item — BBB physical input [PID-OB-4, §3.2].** Confirm (1) the exact MEV column name; (2) whether the workbook quantity is a yield or a spread; (3) any Treasury-yield addition; (4) the unit scale (decimal / percentage points / bp). β1 = 0.254 is unchanged regardless.
 - **Balance item-number tension [PID-OB-2, §3.1].** The source states items 44C/46/47; the user-confirmed physical mapping is 36C + 38 + 39 — the mapping governs for implementation; the tension is recorded, not resolved.
 - **OQ-005 — OPEN.** Hedge-adjustment allocation (§12).
@@ -176,4 +195,4 @@ Board questions on this component: A189 (overall approach), A190 (modeling subde
 | Current subordinated-debt structural model (comparison only) — Eq A28, swap adjustment, Question A134 | (PDF pp. 153–159; md sec-136–139) |
 | Hedge adjustment (v.c) | (PDF pp. 220–223; md sec-210–212) |
 | Nine-quarter horizon; PPNR identity (Eq A1) | (PDF pp. 6–8; md sec-2) |
-| D-002, D-004, D-005 conventions; PID-OB-1…PID-OB-4 confirmations | `handbook/open-questions.md` decision log; user confirmations 2026-07-17 (§3.1, §3.2, §9) |
+| D-002 (superseded for this model by PID-OB-5), D-004, D-005 conventions; PID-OB-1…PID-OB-5 (PID-OB-1/PID-OB-3 superseded by PID-OB-5, 2026-07-20) | `handbook/open-questions.md` decision log; user confirmations 2026-07-17 (§3.1, §3.2) and 2026-07-20 (§9) |

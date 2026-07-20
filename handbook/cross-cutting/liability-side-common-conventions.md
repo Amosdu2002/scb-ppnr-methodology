@@ -38,8 +38,9 @@
 - A quarterly dollar expense divides the annualized rate by four **only at the final
   quarterly-dollar conversion step** (simple nominal quarterization, not effective compounding).
   Nothing is divided by four inside any recursion, regression, spread, or regime logic.
-- The same convention runs in reverse where a quarterly actual is annualized (the
-  `ie_other_borrowing` backsolve: R_actual = 4 × PQ0 expense ÷ PQ0 balance, PID-OB-3).
+- The same convention runs in reverse where cumulative quarterly dollars are converted back to an
+  annualized rate (the `ie_other_borrowing` PID-OB-5 closed form: α_b = (4·Σ implied expense −
+  Σ balance·pre-α rate) ÷ Σ balance — the ×4 reverses the D-004 ÷4 once).
 - This convention is a project implementation decision (OQ-006 resolution). The source states
   **no** annual→quarterly conversion for any of the five components — a preserved fact of
   absence; where the source states its own conversion elsewhere (securities ÷4, hedge N/360,
@@ -49,9 +50,10 @@
 
 - Scenario paths are aligned to PQ1…PQ9 per scenario, with no gaps, before any model runs.
 - PQ0 scenario values are consumed only where a model's mechanics require them: the ΔTreasury3m
-  seed at t = 1 in the Equations A45–A47 models (INT, OQ-018) and the `ie_other_borrowing`
-  backsolve. `ie_dom_time_dep` seeds from firm data (item 42E), and `ie_fed_funds_repo` needs no
-  PQ0 value at all — these differences stay explicit per chapter.
+  seed at t = 1 in the Equations A45–A47 models (INT, OQ-018). `ie_dom_time_dep` seeds from firm
+  data (item 42E); `ie_fed_funds_repo` and `ie_other_borrowing` need no PQ0 scenario value at all
+  (the former PQ0 backsolve was superseded by PID-OB-5, 2026-07-20) — these differences stay
+  explicit per chapter.
 - Outputs are dimensioned firm × scenario × quarter.
 
 ## 5. Separation of data retrieval from model calculation
@@ -88,7 +90,9 @@
   (v.c computable).
 - Allocation of the v.c adjustment across components is unresolved — **OQ-005, OPEN**.
 - `ie_other_borrowing` caveat: the Fed's rationale says α_b absorbs cross-firm hedging
-  intensity, so applying v.c to that component later risks double counting [CODE].
+  intensity, and under PID-OB-5 the calibrated α_b absorbs the full residual to the FRB
+  total-interest-expense path (including any hedge effects embedded there), so applying v.c to
+  that component later risks double counting [CODE].
 
 ## 8. What is deliberately not shared
 

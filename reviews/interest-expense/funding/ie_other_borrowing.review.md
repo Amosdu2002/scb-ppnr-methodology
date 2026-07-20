@@ -47,3 +47,9 @@ Review date: 2026-07-17. Reviewer: this session, against the authoritative PDF (
 ## 4. Verdict
 
 **APPROVE WITH OPEN IMPLEMENTATION ITEM** — the chapter and specification are faithful to the source at every verified point, with correct [FACT]/[INT]/[PID] separation, and the PID-OB-1/PID-OB-3 confirmations make the model conditionally implementable as specified. Open implementation items carried in the verdict: (i) the PQ0 actual-expense line item (F-1, OQ-009 residual); (ii) the four BBB physical-input confirmations (F-6, PID-OB-4); (iii) reconciliation of the 44C/46/47 vs. 36C/38/39 item-numbering tension (F-7, PID-OB-2 — mapping governs meanwhile).
+
+---
+
+## Addendum — 2026-07-20 (post-review revision, user-directed)
+
+**PID-OB-5 (user-confirmed 2026-07-20) supersedes PID-OB-1 and PID-OB-3.** The α_b treatment reviewed above (PQ0 backsolve identity; single-PQ0-quarter actuals) is replaced by a nine-quarter cumulative calibration against the project-supplied FRB total-interest-expense path (chapter §9; YAML `fixed_effect`). Consequences for this review: F-1's remaining input gap (the PQ0 actual-expense line item) is **moot** — `ob_expense_actual_launchpoint` was removed from the inputs; the successor open item is **OQ-023** (physical source of `frb_total_interest_expense`). Verification checks 1–9 and 11–15 are unaffected (equations, coefficients, balances, conversion treatment); check 10's PASS applies to the superseded treatment and is historical. The historical body above is preserved unchanged.

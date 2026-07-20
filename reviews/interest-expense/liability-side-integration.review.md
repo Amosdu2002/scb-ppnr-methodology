@@ -172,3 +172,20 @@ page-level citations) but should be closed before the family is declared APPROVE
 **INTEGRATION APPROVED WITH OPEN IMPLEMENTATION ITEMS** — the items in §5 plus the F-2
 follow-up review in §6. No CRITICAL findings; all MATERIAL findings resolved at this gate
 except F-2, which is scheduled rather than resolved.
+
+---
+
+## Addendum — 2026-07-20 (post-gate revision, user-directed)
+
+**PID-OB-5 (user-confirmed 2026-07-20) supersedes PID-OB-1/PID-OB-3** for `ie_other_borrowing`:
+α_b is now calibrated so the nine-quarter cumulative modeled expense equals the cumulative
+expense implied by the project-supplied FRB total-interest-expense path
+(`frb_total_interest_expense`); PQ0 actuals never enter. Effects on this report: §3's
+"D-002 + PID-OB-1/3" fixed-effect line and the "OB backsolve reversal" clause describe the
+superseded treatment (historical); §5 item 2 (OQ-009 residual — PQ0 actual-expense line item;
+low-rate-regime mismatch) is **moot** and replaced by **OQ-023** (FRB-total physical source and
+scope alignment). The OB α_b hedge double-counting caution (§5 item 1) still applies — under
+PID-OB-5 α_b absorbs the full residual to the FRB total, including any embedded hedge effects.
+A project-level execution-order dependency now exists: the other four interest-expense models
+plus the FRB total path feed the OB calibration (registry: `handbook/open-questions.md`; chapter
+§9; YAML `fixed_effect` and `dependencies`). The historical body above is preserved unchanged.

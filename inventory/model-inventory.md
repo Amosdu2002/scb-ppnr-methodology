@@ -221,11 +221,11 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Firm data inputs | Balances: Schedule G NII Worksheet items 44C (Other Short-Term Borrowing), 46 (Subordinated Notes/TruPS), 47 (Other Interest-Bearing Liabilities) — noting parts of sub debt may sit in 44C/47 per reporting instructions (source-stated); composition shares from FR Y-9C: sub debt BHDM4062 + BHDMC699, commercial paper BHCK2309; physical balance mapping: Schedule G items 36C + 38 + 39 [PID-OB-2, user-confirmed 2026-07-17] |
 | Scenario inputs | 3-month Treasury yield; BBB corporate bond yield |
 | Parameters | β1 = **0.254**\*\*, β2 = **−0.036**\*\*\*, β3 = **0.066**\*\* (Table A9). **Firm fixed effects α_b: estimated but NOT disclosed** |
-| Fixed-effect values | PROJECT IMPLEMENTATION DECISION (D-002 + PID-OB-1/PID-OB-3, user-confirmed 2026-07-17): backsolved from single-PQ0-quarter actuals, R_actual = 4 × PQ0 expense / B(b,0); remaining gaps tracked in OQ-009 (narrowed) |
+| Fixed-effect values | PROJECT IMPLEMENTATION DECISION (PID-OB-5, user-confirmed 2026-07-20; supersedes PID-OB-1/PID-OB-3): α_b calibrated in closed form so the nine-quarter cumulative modeled expense equals the cumulative implied residual vs the FRB total-interest-expense path (`frb_total_interest_expense`, project-supplied input — OQ-023); PQ0 actuals never used; requires the four sibling model expense paths (project-level execution order) |
 | Constant over horizon | Balance B(b,0); composition shares at the launch point |
 | Absorbs | Current structural sub-debt model iv.m(3) (cf. Question A190: should sub debt stay separate?) |
 | Integrity flags | CA-2g/h (stray pipes in where-list); SQ-13 ("(a.)" heading); SQ-17 ("other short-term, borrowing" comma, PDF p. 231) |
-| Open questions | OQ-005, OQ-009 (narrowed), OQ-022 open; OQ-006 resolved |
+| Open questions | OQ-005, OQ-022, OQ-023 open; OQ-006 resolved (D-004); OQ-009 resolved for this model (PID-OB-5; remains open for #11) |
 | Artifacts (integration 2026-07-17) | Chapter `handbook/models/interest-expense/funding/ie_other_borrowing.md` — REVIEWED; spec `specifications/interest-expense/funding/ie_other_borrowing.yaml`; review `reviews/interest-expense/funding/ie_other_borrowing.review.md` (APPROVE WITH OPEN IMPLEMENTATION ITEM) |
 
 ## 13. `adj_irr_hedge` — Interest-Rate-Risk Hedge Adjustment (cross-cutting)
@@ -272,4 +272,4 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 - `adj_irr_hedge` ← proposed FR Y-14Q B.2/B.3 collection; applies across income/expense components.
 - `ie_foreign_dep` ← reuses `ie_other_dom_dep` methodology by reference (Eqs A45–A47).
 - `ie_fed_funds_repo` ↔ `ii_other_ida`: source states the approaches are equivalent, with asset-side fed funds subsumed in #6.
-- No proposed net-interest model consumes another's output; dependencies are on shared inputs, external models, and proposed data collections.
+- No proposed net-interest model consumes another's output; dependencies are on shared inputs, external models, and proposed data collections. **Project-level exception (PID-OB-5, 2026-07-20 — a project calibration, not Fed methodology):** the `ie_other_borrowing` α_b calibration consumes the completed expense paths of `ie_dom_time_dep`, `ie_other_dom_dep`, `ie_foreign_dep`, and `ie_fed_funds_repo` plus the project-supplied `frb_total_interest_expense` path (OQ-023); the Fed-suite independence statement stands as the [FACT].
