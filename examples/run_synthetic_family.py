@@ -29,17 +29,19 @@ QUARTERS = range(1, 10)
 def build_scenario() -> ScenarioPaths:
     return ScenarioPaths(
         scenario_id="synthetic_severely_adverse",
-        usd_3m_treasury={0: 0.0300, 1: 0.0400, 2: 0.0350, 3: 0.0350, 4: 0.0300,
-                         5: 0.0250, 6: 0.0250, 7: 0.0300, 8: 0.0350, 9: 0.0400},
-        usd_1y_treasury={q: 0.0400 for q in QUARTERS},
-        bbb_corporate_yield={q: 0.0600 for q in QUARTERS},
+        usd_3m_treasury={0: 0.0440, 1: 0.0180, 2: 0.001, 3: 0.001, 4: 0.001,
+                         5: 0.001, 6: 0.001, 7: 0.001, 8: 0.001, 9: 0.001},
+        usd_1y_treasury={1: 0.015, 2: 0.001, 3: 0.001, 4: 0.002,
+                         5: 0.002, 6: 0.002, 7: 0.002, 8: 0.002, 9: 0.003},
+        bbb_corporate_yield={0: 0.054, 1: 0.052, 2: 0.057, 3: 0.06, 4: 0.06,
+                         5: 0.06, 6: 0.058, 7: 0.055, 8: 0.052, 9: 0.048},
     )
 
 
 def build_family(firm_id: str = "SYNTHETIC_FIRM") -> FamilyInputs:
     return FamilyInputs(
         firm_id=firm_id,
-        dom_time_dep=DomTimeDepInputs(firm_id, rate_launchpoint=0.0200, wal_months=12.0, balance=1000.0),
+        dom_time_dep=DomTimeDepInputs(firm_id, rate_launchpoint=0.0200, wal_months=3.0, balance=1000.0),
         other_dom_dep=OtherDomDepInputs(
             firm_id,
             subcomponents={
