@@ -112,12 +112,42 @@ contributions, R0, α_b, implied vs modeled expense and their difference). The f
 adds `AlphaCalibration` (both quarterly paths, differences, cumulative
 reconciliation) and `FamilyReconciliation`.
 
-## Future adapter boundaries
+## Ingestion layer (`src/scb_ppnr/ingestion/`)
 
-- **Excel / MDRM ingestion**: a future input-adapter layer materializes the schema
-  types from physical sources using the YAML `project_mapping` / MEV-workbook
-  configuration (PID-5 pattern; PID-OB-4 BBB gates; OQ-023 FRB-total source). No
-  workbook path, sheet name, or MDRM lookup may appear inside model code.
+Config-driven loaders sit in front of the schemas; models never import from this
+package and no workbook path, sheet name, or cell reference appears in code —
+every physical detail lives in a **company-local TOML config**
+(`config/company.template.toml` is the committed template; the filled copy belongs
+in the gitignored `config/local/`). Relative paths resolve against the config file.
+
+- `tables.py` — CSV reader (stdlib) and XLSX reader (optional `openpyxl`, the
+  `[excel]` extra); returns header + records, untyped.
+- `normalize.py` — quarter parsing (labels, ISO dates, date cells) and declared-
+  scale conversion. Percent vs decimal is config metadata, never guessed; any
+  setting still reading `TO_BE_CONFIRMED` refuses to load, which turns the open
+  gates (PID-OB-4 BBB confirmations, OQ-023 FRB-total source, PID-5 column names)
+  into enforced checkpoints.
+- `mev_loader.py` — the PID-5 pattern (Date column + one column per MEV) with an
+  **open-ended series registry**: each `[mev.series.<name>]` entry declares a
+  column, scale, and kind (`rate`/`level`); adding an MEV for a future family
+  (prime rate, mortgage rate, 10Y Treasury, …) is one config line, no code change.
+  Series are sliced to the PQ0..PQ9 window around the configured launch point
+  (long histories are fine). `MevScenario.interest_expense_scenario_paths()`
+  selects this family's three canonical series.
+- `firm_data_loader.py` — the **canonical tidy sheet** interchange
+  (`model, field, subcomponent, quarter, scale, value`, one row per input): inside
+  the company, a single formula-built workbook tab assembles these rows from the
+  confidential workbook, so only the tidy table crosses the boundary. Rates and
+  shares must declare their scale; balances/months/dollars must not. The nine
+  `family` / `frb_total_interest_expense` rows carry the PID-OB-5 target.
+  Complete worked example: `examples/synthetic_data/` + `examples/synthetic_config.toml`,
+  run end-to-end by `examples/run_from_config.py`.
+
+## Future boundaries
+
+- **MDRM lookup**: the tidy sheet deliberately leaves report-item extraction inside
+  the company workbook; a future MDRM-aware adapter would populate the same tidy
+  rows from Y-14Q/Y-9C extracts using the YAML `project_mapping` blocks.
 - **Hedge adjustment (Section v.c, Eqs A49–A51)**: external and downstream. All
   outputs here are pre-hedge expense paths; each model only *exposes* its path
   (OQ-005 allocation open; the calibrated α_b already absorbs the residual to the

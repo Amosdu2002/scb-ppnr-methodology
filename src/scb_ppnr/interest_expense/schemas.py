@@ -459,10 +459,23 @@ class AlphaCalibration:
         object.__setattr__(self, "warnings", tuple(str(w) for w in self.warnings))
 
 
+# [CODE] wiring-mistake guard only: when income, expense, and NII paths are all
+# supplied, |NII − (income − expense)| beyond 1% of the quarter's magnitude fails —
+# generous enough for rounded Fed-provided figures, tight enough to catch swapped
+# or mis-scaled columns. Values are never adjusted.
+FRB_IDENTITY_GUARD_REL: float = 0.01
+
+
 @dataclass(frozen=True)
 class FamilyInputs:
-    """Canonical inputs for one firm × one scenario family run, including the
-    project-supplied FRB total-interest-expense path (PID-OB-5; source OQ-023)."""
+    """Canonical inputs for one firm × one scenario family run.
+
+    The Fed provides the firm's projected interest income, total interest expense,
+    and net interest income (OQ-023, narrowed 2026-07-20). `frb_total_interest_expense`
+    is required — it is the PID-OB-5 calibration target. The income and NII paths are
+    optional companions: no interest-expense model consumes them (income is the future
+    asset-side counterpart), but when both are supplied alongside the expense path the
+    NII = income − expense identity is checked as a wiring guard."""
 
     firm_id: str
     dom_time_dep: DomTimeDepInputs
@@ -471,6 +484,8 @@ class FamilyInputs:
     fed_funds_repo: FedFundsRepoInputs
     other_borrowing: OtherBorrowingInputs
     frb_total_interest_expense: Mapping[int, float]
+    frb_total_interest_income: Mapping[int, float] | None = None
+    frb_net_interest_income: Mapping[int, float] | None = None
 
     def __post_init__(self) -> None:
         _require_id("firm_id", self.firm_id)
@@ -484,6 +499,23 @@ class FamilyInputs:
             self, "frb_total_interest_expense",
             freeze_path("frb_total_interest_expense", self.frb_total_interest_expense, PROJECTION_QUARTERS),
         )
+        for optional_name in ("frb_total_interest_income", "frb_net_interest_income"):
+            value = getattr(self, optional_name)
+            if value is not None:
+                object.__setattr__(self, optional_name, freeze_path(optional_name, value, PROJECTION_QUARTERS))
+        if self.frb_total_interest_income is not None and self.frb_net_interest_income is not None:
+            for q in PROJECTION_QUARTERS:
+                income = self.frb_total_interest_income[q]
+                expense = self.frb_total_interest_expense[q]
+                net = self.frb_net_interest_income[q]
+                gap = net - (income - expense)
+                guard = FRB_IDENTITY_GUARD_REL * max(1.0, abs(income), abs(expense))
+                if abs(gap) > guard:
+                    raise ValidationFailure(
+                        f"FRB identity violated at PQ{q}: net_interest_income {net} != "
+                        f"interest_income {income} - interest_expense {expense} (gap {gap}, guard {guard}) — "
+                        f"likely swapped or mis-scaled paths; values are never adjusted"
+                    )
 
 
 @dataclass(frozen=True)

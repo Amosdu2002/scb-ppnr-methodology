@@ -96,7 +96,10 @@ inputs:
     - name: frb_total_interest_expense              # FRBTotal(b,q)
       fed_item: UNKNOWN                             # FACT absence — the source states no total-interest-expense
                                                     # aggregation for the proposed suite (Section v is bottom-up)
-      physical_source: TO_BE_CONFIRMED              # OQ-023 — source/definition and scope alignment
+      physical_source: TO_BE_CONFIRMED              # OQ-023 narrowed 2026-07-20 (user-stated): FRB provides the firm
+                                                    # interest income / total interest expense / NII; this input maps to
+                                                    # the expense path (income + NII carried at family level with an
+                                                    # NII = income - expense wiring guard); file mapping + scope TBC
       dims: [firm, scenario, quarter]               # q = 1..9
       units: USD_per_quarter
       timing: projection_quarters
@@ -268,7 +271,7 @@ open_questions:
   open:
     - {id: OQ-005, topic: hedge-adjustment allocation across components}
     - {id: OQ-022, topic: "share-denominator physical form: FR Y-9C numerators over Schedule G total (mixed literal reading); projection-side source form unstated (formerly OQ-OB-A)"}
-    - {id: OQ-023, topic: "physical source/definition of frb_total_interest_expense and its scope alignment with the five modeled components (filed 2026-07-20 with PID-OB-5)"}
+    - {id: OQ-023, topic: "frb_total_interest_expense sourcing — narrowed 2026-07-20: FRB provides firm-level interest income / total interest expense / NII paths; remaining: physical file mapping and scope alignment with the five modeled components"}
   resolved_for_project:
     - {id: OQ-006, via: D-004, topic: annualized units; final-step /4}
     - {id: OQ-009, via: PID-OB-5, topic: "alpha_b sourcing for this model — nine-quarter cumulative calibration; the former PQ0 residuals are moot (OQ-009 remains open for nii_trading_al)"}

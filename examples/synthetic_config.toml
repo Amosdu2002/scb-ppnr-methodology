@@ -1,0 +1,37 @@
+# Fully synthetic demo config — same numbers as the integration-test fixture.
+# This is the shape a company-local config takes; see config/company.template.toml.
+# Paths are relative to this file's directory.
+#
+# The MEV file is LONG FORMAT: one sheet holds several scenarios under a
+# "Scenario Name" column. History + launch-point (PQ0) rows are labeled "Actual";
+# each scenario's PQ1..PQ9 rows carry its own label.
+
+[mev]
+date_column = "Date"
+scenario_name_column = "Scenario Name"
+actuals_label = "Actual"
+launch_point = "2025Q4"
+
+[mev.scenarios.synthetic_severely_adverse]
+path = "synthetic_data/mev_scenarios.csv"
+label = "Supervisory Severely Adverse"
+
+[mev.scenarios.synthetic_baseline]
+path = "synthetic_data/mev_scenarios.csv"
+label = "Supervisory Baseline"
+
+[mev.series.usd_3m_treasury]
+column = "USD 3M Treasury"
+scale = "percent"
+
+[mev.series.usd_1y_treasury]
+column = "USD 1Y Treasury"
+scale = "percent"
+
+[mev.series.bbb_corporate_yield]
+column = "BBB Corporate Yield"
+scale = "percent"
+
+[firm_data]
+firm_id = "SYNTHETIC_FIRM"
+path = "synthetic_data/firm_inputs.csv"

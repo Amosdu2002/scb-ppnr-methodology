@@ -17,6 +17,7 @@ from .ie_other_borrowing import (
 )
 from .ie_other_dom_dep import project_other_dom_dep
 from .orchestrator import MODEL_EXECUTION_ORDER, run_interest_expense_family
+from .reporting import family_report
 from .schemas import (
     FOREIGN_SUBCOMPONENTS,
     OTHER_DOM_SUBCOMPONENTS,
@@ -68,6 +69,7 @@ __all__ = [
     "ValidationFailure",
     "balance_path",
     "calibrate_alpha_b",
+    "family_report",
     "implied_other_borrowing_path",
     "pre_alpha_rate_path",
     "project_dom_time_dep",

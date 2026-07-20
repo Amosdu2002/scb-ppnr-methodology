@@ -1,0 +1,61 @@
+# Company-local ingestion config — TEMPLATE.
+#
+# Copy to config/local/company.toml (config/local/ is gitignored), fill every
+# <PLACEHOLDER> and TO_BE_CONFIRMED, and keep the filled copy out of any public
+# repository: workbook paths, sheet names, and column names are company-specific
+# implementation details and never belong in this repo.
+#
+# Relative paths resolve against THIS FILE's directory. Loaders REFUSE to run
+# while any used setting still says TO_BE_CONFIRMED — that is deliberate: the
+# open input gates (PID-OB-4 BBB confirmations; OQ-023 FRB-total source; PID-5
+# column names) block execution instead of being guessed.
+
+[mev]
+date_column = "Date"                    # PID-5 pattern: a Date column + one column per MEV
+launch_point = "<YYYYQn>"               # PQ0, the launch point / jump-off quarter (D-005);
+                                        # PQ1..PQ9 = the next nine quarters
+# Long-format files: one sheet holds several scenarios under a scenario-name column.
+# Rows at/before the launch point carry the actuals label; each scenario's PQ1..PQ9
+# rows carry its own label; other scenarios' rows are ignored. Delete these two
+# lines if your file is one-scenario-per-sheet with no scenario-name column.
+scenario_name_column = "Scenario Name"
+actuals_label = "Actual"                # label on history + launch-point (PQ0) rows
+
+[mev.scenarios.severely_adverse]
+path = "<PATH_TO_MEV_WORKBOOK>.xlsx"    # .xlsx needs: pip install openpyxl  (CSV needs nothing)
+sheet = "<SHEET_NAME>"
+label = "Supervisory Severely Adverse"  # this scenario's value in the scenario-name column
+
+# One entry per MEV series. Adding an MEV for a future model family (prime rate,
+# mortgage rate, 10Y Treasury, ...) is one entry here — no code change.
+# kind = "rate" (default): scale-normalized to annualized decimal; scale REQUIRED.
+# kind = "level": taken as-is (e.g. an index); scale must be absent.
+
+[mev.series.usd_3m_treasury]
+column = "TO_BE_CONFIRMED"              # working assumption "USD 3M Treasury" — confirm (PID-5)
+scale = "TO_BE_CONFIRMED"               # "percent" | "decimal" — declared, never guessed
+
+[mev.series.usd_1y_treasury]
+column = "USD 1Y Treasury"              # confirmed column name (PID-5, ie_dom_time_dep)
+scale = "TO_BE_CONFIRMED"
+
+[mev.series.bbb_corporate_yield]
+column = "TO_BE_CONFIRMED"              # PID-OB-4 gates, all four: exact column name; whether the
+scale = "TO_BE_CONFIRMED"               # quantity is a BBB YIELD or a BBB SPREAD (a spread must NEVER
+                                        # be passed as the yield — resolve any Treasury addition
+                                        # upstream); unit scale
+
+[firm_data]
+firm_id = "<FIRM_ID>"
+path = "<PATH_TO_WORKBOOK_WITH_CANONICAL_TAB>.xlsx"
+sheet = "<CANONICAL_TAB_NAME>"
+# The canonical tidy tab has columns: model, field, subcomponent, quarter, scale, value
+# (one row per input; build it inside the workbook with plain formulas — see
+# examples/synthetic_data/firm_inputs.csv for a complete worked layout).
+# FRB-provided firm projection paths (model "family", quarter 1..9 each; OQ-023):
+#   frb_total_interest_expense — REQUIRED: the PID-OB-5 calibration target
+#   frb_total_interest_income  — optional companion (future asset-side counterpart)
+#   frb_net_interest_income    — optional; with all three present, the
+#                                NII = income − expense identity is checked as a
+#                                wiring guard before any model runs
+# Confirm the physical file mapping of these paths before reliance.

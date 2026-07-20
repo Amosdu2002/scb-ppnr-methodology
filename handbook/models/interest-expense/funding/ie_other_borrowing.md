@@ -56,7 +56,7 @@ Table A9 note, verbatim: "Statistical significance levels of 1%, 5%, and 10% are
 
 | Input | Source | Dimensions | Units | Timing | Label |
 |---|---|---|---|---|---|
-| FRB total interest expense, FRBTotal(b,q) (`frb_total_interest_expense`) | Project-supplied. The Fed source states **no** total-interest-expense aggregation for the proposed suite ([FACT] absence — Section v models each component independently); physical source **TO BE CONFIRMED** [OQ-023] | b × scenario × q | USD per quarter | q = 1…9 | [PID-OB-5] |
+| FRB total interest expense, FRBTotal(b,q) (`frb_total_interest_expense`) | Project-supplied. The Fed source states **no** total-interest-expense aggregation for the proposed suite ([FACT] absence — Section v models each component independently). OQ-023 narrowed 2026-07-20 (user-stated): sourced from the FRB-provided firm projections (interest income / total interest expense / net interest income; the income and NII paths are carried alongside at family level, with the NII = income − expense identity as a [CODE] wiring guard); file mapping and scope alignment **TO BE CONFIRMED** [OQ-023] | b × scenario × q | USD per quarter | q = 1…9 | [PID-OB-5] |
 | Sibling modeled expense paths (`dtd_interest_expense`, `odd_interest_expense`, `foreign_interest_expense`, `fed_funds_repo_interest_expense`) | Outputs of `ie_dom_time_dep`, `ie_other_dom_dep`, `ie_foreign_dep`, `ie_fed_funds_repo` — supplied after those models complete (execution order, §9) | b × scenario × q | USD per quarter | q = 1…9 | [PID-OB-5] |
 
 ## 4. Equations
@@ -171,7 +171,7 @@ Board questions on this component: A189 (overall approach), A190 (modeling subde
 ## 13. Remaining implementation questions
 
 - **OQ-009 — RESOLVED FOR THIS MODEL (2026-07-20, via PID-OB-5).** PQ0 actuals no longer enter; the former residuals (PQ0 actual-expense line item; PQ0 low-rate-regime mismatch) are moot. PID-OB-1/PID-OB-3 superseded. OQ-009 remains OPEN for `nii_trading_al`.
-- **OQ-023 — OPEN (filed 2026-07-20 with PID-OB-5).** Physical source/definition of `frb_total_interest_expense` and its scope alignment with the five modeled components (§3.4, §9).
+- **OQ-023 — OPEN (filed 2026-07-20 with PID-OB-5; narrowed same day, user-stated).** The FRB provides the firm's projected interest income, total interest expense, and NII; `frb_total_interest_expense` maps to the expense path. Remaining: physical file mapping of the three paths and scope alignment with the five modeled components (§3.4, §9).
 - **MATERIAL implementation item — BBB physical input [PID-OB-4, §3.2].** Confirm (1) the exact MEV column name; (2) whether the workbook quantity is a yield or a spread; (3) any Treasury-yield addition; (4) the unit scale (decimal / percentage points / bp). β1 = 0.254 is unchanged regardless.
 - **Balance item-number tension [PID-OB-2, §3.1].** The source states items 44C/46/47; the user-confirmed physical mapping is 36C + 38 + 39 — the mapping governs for implementation; the tension is recorded, not resolved.
 - **OQ-005 — OPEN.** Hedge-adjustment allocation (§12).

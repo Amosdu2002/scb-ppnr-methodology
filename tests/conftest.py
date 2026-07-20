@@ -46,7 +46,7 @@ def make_scenario():
 
 @pytest.fixture
 def make_family():
-    def _make(firm_id: str = "FIRM_A", frb_total=None) -> FamilyInputs:
+    def _make(firm_id: str = "FIRM_A", frb_total=None, frb_income=None, frb_nii=None) -> FamilyInputs:
         if frb_total is None:
             frb_total = flat(40.0)
         return FamilyInputs(
@@ -71,6 +71,8 @@ def make_family():
             fed_funds_repo=FedFundsRepoInputs(firm_id, fed_funds_purchased_balance=600.0, repo_sold_balance=400.0),
             other_borrowing=OtherBorrowingInputs(firm_id, total_balance=1000.0, cp_share=0.10, subdebt_share=0.20),
             frb_total_interest_expense=frb_total,
+            frb_total_interest_income=frb_income,
+            frb_net_interest_income=frb_nii,
         )
 
     return _make
