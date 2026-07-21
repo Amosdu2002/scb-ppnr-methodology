@@ -54,6 +54,23 @@ def test_implied_quarterly_residuals(stub_result):
     assert all(implied[q] == pytest.approx(40.0 - 30.0) for q in PROJECTION_QUARTERS)
 
 
+def test_units_mismatch_guard_trips_in_both_directions(stub_result):
+    # Siblings sum to 30/quarter (270 cumulative). FRB total 1000× too big — as if
+    # Schedule G balances were fed in billions against an FRB path in millions:
+    with pytest.raises(ValidationFailure, match="money-unit mismatch"):
+        implied_other_borrowing_path(flat(40000.0), *_siblings(stub_result))
+    # FRB total 1000× too small — billions against Schedule G millions, the direction
+    # the |alpha_b| magnitude warning can miss:
+    with pytest.raises(ValidationFailure, match="money-unit mismatch"):
+        implied_other_borrowing_path(flat(0.04), *_siblings(stub_result))
+
+
+def test_units_ratio_under_guard_passes(stub_result):
+    # 1400×9 = 12600 vs 270 cumulative → ×46.7, under the 50× screen: legal, no error.
+    implied = implied_other_borrowing_path(flat(1400.0), *_siblings(stub_result))
+    assert implied[1] == pytest.approx(1400.0 - 30.0)
+
+
 def test_closed_form_alpha_exact_cumulative_match(make_scenario):
     cal = calibrate_alpha_b(flat(20.0), balance_path(INPUTS), pre_alpha_rate_path(INPUTS, _scenario(make_scenario)))
     assert cal.alpha_b == pytest.approx(ALPHA_HAND, rel=1e-12)

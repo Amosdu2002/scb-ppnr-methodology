@@ -13,33 +13,34 @@ from scb_ppnr.interest_expense import ValidationFailure
 
 COLUMNS = ["model", "field", "subcomponent", "quarter", "scale", "value"]
 
-# Canonical (decimal-scale) rows replicating tests/conftest.py make_family() exactly.
+# Canonical rows replicating tests/conftest.py make_family() exactly — decimal scales
+# for rates, millions for money (both pass values through untouched; D-006).
 BASE_ROWS: list[tuple[str, str, str, str, str, str]] = [
     ("ie_dom_time_dep", "rate_launchpoint", "", "", "decimal", "0.02"),
     ("ie_dom_time_dep", "wal_months", "", "", "", "12"),
-    ("ie_dom_time_dep", "balance", "", "", "", "1000"),
+    ("ie_dom_time_dep", "balance", "", "", "millions", "1000"),
     ("ie_other_dom_dep", "rate_launchpoint", "mma", "", "decimal", "0.01"),
-    ("ie_other_dom_dep", "balance", "mma", "", "", "600"),
+    ("ie_other_dom_dep", "balance", "mma", "", "millions", "600"),
     ("ie_other_dom_dep", "elb_spread", "mma", "", "decimal", "0.001"),
     ("ie_other_dom_dep", "rate_launchpoint", "savings", "", "decimal", "0.005"),
-    ("ie_other_dom_dep", "balance", "savings", "", "", "300"),
+    ("ie_other_dom_dep", "balance", "savings", "", "millions", "300"),
     ("ie_other_dom_dep", "elb_spread", "savings", "", "decimal", "0.001"),
     ("ie_other_dom_dep", "rate_launchpoint", "transaction", "", "decimal", "0.002"),
-    ("ie_other_dom_dep", "balance", "transaction", "", "", "100"),
+    ("ie_other_dom_dep", "balance", "transaction", "", "millions", "100"),
     ("ie_other_dom_dep", "elb_spread", "transaction", "", "decimal", "0.001"),
-    ("ie_other_dom_dep", "total_average_balance", "", "", "", "1050"),
+    ("ie_other_dom_dep", "total_average_balance", "", "", "millions", "1050"),
     ("ie_foreign_dep", "rate_launchpoint", "foreign_nontime", "", "decimal", "0.008"),
-    ("ie_foreign_dep", "balance", "foreign_nontime", "", "", "500"),
+    ("ie_foreign_dep", "balance", "foreign_nontime", "", "millions", "500"),
     ("ie_foreign_dep", "elb_spread", "foreign_nontime", "", "decimal", "0.0004"),
     ("ie_foreign_dep", "rate_launchpoint", "foreign_time", "", "decimal", "0.012"),
-    ("ie_foreign_dep", "balance", "foreign_time", "", "", "500"),
+    ("ie_foreign_dep", "balance", "foreign_time", "", "millions", "500"),
     ("ie_foreign_dep", "elb_spread", "foreign_time", "", "decimal", "0.0006"),
-    ("ie_fed_funds_repo", "fed_funds_purchased_balance", "", "", "", "600"),
-    ("ie_fed_funds_repo", "repo_sold_balance", "", "", "", "400"),
-    ("ie_other_borrowing", "total_balance", "", "", "", "1000"),
+    ("ie_fed_funds_repo", "fed_funds_purchased_balance", "", "", "millions", "600"),
+    ("ie_fed_funds_repo", "repo_sold_balance", "", "", "millions", "400"),
+    ("ie_other_borrowing", "total_balance", "", "", "millions", "1000"),
     ("ie_other_borrowing", "cp_share", "", "", "decimal", "0.10"),
     ("ie_other_borrowing", "subdebt_share", "", "", "decimal", "0.20"),
-] + [("family", "frb_total_interest_expense", "", str(q), "", "40") for q in range(1, 10)]
+] + [("family", "frb_total_interest_expense", "", str(q), "millions", "40") for q in range(1, 10)]
 
 
 def _write(tmp_path: Path, rows) -> IngestionConfig:
@@ -52,7 +53,7 @@ def _write(tmp_path: Path, rows) -> IngestionConfig:
 
 def test_round_trip_equals_directly_constructed_inputs(tmp_path, make_family):
     loaded = load_family_inputs(_write(tmp_path, BASE_ROWS))
-    assert loaded == make_family()   # exact — decimal scales pass values through untouched
+    assert loaded == make_family()   # exact — decimal and millions scales pass values through untouched
 
 
 def test_percent_scale_converted(tmp_path):
@@ -92,9 +93,32 @@ def test_rate_without_scale_refused(tmp_path):
         load_family_inputs(_write(tmp_path, rows))
 
 
-def test_balance_with_scale_refused(tmp_path):
+def test_billions_scale_converted_to_canonical_millions(tmp_path):
+    rows = [row for row in BASE_ROWS if row[:2] != ("ie_other_borrowing", "total_balance")]
+    rows.append(("ie_other_borrowing", "total_balance", "", "", "billions", "1"))
+    rows = [row if not (row[0] == "family" and row[3] == "1") else (*row[:4], "billions", "0.04") for row in rows]
+    loaded = load_family_inputs(_write(tmp_path, rows))
+    assert loaded.other_borrowing.total_balance == pytest.approx(1000.0)
+    assert loaded.frb_total_interest_expense[1] == pytest.approx(40.0)
+
+
+def test_balance_without_scale_refused(tmp_path):
+    rows = [row for row in BASE_ROWS if row[:2] != ("ie_dom_time_dep", "balance")]
+    rows.append(("ie_dom_time_dep", "balance", "", "", "", "1000"))
+    with pytest.raises(ValidationFailure, match="must be confirmed"):
+        load_family_inputs(_write(tmp_path, rows))
+
+
+def test_balance_with_rate_scale_refused(tmp_path):
     rows = [row for row in BASE_ROWS if row[:2] != ("ie_dom_time_dep", "balance")]
     rows.append(("ie_dom_time_dep", "balance", "", "", "percent", "1000"))
+    with pytest.raises(ValidationFailure, match="millions.*billions"):
+        load_family_inputs(_write(tmp_path, rows))
+
+
+def test_months_with_scale_refused(tmp_path):
+    rows = [row for row in BASE_ROWS if row[:2] != ("ie_dom_time_dep", "wal_months")]
+    rows.append(("ie_dom_time_dep", "wal_months", "", "", "millions", "12"))
     with pytest.raises(ValidationFailure, match="already canonical"):
         load_family_inputs(_write(tmp_path, rows))
 
@@ -113,9 +137,9 @@ def test_quarter_rules(tmp_path):
 
 
 FRB_COMPANION_ROWS = [
-    ("family", "frb_total_interest_income", "", str(q), "", "100") for q in range(1, 10)
+    ("family", "frb_total_interest_income", "", str(q), "millions", "100") for q in range(1, 10)
 ] + [
-    ("family", "frb_net_interest_income", "", str(q), "", "60") for q in range(1, 10)
+    ("family", "frb_net_interest_income", "", str(q), "millions", "60") for q in range(1, 10)
 ]
 
 

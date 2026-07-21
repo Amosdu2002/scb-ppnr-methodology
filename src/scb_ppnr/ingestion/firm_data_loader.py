@@ -6,9 +6,12 @@ Interchange layout — one row per input; extra columns are ignored:
 
 Inside the company, a single workbook tab assembles these rows from the confidential
 workbook with plain formulas; only that tidy table crosses this boundary, so no
-sheet or cell reference ever appears in code. Rules: rate/spread/share values must
-declare `scale` (percent | decimal) explicitly; balances, months, and dollar amounts
-must leave it blank (they are already canonical).
+sheet or cell reference ever appears in code. Scale rules (D-006): rate/spread/share
+values declare `scale` percent | decimal; balances and dollar amounts declare `scale`
+millions | billions and are normalized here to the canonical USD-millions unit
+(Schedule G reports millions while the FRB projection paths arrive in billions —
+mixing them undeclared would be silently absorbed into the α_b calibration); months
+values leave `scale` blank (already canonical).
 
 The Fed provides three firm-level projection paths (OQ-023, narrowed 2026-07-20):
 interest income, total interest expense, and net interest income. Their quarterly rows
@@ -35,7 +38,7 @@ from ..interest_expense.schemas import (
     ValidationFailure,
 )
 from .config import IngestionConfig
-from .normalize import apply_rate_scale, to_float
+from .normalize import apply_money_scale, apply_rate_scale, to_float
 from .tables import read_table
 
 _RATE = "rate"
@@ -119,9 +122,12 @@ def _parse_rows(rows: list[dict[str, object]], path) -> dict[_Key, float]:
         value = to_float(row.get("value"), context=context)
         if kind in (_RATE, _SHARE):
             value = apply_rate_scale(scale, value, context=context)
+        elif kind in (_BALANCE, _MONEY):
+            value = apply_money_scale(scale, value, context=context)
         elif scale:
             raise ValidationFailure(
-                f"{context}: scale applies only to rate/spread/share fields — {kind!r} values are already canonical"
+                f"{context}: scale applies only to rate/spread/share and balance/money fields — "
+                f"{kind!r} values are already canonical"
             )
         key: _Key = (model, fld, subcomponent, quarter)
         if key in values:

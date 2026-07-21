@@ -52,6 +52,13 @@ sheet = "<CANONICAL_TAB_NAME>"
 # The canonical tidy tab has columns: model, field, subcomponent, quarter, scale, value
 # (one row per input; build it inside the workbook with plain formulas — see
 # examples/synthetic_data/firm_inputs.csv for a complete worked layout).
+# Scale rules (D-006) — the loader refuses undeclared units, nothing is guessed:
+#   rate/spread/share rows : scale = "percent" | "decimal"
+#   balance/dollar rows    : scale = "millions" | "billions" (canonical unit is USD
+#                            millions; Schedule G balances are reported in millions,
+#                            the FRB projection paths arrive in billions — so the
+#                            frb_* rows below typically declare "billions")
+#   months rows            : scale blank (already canonical)
 # FRB-provided firm projection paths (model "family", quarter 1..9 each; OQ-023):
 #   frb_total_interest_expense — REQUIRED: the PID-OB-5 calibration target
 #   frb_total_interest_income  — optional companion (future asset-side counterpart)

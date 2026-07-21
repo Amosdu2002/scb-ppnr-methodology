@@ -1,10 +1,11 @@
 """Normalization at the ingestion boundary: quarter arithmetic and declared-scale
 conversion.
 
-Percent vs decimal is metadata the config or tidy sheet must declare — never guessed
-(conventions §2). TO_BE_CONFIRMED placeholders are refused at load time, so open
-input gates (the PID-OB-4 BBB confirmations, the OQ-023 FRB-total source) block
-execution instead of letting unconfirmed data through."""
+Percent vs decimal for rates, and millions vs billions for money (D-006), are metadata
+the config or tidy sheet must declare — never guessed (conventions §2). TO_BE_CONFIRMED
+placeholders are refused at load time, so open input gates (the PID-OB-4 BBB
+confirmations, the OQ-023 FRB-total source) block execution instead of letting
+unconfirmed data through."""
 
 from __future__ import annotations
 
@@ -17,6 +18,8 @@ from ..interest_expense.schemas import ValidationFailure
 TO_BE_CONFIRMED = "TO_BE_CONFIRMED"
 SCALE_PERCENT = "percent"
 SCALE_DECIMAL = "decimal"
+SCALE_MILLIONS = "millions"
+SCALE_BILLIONS = "billions"
 
 
 @dataclass(frozen=True, order=True)
@@ -91,3 +94,18 @@ def apply_rate_scale(scale: object, value: float, *, context: str) -> float:
     if declared == SCALE_DECIMAL:
         return value
     raise ValidationFailure(f"{context}: scale must be '{SCALE_PERCENT}' or '{SCALE_DECIMAL}', got {scale!r}")
+
+
+def apply_money_scale(scale: object, value: float, *, context: str) -> float:
+    """Convert a balance or dollar amount to the canonical USD-millions unit using its
+    *declared* unit (D-006). Physical sources disagree — Schedule G balances arrive in
+    millions, FRB projection paths in billions — so an undeclared money unit is an
+    error, never a default."""
+    declared = require_confirmed(
+        f"{context}: scale", scale, gate="money unit is metadata-driven, never assumed — D-006"
+    ).lower()
+    if declared == SCALE_MILLIONS:
+        return value
+    if declared == SCALE_BILLIONS:
+        return value * 1000.0
+    raise ValidationFailure(f"{context}: scale must be '{SCALE_MILLIONS}' or '{SCALE_BILLIONS}', got {scale!r}")

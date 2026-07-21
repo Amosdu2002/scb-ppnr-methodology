@@ -1,10 +1,11 @@
 """Canonical input and result contracts for the five proposed 2026 interest-expense models.
 
-Canonical units (conventions chapter §2–§3; decision D-004): monetary balances in USD;
+Canonical units (conventions chapter §2–§3; decisions D-004, D-006): monetary amounts in
+USD millions (tidy-sheet rows declare millions | billions and ingestion normalizes);
 every rate, spread, and beta an annualized decimal rate; projection horizon PQ1..PQ9 with
-PQ0 the launch point. Percent→decimal normalization belongs at the ingestion boundary,
-upstream of these types — a rate magnitude >= RATE_SCALE_GUARD is rejected as
-percent-scale leakage rather than silently reinterpreted.
+PQ0 the launch point. Percent→decimal and billions→millions normalization belongs at the
+ingestion boundary, upstream of these types — a rate magnitude >= RATE_SCALE_GUARD is
+rejected as percent-scale leakage rather than silently reinterpreted.
 
 These types are the boundary between data retrieval and model calculation (conventions
 §5): model functions accept them and never know whether values came from an Excel
