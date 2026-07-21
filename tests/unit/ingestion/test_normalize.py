@@ -6,7 +6,13 @@ import datetime
 
 import pytest
 
-from scb_ppnr.ingestion.normalize import Quarter, apply_rate_scale, parse_quarter, to_float
+from scb_ppnr.ingestion.normalize import (
+    Quarter,
+    apply_money_scale,
+    apply_rate_scale,
+    parse_quarter,
+    to_float,
+)
 from scb_ppnr.interest_expense import ValidationFailure
 
 
@@ -48,6 +54,23 @@ def test_apply_rate_scale_refuses_undeclared(scale):
 def test_apply_rate_scale_rejects_unknown_unit():
     with pytest.raises(ValidationFailure, match="percent.*decimal"):
         apply_rate_scale("bps", 1.0, context="t")
+
+
+def test_apply_money_scale_millions_and_billions():
+    assert apply_money_scale("millions", 1000.0, context="t") == 1000.0
+    assert apply_money_scale("billions", 0.04, context="t") == pytest.approx(40.0)
+    assert apply_money_scale("Billions", 2.0, context="t") == pytest.approx(2000.0)
+
+
+@pytest.mark.parametrize("scale", [None, "", "TO_BE_CONFIRMED", "to_be_confirmed"])
+def test_apply_money_scale_refuses_undeclared(scale):
+    with pytest.raises(ValidationFailure, match="must be confirmed"):
+        apply_money_scale(scale, 1.0, context="t")
+
+
+def test_apply_money_scale_rejects_unknown_unit():
+    with pytest.raises(ValidationFailure, match="millions.*billions"):
+        apply_money_scale("thousands", 1.0, context="t")
 
 
 def test_to_float():

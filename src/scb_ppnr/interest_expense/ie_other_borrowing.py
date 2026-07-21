@@ -20,6 +20,12 @@ Only the cumulative total is matched — the quarterly modeled and implied paths
 differ and are both preserved as diagnostics. Σ_q B zero or invalid is a validation
 error with no fallback. Negative implied quarters and negative rates are logged, never
 clamped; no floor or cap exists on the rate or on α_b.
+
+Because the backsolve is exact by construction, a money-unit mismatch between the FRB
+total path and the sibling expenses (e.g. billions against Schedule G millions) would be
+silently absorbed into α_b. The implied-path step therefore hard-fails when the two
+cumulatives differ by ≥ UNITS_MISMATCH_RATIO_GUARD (D-006) — the direction the |α_b|
+magnitude warning alone can miss.
 """
 
 from __future__ import annotations
@@ -60,6 +66,11 @@ SIBLING_MODEL_IDS: tuple[str, ...] = (
 )
 
 _CALIBRATION_MATCH_TOL = 1e-12
+
+# A cumulative FRB-total vs cumulative sibling-expense ratio at or beyond this screen
+# is treated as a money-unit mismatch (D-006) and blocks the run — α_b would otherwise
+# absorb it and the final reconciliation would still pass exactly.
+UNITS_MISMATCH_RATIO_GUARD: float = 50.0
 
 
 def pre_alpha_rate_path(
@@ -105,6 +116,20 @@ def implied_other_borrowing_path(
             )
     require_same_run(siblings, firm_id=dom_time_dep.firm_id, scenario_id=dom_time_dep.scenario_id)
     frb_total = freeze_projection_path("frb_total_interest_expense", frb_total_interest_expense)
+
+    frb_sum = sum_path(frb_total)
+    sibling_sum = sum(sum_path(result.expense_path()) for result in siblings)
+    if frb_sum > 0.0 and sibling_sum > 0.0:
+        ratio = max(frb_sum, sibling_sum) / min(frb_sum, sibling_sum)
+        if ratio >= UNITS_MISMATCH_RATIO_GUARD:
+            raise ValidationFailure(
+                f"{MODEL_ID}: cumulative FRB total {frb_sum} vs cumulative sibling expenses "
+                f"{sibling_sum} differ by ×{ratio:.0f} (screen {UNITS_MISMATCH_RATIO_GUARD:.0f}) — "
+                f"probable money-unit mismatch (e.g. FRB billions against Schedule G millions); "
+                f"every tidy-sheet money row must declare millions|billions, canonical unit USD "
+                f"millions (D-006); calibration blocked, α_b never absorbs a unit error"
+            )
+
     return MappingProxyType(
         {
             q: frb_total[q] - sum(result.expense_path()[q] for result in siblings)
