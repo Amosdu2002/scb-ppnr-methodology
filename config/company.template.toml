@@ -47,19 +47,31 @@ scale = "TO_BE_CONFIRMED"               # quantity is a BBB YIELD or a BBB SPREA
 
 [firm_data]
 firm_id = "<FIRM_ID>"
-path = "<PATH_TO_WORKBOOK_WITH_CANONICAL_TAB>.xlsx"
-sheet = "<CANONICAL_TAB_NAME>"
-# The canonical tidy tab has columns: model, field, subcomponent, quarter, scale, value
-# (one row per input; build it inside the workbook with plain formulas — see
-# examples/synthetic_data/firm_inputs.csv for a complete worked layout).
-# Scale rules (D-006) — the loader refuses undeclared units, nothing is guessed:
+# Two canonical tabs (D-007), built inside the workbook with plain formulas — see
+# examples/synthetic_data/firm_inputs_spot.csv and firm_inputs_quarterly.csv for
+# complete worked layouts. Extra columns are ignored on both tabs.
+
+[firm_data.spot]
+# One-time launch-point scalars: columns model, field, subcomponent, scale, value
+# (one row per input — rates, balances, WAL, shares, ELB spreads).
+path = "<PATH_TO_WORKBOOK_WITH_CANONICAL_TABS>.xlsx"
+sheet = "<SPOT_TAB_NAME>"
+
+[firm_data.quarterly]
+# PQ1..PQ9 paths, wide layout: columns model, field, subcomponent, scale,
+# PQ1 ... PQ9 (one row per series; the scale is declared once per row and a
+# supplied row must fill all nine quarters).
+path = "<PATH_TO_WORKBOOK_WITH_CANONICAL_TABS>.xlsx"
+sheet = "<QUARTERLY_TAB_NAME>"
+
+# Scale rules (D-006) — the loaders refuse undeclared units, nothing is guessed:
 #   rate/spread/share rows : scale = "percent" | "decimal"
 #   balance/dollar rows    : scale = "millions" | "billions" (canonical unit is USD
 #                            millions; Schedule G balances are reported in millions,
 #                            the FRB projection paths arrive in billions — so the
-#                            frb_* rows below typically declare "billions")
+#                            frb_* rows typically declare "billions")
 #   months rows            : scale blank (already canonical)
-# FRB-provided firm projection paths (model "family", quarter 1..9 each; OQ-023):
+# FRB-provided firm projection paths (quarterly tab, model "family"; OQ-023):
 #   frb_total_interest_expense — REQUIRED: the PID-OB-5 calibration target
 #   frb_total_interest_income  — optional companion (future asset-side counterpart)
 #   frb_net_interest_income    — optional; with all three present, the

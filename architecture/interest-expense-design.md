@@ -134,14 +134,17 @@ in the gitignored `config/local/`). Relative paths resolve against the config fi
   Series are sliced to the PQ0..PQ9 window around the configured launch point
   (long histories are fine). `MevScenario.interest_expense_scenario_paths()`
   selects this family's three canonical series.
-- `firm_data_loader.py` — the **canonical tidy sheet** interchange
-  (`model, field, subcomponent, quarter, scale, value`, one row per input): inside
-  the company, a single formula-built workbook tab assembles these rows from the
-  confidential workbook, so only the tidy table crosses the boundary. Rates and
-  shares must declare their scale; balances/months/dollars must not. The nine
-  `family` / `frb_total_interest_expense` rows carry the PID-OB-5 target.
-  Complete worked example: `examples/synthetic_data/` + `examples/synthetic_config.toml`,
-  run end-to-end by `examples/run_from_config.py`.
+- `firm_data_loader.py` — the **two-sheet canonical interchange** (D-007): a spot
+  sheet (`model, field, subcomponent, scale, value`, one row per launch-point
+  scalar) and a wide quarterly sheet (`model, field, subcomponent, scale,
+  PQ1..PQ9`, one row per path series). Inside the company, formula-built workbook
+  tabs assemble both from the confidential workbook, so only the tidy tables cross
+  the boundary. Scale is declared, never guessed (D-006): rates/shares `percent |
+  decimal`; balances and dollar amounts `millions | billions` (canonical USD
+  millions); months blank. The `family` / `frb_total_interest_expense` quarterly
+  row carries the PID-OB-5 target. Complete worked example:
+  `examples/synthetic_data/` + `examples/synthetic_config.toml`, run end-to-end by
+  `examples/run_from_config.py`.
 
 ## Future boundaries
 
