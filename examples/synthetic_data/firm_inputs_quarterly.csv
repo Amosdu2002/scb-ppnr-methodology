@@ -1,0 +1,4 @@
+model,field,subcomponent,scale,PQ1,PQ2,PQ3,PQ4,PQ5,PQ6,PQ7,PQ8,PQ9
+family,frb_total_interest_expense,,millions,40,40,40,40,40,40,40,40,40
+family,frb_total_interest_income,,millions,100,100,100,100,100,100,100,100,100
+family,frb_net_interest_income,,millions,60,60,60,60,60,60,60,60,60

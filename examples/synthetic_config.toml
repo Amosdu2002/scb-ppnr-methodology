@@ -34,4 +34,9 @@ scale = "percent"
 
 [firm_data]
 firm_id = "SYNTHETIC_FIRM"
-path = "synthetic_data/firm_inputs.csv"
+
+[firm_data.spot]
+path = "synthetic_data/firm_inputs_spot.csv"
+
+[firm_data.quarterly]
+path = "synthetic_data/firm_inputs_quarterly.csv"

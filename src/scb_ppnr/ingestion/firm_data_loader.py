@@ -1,28 +1,32 @@
-"""Canonical tidy-sheet firm-data loader.
+"""Two-sheet firm-data loader (D-007): a spot sheet and a wide quarterly sheet.
 
-Interchange layout — one row per input; extra columns are ignored:
+Interchange layout — extra columns are ignored on both sheets:
 
-    model, field, subcomponent, quarter, scale, value
+    spot sheet      model, field, subcomponent, scale, value       (one row per input)
+    quarterly sheet model, field, subcomponent, scale, PQ1..PQ9    (one row per series)
 
-Inside the company, a single workbook tab assembles these rows from the confidential
-workbook with plain formulas; only that tidy table crosses this boundary, so no
-sheet or cell reference ever appears in code. Scale rules (D-006): rate/spread/share
-values declare `scale` percent | decimal; balances and dollar amounts declare `scale`
-millions | billions and are normalized here to the canonical USD-millions unit
-(Schedule G reports millions while the FRB projection paths arrive in billions —
-mixing them undeclared would be silently absorbed into the α_b calibration); months
-values leave `scale` blank (already canonical).
+Spot rows carry one-time launch-point scalars (rates, balances, WAL, shares, ELB
+spreads); quarterly rows carry PQ1..PQ9 paths with the scale declared once per row.
+Inside the company, formula-built workbook tabs assemble both from the confidential
+workbook; only these tidy tables cross the boundary, so no sheet or cell reference
+ever appears in code. Scale rules (D-006): rate/spread/share values declare `scale`
+percent | decimal; balances and dollar amounts declare `scale` millions | billions
+and are normalized here to the canonical USD-millions unit (Schedule G reports
+millions while the FRB projection paths arrive in billions — mixing them undeclared
+would be silently absorbed into the α_b calibration); months values leave `scale`
+blank (already canonical).
 
-The Fed provides three firm-level projection paths (OQ-023, narrowed 2026-07-20):
-interest income, total interest expense, and net interest income. Their quarterly rows
-use model `family`, quarters 1..9: `frb_total_interest_expense` is REQUIRED (the
-PID-OB-5 calibration target); `frb_total_interest_income` and `frb_net_interest_income`
-are optional companions (all nine quarters or none) — no interest-expense model consumes
-them, but when both accompany the expense path the NII = income − expense identity is
-checked as a wiring guard. The physical file mapping remains to be confirmed inside the
-company before reliance."""
+The Fed provides three firm-level projection paths (OQ-023, narrowed 2026-07-20) as
+quarterly-sheet rows under model `family`: `frb_total_interest_expense` is REQUIRED
+(the PID-OB-5 calibration target); `frb_total_interest_income` and
+`frb_net_interest_income` are optional companions (a supplied row carries all nine
+quarters) — no interest-expense model consumes them, but when both accompany the
+expense path the NII = income − expense identity is checked as a wiring guard. The
+physical file mapping remains to be confirmed inside the company before reliance."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from ..interest_expense.schemas import (
     FOREIGN_SUBCOMPONENTS,
@@ -37,7 +41,7 @@ from ..interest_expense.schemas import (
     OtherDomDepInputs,
     ValidationFailure,
 )
-from .config import IngestionConfig
+from .config import IngestionConfig, TableSource
 from .normalize import apply_money_scale, apply_rate_scale, to_float
 from .tables import read_table
 
@@ -65,8 +69,9 @@ _QUARTERLY_FIELDS: dict[tuple[str, str], str] = {
     ("family", "frb_total_interest_income"): _MONEY,    # optional — future asset-side counterpart
     ("family", "frb_net_interest_income"): _MONEY,      # optional — enables the NII = II − IE wiring guard
 }
+_PQ_COLUMNS: tuple[str, ...] = tuple(f"PQ{q}" for q in PROJECTION_QUARTERS)
 
-_Key = tuple[str, str, str | None, int | None]
+_SpotKey = tuple[str, str, str | None]
 
 
 def _cell(row: dict[str, object], column: str) -> str:
@@ -74,8 +79,27 @@ def _cell(row: dict[str, object], column: str) -> str:
     return "" if raw is None else str(raw).strip()
 
 
-def _parse_rows(rows: list[dict[str, object]], path) -> dict[_Key, float]:
-    values: dict[_Key, float] = {}
+def _read_sheet(config: IngestionConfig, source: TableSource, *, role: str, required_columns: set[str]) -> tuple[Path, list[dict[str, object]]]:
+    path = config.resolve(source.path)
+    rows = read_table(path, source.sheet)
+    if not rows:
+        raise ValidationFailure(f"{path}: {role} sheet has no data rows")
+    missing_columns = sorted(required_columns - set(rows[0].keys()))
+    if missing_columns:
+        raise ValidationFailure(
+            f"{path}: {role} sheet is missing required columns {missing_columns} "
+            f"(spot layout: model, field, subcomponent, scale, value; "
+            f"quarterly layout: model, field, subcomponent, scale, PQ1..PQ9)"
+        )
+    return path, rows
+
+
+def _is_spot_field(model: str, fld: str) -> bool:
+    return fld in _PLAIN_FIELDS[model] or (model in _MODEL_SUBCOMPONENTS and fld in _SUBCOMPONENT_FIELDS)
+
+
+def _parse_spot_rows(rows: list[dict[str, object]], path: Path) -> dict[_SpotKey, float]:
+    values: dict[_SpotKey, float] = {}
     for line, row in enumerate(rows, start=2):
         model = _cell(row, "model")
         fld = _cell(row, "field")
@@ -84,38 +108,25 @@ def _parse_rows(rows: list[dict[str, object]], path) -> dict[_Key, float]:
         context = f"{path} row {line} ({model}.{fld})"
         if model not in _PLAIN_FIELDS:
             raise ValidationFailure(f"{context}: unknown model {model!r}; known: {sorted(_PLAIN_FIELDS)}")
-        subcomponent = _cell(row, "subcomponent") or None
-        quarter_text = _cell(row, "quarter")
-        scale = _cell(row, "scale") or None
-        quarter: int | None = None
-
         if (model, fld) in _QUARTERLY_FIELDS:
-            kind = _QUARTERLY_FIELDS[(model, fld)]
-            if subcomponent:
-                raise ValidationFailure(f"{context}: subcomponent not allowed on {fld!r}")
-            if not quarter_text:
-                raise ValidationFailure(f"{context}: quarterly field requires a quarter (1..9)")
-            try:
-                quarter = int(float(quarter_text))
-            except ValueError:
-                raise ValidationFailure(f"{context}: quarter {quarter_text!r} is not an integer") from None
-            if quarter not in PROJECTION_QUARTERS:
-                raise ValidationFailure(f"{context}: quarter must be 1..9, got {quarter}")
-        elif model in _MODEL_SUBCOMPONENTS and fld in _SUBCOMPONENT_FIELDS:
+            raise ValidationFailure(
+                f"{context}: {fld!r} is a quarterly path — it belongs in the quarterly sheet "
+                f"(wide layout, columns PQ1..PQ9), not the spot sheet"
+            )
+        subcomponent = _cell(row, "subcomponent") or None
+        scale = _cell(row, "scale") or None
+
+        if model in _MODEL_SUBCOMPONENTS and fld in _SUBCOMPONENT_FIELDS:
             kind = _SUBCOMPONENT_FIELDS[fld]
             allowed = _MODEL_SUBCOMPONENTS[model]
             if subcomponent is None:
                 raise ValidationFailure(f"{context}: subcomponent required (one of {list(allowed)})")
             if subcomponent not in allowed:
                 raise ValidationFailure(f"{context}: unknown subcomponent {subcomponent!r} (one of {list(allowed)})")
-            if quarter_text:
-                raise ValidationFailure(f"{context}: quarter not allowed on launch-point fields")
         elif fld in _PLAIN_FIELDS[model]:
             kind = _PLAIN_FIELDS[model][fld]
             if subcomponent:
                 raise ValidationFailure(f"{context}: subcomponent not allowed for {fld!r}")
-            if quarter_text:
-                raise ValidationFailure(f"{context}: quarter not allowed on launch-point fields")
         else:
             raise ValidationFailure(f"{context}: unknown field {fld!r} for model {model!r}")
 
@@ -129,39 +140,72 @@ def _parse_rows(rows: list[dict[str, object]], path) -> dict[_Key, float]:
                 f"{context}: scale applies only to rate/spread/share and balance/money fields — "
                 f"{kind!r} values are already canonical"
             )
-        key: _Key = (model, fld, subcomponent, quarter)
+        key: _SpotKey = (model, fld, subcomponent)
         if key in values:
             raise ValidationFailure(f"{context}: duplicate row for this input")
         values[key] = value
     return values
 
 
+def _parse_quarterly_rows(rows: list[dict[str, object]], path: Path) -> dict[tuple[str, str], dict[int, float]]:
+    series: dict[tuple[str, str], dict[int, float]] = {}
+    for line, row in enumerate(rows, start=2):
+        model = _cell(row, "model")
+        fld = _cell(row, "field")
+        if not model and not fld:
+            continue
+        context = f"{path} row {line} ({model}.{fld})"
+        if model not in _PLAIN_FIELDS:
+            raise ValidationFailure(f"{context}: unknown model {model!r}; known: {sorted(_PLAIN_FIELDS)}")
+        key = (model, fld)
+        if key not in _QUARTERLY_FIELDS:
+            if _is_spot_field(model, fld):
+                raise ValidationFailure(
+                    f"{context}: {fld!r} is a one-time spot (launch-point) input — it belongs in "
+                    f"the spot sheet, not the quarterly sheet"
+                )
+            known = sorted(f for m, f in _QUARTERLY_FIELDS if m == model)
+            raise ValidationFailure(f"{context}: unknown quarterly field {fld!r} for model {model!r}; known: {known}")
+        if _cell(row, "subcomponent"):
+            raise ValidationFailure(f"{context}: subcomponent not allowed on {fld!r}")
+        if key in series:
+            raise ValidationFailure(f"{context}: duplicate row for this series")
+        kind = _QUARTERLY_FIELDS[key]
+        scale = _cell(row, "scale") or None
+        values: dict[int, float] = {}
+        for quarter in PROJECTION_QUARTERS:
+            column = f"PQ{quarter}"
+            if not _cell(row, column):
+                raise ValidationFailure(
+                    f"{context}: {column} is blank — a supplied quarterly row carries all nine "
+                    f"quarters (fill PQ1..PQ9 or drop the row)"
+                )
+            value = to_float(row.get(column), context=f"{context} {column}")
+            if kind == _MONEY:
+                value = apply_money_scale(scale, value, context=f"{context} {column}")
+            values[quarter] = value
+        series[key] = values
+    return series
+
+
 def load_family_inputs(config: IngestionConfig) -> FamilyInputs:
     if config.firm_data is None:
         raise ValidationFailure("config has no [firm_data] section")
-    source = config.firm_data.source
-    path = config.resolve(source.path)
-    rows = read_table(path, source.sheet)
-    if not rows:
-        raise ValidationFailure(f"{path}: no data rows")
-    header = set(rows[0].keys())
-    missing_columns = sorted({"model", "field", "value"} - header)
-    if missing_columns:
-        raise ValidationFailure(
-            f"{path}: tidy sheet is missing required columns {missing_columns} "
-            f"(layout: model, field, subcomponent, quarter, scale, value)"
-        )
+    spot_path, spot_rows = _read_sheet(
+        config, config.firm_data.spot, role="spot", required_columns={"model", "field", "value"}
+    )
+    quarterly_path, quarterly_rows = _read_sheet(
+        config, config.firm_data.quarterly, role="quarterly", required_columns={"model", "field", *_PQ_COLUMNS}
+    )
+    values = _parse_spot_rows(spot_rows, spot_path)
+    paths = _parse_quarterly_rows(quarterly_rows, quarterly_path)
 
-    values = _parse_rows(rows, path)
     missing: list[str] = []
 
-    def need(model: str, fld: str, subcomponent: str | None = None, quarter: int | None = None) -> float:
-        key: _Key = (model, fld, subcomponent, quarter)
+    def need(model: str, fld: str, subcomponent: str | None = None) -> float:
+        key: _SpotKey = (model, fld, subcomponent)
         if key not in values:
-            label = f"{model}.{fld}" + (f"[{subcomponent}]" if subcomponent else "") + (
-                f" PQ{quarter}" if quarter is not None else ""
-            )
-            missing.append(label)
+            missing.append(f"{model}.{fld}" + (f"[{subcomponent}]" if subcomponent else ""))
             return 0.0
         return values[key]
 
@@ -177,28 +221,12 @@ def load_family_inputs(config: IngestionConfig) -> FamilyInputs:
     }
     fed_funds = {f: need("ie_fed_funds_repo", f) for f in _PLAIN_FIELDS["ie_fed_funds_repo"]}
     other_borrowing = {f: need("ie_other_borrowing", f) for f in _PLAIN_FIELDS["ie_other_borrowing"]}
-    frb_total = {q: need("family", "frb_total_interest_expense", None, q) for q in PROJECTION_QUARTERS}
+    frb_total = paths.get(("family", "frb_total_interest_expense"))
+    if frb_total is None:
+        missing.append("family.frb_total_interest_expense (quarterly sheet)")
+        frb_total = {q: 0.0 for q in PROJECTION_QUARTERS}
     if missing:
-        raise ValidationFailure(f"{path}: missing required inputs: {', '.join(missing)}")
-
-    def take_quarterly_optional(model: str, fld: str) -> dict[int, float] | None:
-        present = {
-            q: values[(model, fld, None, q)]
-            for q in PROJECTION_QUARTERS
-            if (model, fld, None, q) in values
-        }
-        if not present:
-            return None
-        absent = [q for q in PROJECTION_QUARTERS if q not in present]
-        if absent:
-            raise ValidationFailure(
-                f"{path}: {model}.{fld} is partially supplied — missing quarters "
-                f"{[f'PQ{q}' for q in absent]}; supply all nine quarters or none"
-            )
-        return present
-
-    frb_income = take_quarterly_optional("family", "frb_total_interest_income")
-    frb_net = take_quarterly_optional("family", "frb_net_interest_income")
+        raise ValidationFailure(f"{spot_path}: missing required inputs: {', '.join(missing)}")
 
     firm_id = config.firm_data.firm_id
     return FamilyInputs(
@@ -222,6 +250,6 @@ def load_family_inputs(config: IngestionConfig) -> FamilyInputs:
         fed_funds_repo=FedFundsRepoInputs(firm_id, **fed_funds),
         other_borrowing=OtherBorrowingInputs(firm_id, **other_borrowing),
         frb_total_interest_expense=frb_total,
-        frb_total_interest_income=frb_income,
-        frb_net_interest_income=frb_net,
+        frb_total_interest_income=paths.get(("family", "frb_total_interest_income")),
+        frb_net_interest_income=paths.get(("family", "frb_net_interest_income")),
     )

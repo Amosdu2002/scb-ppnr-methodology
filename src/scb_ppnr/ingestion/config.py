@@ -56,8 +56,14 @@ class MevConfig:
 
 @dataclass(frozen=True)
 class FirmDataConfig:
+    """Two-sheet firm-input contract (D-007): `spot` holds one-time launch-point
+    scalars (no quarter dimension), `quarterly` holds PQ1..PQ9 paths in wide layout
+    (one row per series, columns PQ1..PQ9). CSV sources use two files; XLSX sources
+    typically use two tabs of one workbook."""
+
     firm_id: str
-    source: TableSource
+    spot: TableSource
+    quarterly: TableSource
 
 
 @dataclass(frozen=True)
@@ -139,9 +145,17 @@ def load_config(path: Path | str) -> IngestionConfig:
     firm_data: FirmDataConfig | None = None
     if "firm_data" in raw:
         section = raw["firm_data"]
+        for sub in ("spot", "quarterly"):
+            if sub not in section:
+                raise ValidationFailure(
+                    f"config [firm_data]: missing [firm_data.{sub}] — the firm-input contract is "
+                    f"two sheets (D-007): 'spot' for launch-point scalars, 'quarterly' for wide "
+                    f"PQ1..PQ9 paths"
+                )
         firm_data = FirmDataConfig(
             firm_id=str(_require(section, "firm_id", "[firm_data]")),
-            source=_table_source(section, "[firm_data]"),
+            spot=_table_source(section["spot"], "[firm_data.spot]"),
+            quarterly=_table_source(section["quarterly"], "[firm_data.quarterly]"),
         )
 
     return IngestionConfig(base_dir=path.parent.resolve(), mev=mev, firm_data=firm_data)

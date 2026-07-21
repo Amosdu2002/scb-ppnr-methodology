@@ -158,7 +158,10 @@ def test_load_config_parses_toml_and_resolves_paths(tmp_path):
                 'scale = "percent"',
                 "[firm_data]",
                 'firm_id = "F"',
-                'path = "firm.csv"',
+                "[firm_data.spot]",
+                'path = "firm_spot.csv"',
+                "[firm_data.quarterly]",
+                'path = "firm_quarterly.csv"',
             ]
         ),
         encoding="utf-8",
@@ -168,6 +171,8 @@ def test_load_config_parses_toml_and_resolves_paths(tmp_path):
     assert config.mev.series["usd_3m_treasury"].column == "T3M"
     assert config.resolve("mev.csv") == tmp_path.resolve() / "mev.csv"
     assert config.firm_data.firm_id == "F"
+    assert config.firm_data.spot.path == Path("firm_spot.csv")
+    assert config.firm_data.quarterly.path == Path("firm_quarterly.csv")
 
 
 LONG_HEADER = "Scenario Name,Date,T3M,T1Y,BBB"
