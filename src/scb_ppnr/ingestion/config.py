@@ -20,6 +20,9 @@ from ..interest_expense.schemas import ValidationFailure
 SERIES_KIND_RATE = "rate"    # scale-normalized to annualized decimal (scale required)
 SERIES_KIND_LEVEL = "level"  # taken as-is, e.g. an index level (scale must be absent)
 
+EXPENSE_SIGN_POSITIVE = "positive"  # expense path entered as positive magnitudes (canonical)
+EXPENSE_SIGN_NEGATIVE = "negative"  # expense path entered as negative amounts (FRB file convention, D-008)
+
 
 @dataclass(frozen=True)
 class TableSource:
@@ -59,11 +62,14 @@ class FirmDataConfig:
     """Two-sheet firm-input contract (D-007): `spot` holds one-time launch-point
     scalars (no quarter dimension), `quarterly` holds PQ1..PQ9 paths in wide layout
     (one row per series, columns PQ1..PQ9). CSV sources use two files; XLSX sources
-    typically use two tabs of one workbook."""
+    typically use two tabs of one workbook. `frb_expense_sign` (D-008) declares how
+    the FRB total-interest-expense path is entered — "negative" makes the loader
+    negate it to the canonical positive-magnitude convention."""
 
     firm_id: str
     spot: TableSource
     quarterly: TableSource
+    frb_expense_sign: str = EXPENSE_SIGN_POSITIVE
 
 
 @dataclass(frozen=True)
@@ -152,10 +158,17 @@ def load_config(path: Path | str) -> IngestionConfig:
                     f"two sheets (D-007): 'spot' for launch-point scalars, 'quarterly' for wide "
                     f"PQ1..PQ9 paths"
                 )
+        frb_expense_sign = str(section.get("frb_expense_sign", EXPENSE_SIGN_POSITIVE)).strip().lower()
+        if frb_expense_sign not in (EXPENSE_SIGN_POSITIVE, EXPENSE_SIGN_NEGATIVE):
+            raise ValidationFailure(
+                f"config [firm_data]: frb_expense_sign must be '{EXPENSE_SIGN_POSITIVE}' or "
+                f"'{EXPENSE_SIGN_NEGATIVE}', got {section.get('frb_expense_sign')!r} (D-008)"
+            )
         firm_data = FirmDataConfig(
             firm_id=str(_require(section, "firm_id", "[firm_data]")),
             spot=_table_source(section["spot"], "[firm_data.spot]"),
             quarterly=_table_source(section["quarterly"], "[firm_data.quarterly]"),
+            frb_expense_sign=frb_expense_sign,
         )
 
     return IngestionConfig(base_dir=path.parent.resolve(), mev=mev, firm_data=firm_data)

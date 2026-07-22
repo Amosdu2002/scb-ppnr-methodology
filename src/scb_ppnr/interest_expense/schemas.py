@@ -476,7 +476,12 @@ class FamilyInputs:
     is required — it is the PID-OB-5 calibration target. The income and NII paths are
     optional companions: no interest-expense model consumes them (income is the future
     asset-side counterpart), but when both are supplied alongside the expense path the
-    NII = income − expense identity is checked as a wiring guard."""
+    NII = income − expense identity is checked as a wiring guard.
+
+    Canonical sign convention (D-008): expense paths are positive magnitudes, matching
+    the five models' outputs. Sources that enter expense as negatives (the FRB file
+    does) are normalized at ingestion via [firm_data].frb_expense_sign = "negative";
+    a path that is negative in every quarter is refused here, never silently flipped."""
 
     firm_id: str
     dom_time_dep: DomTimeDepInputs
@@ -500,6 +505,14 @@ class FamilyInputs:
             self, "frb_total_interest_expense",
             freeze_path("frb_total_interest_expense", self.frb_total_interest_expense, PROJECTION_QUARTERS),
         )
+        if all(self.frb_total_interest_expense[q] < 0.0 for q in PROJECTION_QUARTERS):
+            raise ValidationFailure(
+                'frb_total_interest_expense is negative in every projection quarter — the canonical '
+                'convention is positive-magnitude expense (D-008). If the source enters expenses as '
+                'negative amounts, declare [firm_data].frb_expense_sign = "negative" so ingestion '
+                'normalizes it; if the source is genuinely positive, remove that setting. '
+                'Values are never silently flipped.'
+            )
         for optional_name in ("frb_total_interest_income", "frb_net_interest_income"):
             value = getattr(self, optional_name)
             if value is not None:

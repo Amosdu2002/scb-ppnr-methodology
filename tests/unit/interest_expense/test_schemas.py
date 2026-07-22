@@ -96,3 +96,8 @@ def test_inputs_are_frozen_and_sources_never_mutated(make_scenario):
 def test_other_borrowing_inputs_have_no_pq0_expense_field():
     field_names = {f.name for f in dataclasses.fields(OtherBorrowingInputs)}
     assert field_names == {"firm_id", "total_balance", "cp_share", "subdebt_share"}
+
+
+def test_uniformly_negative_frb_expense_refused_at_canonical_boundary(make_family, flat_path):
+    with pytest.raises(ValidationFailure, match="frb_expense_sign"):
+        make_family(frb_total=flat_path(-40.0))

@@ -21,7 +21,13 @@ quarterly-sheet rows under model `family`: `frb_total_interest_expense` is REQUI
 (the PID-OB-5 calibration target); `frb_total_interest_income` and
 `frb_net_interest_income` are optional companions (a supplied row carries all nine
 quarters) — no interest-expense model consumes them, but when both accompany the
-expense path the NII = income − expense identity is checked as a wiring guard. The
+expense path the NII = income − expense identity is checked as a wiring guard.
+
+Sign convention (D-008): the FRB file enters the expense path as **negative** amounts
+(income positive; NII = income + expense under that entry convention). Declare
+`[firm_data].frb_expense_sign = "negative"` and this loader negates the expense path
+to the canonical positive-magnitude convention — income and NII pass through
+as-entered, and the identity guard is convention-consistent after the flip. The
 physical file mapping remains to be confirmed inside the company before reliance."""
 
 from __future__ import annotations
@@ -41,7 +47,7 @@ from ..interest_expense.schemas import (
     OtherDomDepInputs,
     ValidationFailure,
 )
-from .config import IngestionConfig, TableSource
+from .config import EXPENSE_SIGN_NEGATIVE, IngestionConfig, TableSource
 from .normalize import apply_money_scale, apply_rate_scale, to_float
 from .tables import read_table
 
@@ -227,6 +233,11 @@ def load_family_inputs(config: IngestionConfig) -> FamilyInputs:
         frb_total = {q: 0.0 for q in PROJECTION_QUARTERS}
     if missing:
         raise ValidationFailure(f"{spot_path}: missing required inputs: {', '.join(missing)}")
+
+    if config.firm_data.frb_expense_sign == EXPENSE_SIGN_NEGATIVE:
+        # D-008: source enters expense as negatives; canonical convention is
+        # positive-magnitude expense, matching the five models' outputs.
+        frb_total = {q: -value for q, value in frb_total.items()}
 
     firm_id = config.firm_data.firm_id
     return FamilyInputs(

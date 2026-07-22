@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from scb_ppnr.ingestion import FirmDataConfig, IngestionConfig, TableSource, load_family_inputs
+from scb_ppnr.ingestion import FirmDataConfig, IngestionConfig, TableSource, load_config, load_family_inputs
 from scb_ppnr.interest_expense import ValidationFailure
 
 SPOT_COLUMNS = ["model", "field", "subcomponent", "scale", "value"]
@@ -53,7 +53,7 @@ COMPANION_ROWS: list[tuple[str, ...]] = [
 ]
 
 
-def _write(tmp_path: Path, spot_rows, quarterly_rows) -> IngestionConfig:
+def _write(tmp_path: Path, spot_rows, quarterly_rows, frb_expense_sign: str = "positive") -> IngestionConfig:
     for name, columns, rows in (
         ("spot.csv", SPOT_COLUMNS, spot_rows),
         ("quarterly.csv", QUARTERLY_COLUMNS, quarterly_rows),
@@ -65,7 +65,10 @@ def _write(tmp_path: Path, spot_rows, quarterly_rows) -> IngestionConfig:
     return IngestionConfig(
         base_dir=tmp_path,
         firm_data=FirmDataConfig(
-            "FIRM_A", spot=TableSource(Path("spot.csv")), quarterly=TableSource(Path("quarterly.csv"))
+            "FIRM_A",
+            spot=TableSource(Path("spot.csv")),
+            quarterly=TableSource(Path("quarterly.csv")),
+            frb_expense_sign=frb_expense_sign,
         ),
     )
 
@@ -200,6 +203,52 @@ def test_frb_identity_wiring_guard(tmp_path):
     ]
     with pytest.raises(ValidationFailure, match="FRB identity violated"):
         load_family_inputs(_write(tmp_path, SPOT_ROWS, bad))
+
+
+NEGATIVE_EXPENSE_ROW: list[tuple[str, ...]] = [
+    ("family", "frb_total_interest_expense", "", "millions") + ("-40",) * 9,
+]
+
+
+def test_negative_sign_convention_normalized_to_positive_canonical(tmp_path, make_family):
+    loaded = load_family_inputs(_write(tmp_path, SPOT_ROWS, NEGATIVE_EXPENSE_ROW, frb_expense_sign="negative"))
+    assert loaded == make_family()   # identical to entering +40 under the default convention
+    assert loaded.frb_total_interest_expense[1] == pytest.approx(40.0)
+
+
+def test_negative_entries_without_declaration_refused(tmp_path):
+    with pytest.raises(ValidationFailure, match="frb_expense_sign"):
+        load_family_inputs(_write(tmp_path, SPOT_ROWS, NEGATIVE_EXPENSE_ROW))
+
+
+def test_negative_declaration_with_positive_entries_refused(tmp_path):
+    with pytest.raises(ValidationFailure, match="frb_expense_sign"):
+        load_family_inputs(_write(tmp_path, SPOT_ROWS, QUARTERLY_ROWS, frb_expense_sign="negative"))
+
+
+def test_identity_guard_consistent_under_negative_convention(tmp_path, make_family, flat_path):
+    rows = NEGATIVE_EXPENSE_ROW + COMPANION_ROWS   # income +100, NII +60, expense −40: 100 + (−40) = 60
+    loaded = load_family_inputs(_write(tmp_path, SPOT_ROWS, rows, frb_expense_sign="negative"))
+    assert loaded == make_family(frb_income=flat_path(100.0), frb_nii=flat_path(60.0))
+
+
+def test_frb_expense_sign_config_value_validated(tmp_path):
+    (tmp_path / "c.toml").write_text(
+        "\n".join(
+            [
+                "[firm_data]",
+                'firm_id = "F"',
+                'frb_expense_sign = "flipped"',
+                "[firm_data.spot]",
+                'path = "spot.csv"',
+                "[firm_data.quarterly]",
+                'path = "quarterly.csv"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValidationFailure, match="frb_expense_sign must be"):
+        load_config(tmp_path / "c.toml")
 
 
 def test_missing_required_columns_per_sheet(tmp_path):
