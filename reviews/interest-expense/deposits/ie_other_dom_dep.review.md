@@ -39,3 +39,16 @@ Review date: 2026-07-17. Reviewer: this session, against the authoritative PDF (
 3. **`inventory/model-inventory.md` record #8** — after (1) and (2): add SQ-15 to the integrity-flags row; extend the open-questions row to OQ-016 (resolved)/017/018; optionally note the PID-ODD-1/2 mappings in the firm-data-inputs row. Values and equations in the record were re-verified — no other change needed.
 4. **`handbook/open-questions.md` decision log** — record **PID-ODD-1** and **PID-ODD-2** (user-confirmed 2026-07-17) as decision-log entries binding this component's balance mappings; D-004 applied as-is, no other new decision required.
 5. No changes needed to `inventory/source-map.md` or to any other chapter.
+
+---
+
+## Addendum — 2026-07-23 (post-review revision, user-confirmed)
+
+**PID-ODD-3 supersedes PID-ODD-2's multiplicand role.** Empirical validation against the
+company reference implementation (all per-subcomponent and aggregate rates verified
+identical; the reference expense matched aggregate rate × Σ(34B+34C+34D), not × the
+PID-ODD-2 MDRM sum) confirmed the expense multiplicand is the A47 weight-balance sum —
+expense ≡ Σᵢ rateᵢ × balanceᵢ. `odd_total_average_balance` (the PID-ODD-2 MDRM sum) is
+now an optional input serving only the consistency monitor. Registry:
+`handbook/open-questions.md`; chapter §3.1/§7/§9/§10; YAML inputs/equations/validations.
+The historical body above is preserved unchanged.

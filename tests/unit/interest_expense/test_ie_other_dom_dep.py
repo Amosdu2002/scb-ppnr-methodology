@@ -66,14 +66,22 @@ def test_zero_delta_holds_rate(make_scenario):
     assert diag.subcomponents["mma"].rate == pytest.approx(0.012975)
 
 
-def test_a47_aggregation_and_expense_multiplicand(make_scenario):
+def test_a47_aggregation_and_expense_uses_weight_sum(make_scenario):
     result = project_other_dom_dep(_inputs(), make_scenario(t3m=HAND_T3M))
     pq1 = result.quarters[0]
     assert pq1.annualized_rate == pytest.approx(0.012815)  # (0.0162·600 + 0.0081·300 + 0.00665·100)/1000
-    assert pq1.average_balance == 2000.0
-    assert pq1.quarterly_expense == pytest.approx(2000.0 * 0.012815 / 4.0)
-    # weights (1000) vs multiplicand (2000) are different physical sources — monitor fires
+    assert pq1.average_balance == 1000.0                   # Σ 34B+C+D — the multiplicand (PID-ODD-3)
+    assert pq1.quarterly_expense == pytest.approx(1000.0 * 0.012815 / 4.0)
+    # the PID-ODD-2 reference (2000) diverges from the weight sum (1000) — monitor fires,
+    # but the reference never enters the expense
     assert any("consistency monitor" in w for w in result.warnings)
+
+
+def test_reference_balance_optional_and_never_enters_expense(make_scenario):
+    no_reference = OtherDomDepInputs("FIRM_A", _inputs().subcomponents)
+    result = project_other_dom_dep(no_reference, make_scenario(t3m=HAND_T3M))
+    assert result.quarters[0].quarterly_expense == pytest.approx(1000.0 * 0.012815 / 4.0)
+    assert not any("consistency monitor" in w for w in result.warnings)
 
 
 def test_elb_regime_is_equality_not_floor(make_scenario):

@@ -220,7 +220,8 @@ def load_family_inputs(config: IngestionConfig) -> FamilyInputs:
         sub: {f: need("ie_other_dom_dep", f, sub) for f in _SUBCOMPONENT_FIELDS}
         for sub in OTHER_DOM_SUBCOMPONENTS
     }
-    other_dom_total = need("ie_other_dom_dep", "total_average_balance")
+    # PID-ODD-3: optional — consistency-monitor reference only, never the expense multiplicand
+    other_dom_total = values.get(("ie_other_dom_dep", "total_average_balance", None))
     foreign_subs = {
         sub: {f: need("ie_foreign_dep", f, sub) for f in _SUBCOMPONENT_FIELDS}
         for sub in FOREIGN_SUBCOMPONENTS

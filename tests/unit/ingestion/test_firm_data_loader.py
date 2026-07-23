@@ -94,6 +94,12 @@ def test_billions_scale_converted_to_canonical_millions(tmp_path):
     assert loaded.frb_total_interest_expense[1] == pytest.approx(40.0)
 
 
+def test_total_average_balance_row_is_optional(tmp_path):
+    rows = [row for row in SPOT_ROWS if row[:2] != ("ie_other_dom_dep", "total_average_balance")]
+    loaded = load_family_inputs(_write(tmp_path, rows, QUARTERLY_ROWS))
+    assert loaded.other_dom_dep.total_average_balance is None   # PID-ODD-3 — monitor reference only
+
+
 def test_missing_inputs_listed(tmp_path):
     rows = [row for row in SPOT_ROWS if row[:2] != ("ie_fed_funds_repo", "repo_sold_balance")]
     with pytest.raises(ValidationFailure) as excinfo:

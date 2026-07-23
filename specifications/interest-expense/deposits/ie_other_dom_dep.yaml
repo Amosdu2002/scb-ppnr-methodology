@@ -55,12 +55,13 @@ inputs:
       project_mapping:                  # PID-ODD-2, user-confirmed 2026-07-17 — recorded exactly as confirmed
         mdrm_sum: [BHCB3187, BHOD3187, BHCB2389, BHOD2389]
         note: source sentence says "FR Y-14Q" (FACT) while the confirmed mapping is in MDRM codes; the mapping
-          governs for implementation. Consequence — the A47 weights (34B-34D) and this expense multiplicand
-          come from different physical sources; their consistency is a validation monitor, not an identity
+          governs for this input. PID-ODD-3 (2026-07-23) superseded its multiplicand role — the expense
+          multiplies the sum of the A47 weight balances (34B-34D) instead, confirmed against the company
+          reference implementation; this input is OPTIONAL and feeds only the consistency monitor
       dims: [firm]
       units: USD
       timing: launchpoint average balance, held constant  # INT constancy
-      role: expense multiplicand (chapter §7)
+      role: optional consistency-monitor reference (multiplicand role superseded by PID-ODD-3)
     - name: odd_rate_history_elb
       fed_item: same rate series as 42B/42C/42D over 2020:Q2-2021:Q4   # INT — series identity implied
       dims: [firm, subcomponent, history_quarter]
@@ -127,7 +128,9 @@ equations:
     formula: agg_rate[b,t] = sum_i(rate[i,b,t] * balance[i,b]) / sum_i(balance[i,b])
     weights: odd_subcomponent_balance, constant at launchpoint values   # INT constancy
   expense:                              # FACT product form (PDF p. 214); /4 is PID D-004, never a Fed statement
-    formula: odd_interest_expense[b,t] = odd_total_average_balance[b] * agg_rate[b,t] / 4
+    formula: odd_interest_expense[b,t] = sum_i(odd_subcomponent_balance[i,b]) * agg_rate[b,t] / 4
+    # PID-ODD-3 (2026-07-23) — the A47 weight balances are also the expense multiplicand, so the
+    # expense equals sum_i(rate[i,b,t] * balance[i,b]) / 4; company-reference confirmed
 
 initial_conditions:
   rate_seed: odd_rate_launchpoint (items 42B/42C/42D) as rate[i,b,0]    # INT seed role (OQ-018)
@@ -135,7 +138,7 @@ initial_conditions:
 
 balance_behavior:
   subcomponent_balances: constant at launchpoint                        # INT — general flat-balance convention
-  total_average_balance: constant at launchpoint                        # INT
+  total_average_balance: constant at launchpoint                        # INT; optional monitor reference (PID-ODD-3)
   composition: constant by construction (constant weights in A47)
   varying_over_horizon: [usd_3m_treasury, regime classification, subcomponent rates, agg_rate, odd_interest_expense]
 
@@ -145,7 +148,9 @@ constraints_and_floors:
   caps_or_nonnegativity: none exist                                 # FACT absence
 
 quarterly_dollar_calculation:
-  formula: odd_interest_expense[b,t] = odd_total_average_balance[b] * agg_rate[b,t] / 4
+  formula: odd_interest_expense[b,t] = sum_i(odd_subcomponent_balance[i,b]) * agg_rate[b,t] / 4
+    # PID-ODD-3 (2026-07-23) — the A47 weight balances are also the expense multiplicand, so the
+    # expense equals sum_i(rate[i,b,t] * balance[i,b]) / 4; company-reference confirmed
   convention: PID D-004 — annualized rates throughout; divide by 4 only at the final expense step
     (simple nominal quarterization, not compounding)
   source_status: the Fed states no annual->quarterly conversion for this component (FACT absence, preserved; OQ-006 resolution)
@@ -158,10 +163,14 @@ outputs:
 
 validations:                            # CODE — non-normative; failures surface; no invented fallbacks
   - betas equal Table A7 values exactly (verify against PDF p. 219, not retyped copies)
-  - required inputs present (rates 42B-42D; balances 34B-34D [PID-ODD-1]; MDRM items BHCB3187/BHOD3187/BHCB2389/BHOD2389 [PID-ODD-2]; ELB-window history); failures surface
+  - required inputs present (rates 42B-42D; balances 34B-34D [PID-ODD-1]; ELB-window history); the
+    PID-ODD-2 MDRM items are needed only when the optional monitor reference is supplied (PID-ODD-3);
+    failures surface
   - rate-scale normalization metadata-driven, identical for firm rates and MEV series; 25bp trigger in normalized scale
   - unit tests: both regimes, ELB<->non-ELB transitions, boundary branch (OQ-013), floor binding, up/down beta asymmetry
-  - weights: balance[i,b] >= 0 and sum > 0 before A47; consistency monitor sum(34B-34D) vs PID-ODD-2 MDRM sum (different physical sources; log divergence, never force equality)
+  - weights: balance[i,b] >= 0 and sum > 0 before A47; optional consistency monitor — the sum(34B-34D)
+      expense balance vs the PID-ODD-2 MDRM-sum reference when supplied (different physical sources; log
+      divergence, never force equality; the reference never enters the expense, PID-ODD-3)
   - assert delta has no firm dependence; monitor negative rates and ELB sub-floor rates (legal; log only)
 
 dependencies:
@@ -175,7 +184,8 @@ project_decisions:                      # user-confirmed; never attributable to 
   - {id: D-004, scope: project_wide, summary: annualized rates; /4 only at the final quarterly-dollar step}
   - {id: D-005, scope: project_wide, summary: launch point (PQ0) terminology; source words preserved in quotes}
   - {id: PID-ODD-1, summary: subcomponent balances = Schedule G items 34B/34C/34D (source names no items)}
-  - {id: PID-ODD-2, summary: total average balance = MDRM sum BHCB3187+BHOD3187+BHCB2389+BHOD2389 (source names no item)}
+  - {id: PID-ODD-2, summary: "total average balance = MDRM sum BHCB3187+BHOD3187+BHCB2389+BHOD2389 (source names no item); multiplicand role superseded by PID-ODD-3 — retained as optional monitor reference"}
+  - {id: PID-ODD-3, summary: "expense multiplicand = sum of the A47 weight balances (34B+34C+34D), so expense equals sum_i(rate_i x balance_i); confirmed against the company reference implementation (2026-07-23)"}
 
 open_questions:
   open:
@@ -186,7 +196,7 @@ open_questions:
     - {id: OQ-021, topic: "hard-code Table A7 medians vs recompute at lift-off (minor; shared with ie_foreign_dep)"}
   resolved_for_project:
     - {id: OQ-006, via: D-004, topic: annualized units; final-step /4}
-    - {id: OQ-016, via: PID-ODD-1/PID-ODD-2, topic: balance line-item mappings (source-side absence preserved)}
+    - {id: OQ-016, via: PID-ODD-1/PID-ODD-3, topic: "balance line-item mappings (source-side absence preserved); PID-ODD-3 revised the expense multiplicand to the 34B-34D weight sum (2026-07-23)"}
 
 source_references:
   - {claim: component + subcomponents + two regimes + 25bp thresholds, pdf_page: 211, md: sec-197}

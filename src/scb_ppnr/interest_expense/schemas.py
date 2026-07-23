@@ -193,14 +193,16 @@ def _freeze_subcomponents(
 
 @dataclass(frozen=True)
 class OtherDomDepInputs:
-    """ie_other_dom_dep firm inputs. The A47 weights (subcomponent balances,
-    PID-ODD-1) and the expense multiplicand `total_average_balance` (PID-ODD-2)
-    deliberately come from different physical sources — a consistency monitor,
-    never an identity."""
+    """ie_other_dom_dep firm inputs. The expense multiplicand is the sum of the A47
+    weight balances (items 34B+34C+34D) — the same balances that weight the rates,
+    so expense equals Σ_i rate_i × balance_i (PID-ODD-3, company-reference confirmed
+    2026-07-23; supersedes PID-ODD-2's multiplicand role). `total_average_balance`
+    (the PID-ODD-2 MDRM sum) is optional and serves only the consistency monitor —
+    it never enters the expense."""
 
     firm_id: str
     subcomponents: Mapping[str, DepositSubcomponent]
-    total_average_balance: float
+    total_average_balance: float | None = None
 
     def __post_init__(self) -> None:
         _require_id("firm_id", self.firm_id)
@@ -208,9 +210,10 @@ class OtherDomDepInputs:
             self, "subcomponents",
             _freeze_subcomponents("subcomponents", self.subcomponents, OTHER_DOM_SUBCOMPONENTS),
         )
-        object.__setattr__(
-            self, "total_average_balance", check_balance("total_average_balance", self.total_average_balance)
-        )
+        if self.total_average_balance is not None:
+            object.__setattr__(
+                self, "total_average_balance", check_balance("total_average_balance", self.total_average_balance)
+            )
 
 
 @dataclass(frozen=True)
