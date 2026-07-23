@@ -22,7 +22,7 @@ the family). Chapter format: compact 13-section skeleton per **D-009**.
 
 | Increment | Family | Components | Status |
 |---|---|---|---|
-| 1 | Foundations + A (calculators) | conventions chapter; `ii_dep_banks_other`; `ii_other_ida` | **Handbook APPROVED — user gate passed 2026-07-23.** Code phase: core extraction + Family A models; company-reference check next |
+| 1 | Foundations + A (calculators) | conventions chapter; `ii_dep_banks_other`; `ii_other_ida` | **Handbook APPROVED (user gate) and code LANDED 2026-07-23** — core extraction (refactor-only, expense suite green with zero test edits) + both calculator models + ingestion + goldens (164 passed). **Remaining: company-reference check** (`examples/run_income_calculators.py` against the reference implementation) |
 | 2 | B (securities) | `ii_ust`, `ii_mbs`, `ii_other_sec` | PLANNED. Prerequisite in progress: collect the Securities Model Description (OQ-004 — user approved 2026-07-23). Gate decisions: input granularity (pre-aggregated buckets proposed); vendor-prepayment path as declared input |
 | 3 | C (loans) | `ii_loans` (one chapter, six portfolio sections per D-003) | PLANNED. Gate decisions: wt external-input contract (OQ-001); floors as supplied values (OQ-002); Table A8 mapping caution (OQ-010); other-consumer jump-off mapping (OQ-011) |
 | 4 | D (trading NII) + integration | `nii_trading_al`; income orchestrator/reporting; asset-side integration review; combined-NII monitor | PLANNED. Gate decision: calibration mode — D-002 launch-point backsolve vs. PID-OB-5-style cumulative vs. `frb_total_interest_income`, incl. the NET-item scope mapping (OQ-007/OQ-009) |
