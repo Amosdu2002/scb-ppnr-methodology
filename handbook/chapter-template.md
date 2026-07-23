@@ -3,6 +3,22 @@
 **Deliverable 4 of Phase 1, Task 1.** Date: 2026-07-16.
 One chapter per Table A6 net-interest component plus one cross-cutting hedge chapter (~13 chapters, per decision D-003 in `handbook/open-questions.md`). The loans chapter carries six portfolio-specific sections inside the single common framework. Copy this file to `handbook/models/<family>/<subfamily>/<model_id>.md` (component chapters; e.g. `handbook/models/interest-expense/deposits/ie_dom_time_dep.md`) or `handbook/cross-cutting/<model_id>.md` (the hedge-adjustment chapter and the common-methodology chapter), matching the existing directory skeleton, and replace every `⟨…⟩` placeholder. Delete template comments (lines starting `<!--`) before review.
 
+## Canonical skeleton — D-009 (2026-07-23)
+
+**The compact 13-section skeleton is the canonical chapter structure from the asset side
+onward** (decision D-009, `handbook/open-questions.md`): 1. Status and purpose · 2. Model
+summary · 3. Inputs (3.1 Firm data inputs / 3.2 Scenario inputs / 3.3 Parameters) · 4. Timing
+and dimensions · 5. Equations and variable definitions · 6. Calculation workflow · 7. Output
+calculation · 8. Fed-stated assumptions and limitations · 9. User-confirmed implementation
+mappings · 10. Validation requirements ([CODE] — non-normative) · 11. Dependencies and hedge
+interface · 12. Open issues · 13. Key source references. **Regression-model chapters add** the
+two `ie_other_borrowing` sections (Estimation versus projection; Firm fixed-effect treatment).
+Reference implementations: `handbook/models/interest-income/calculators/ii_dep_banks_other.md`
+and `ii_other_ida.md`; the liability-side chapters 8–10 and 12 use the same family of
+structures. The banner block and the non-negotiable conventions below apply unchanged to both
+skeletons. The original 14-section form below is retained as the recorded historical structure
+of the pilot chapter (`ie_dom_time_dep`), which is not rewritten.
+
 ## Non-negotiable conventions (from CLAUDE.md — restated so each chapter is self-auditing)
 
 1. **Status**: the model is PROPOSED for 2026 (public comment), NOT adopted. The status banner below is mandatory and must not be softened.

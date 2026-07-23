@@ -1,0 +1,142 @@
+# Coding-oriented specification — ii_dep_banks_other.
+# Interest Income on Deposits with Banks and Other (proposed 2026 PPNR suite).
+# STATUS: PROPOSED for the 2026 stress test (public comment) — NOT adopted.
+# Labels: FACT = Fed source-stated (cited); INT = interpretation; PID = user-confirmed project
+# decision (never a Fed statement); CODE = coding consideration; UNKNOWN = not stated anywhere
+# authoritative — never defaulted. No MDRM codes are stated in v.a(2); none invented.
+# Source-integrity notes: (1) SQ-3 — this section's Questions A161/A162 collide with component (3)'s
+# A161–A164; cite Board questions with their section. (2) SQ-4 — the Questions intro on PDF p. 190
+# says "interest income on loans"; verified against the page image 2026-07-23: the misnomer is in
+# the PDF itself. Citations: (PDF p. N; md sec-M).
+# Follows specifications/model-spec-guidelines.md (Increment 1, asset side, 2026-07-23).
+
+model:
+  id: ii_dep_banks_other
+  fed_name: "Interest Income on Deposits with Banks and Other"
+  fed_section: B.v.a(2)
+  source_pages_pdf: [188, 190]
+  source_anchors_md: [sec-173, sec-176]
+  model_type: structural                # FACT — Table A6 (PDF pp. 168-169)
+  model_form: structural_calculator     # FACT — rate is the contemporaneous 3M Treasury, no transformation
+  side: interest_income
+  status: proposed_2026_stress_test__public_comment__NOT_adopted
+  estimation: none                      # FACT — structural models "avoid statistical estimation" (PDF pp. 172-173);
+                                        # no coefficient, scalar, beta, or fixed effect anywhere in v.a(2)
+  chapter: handbook/models/interest-income/calculators/ii_dep_banks_other.md
+  review: reviews/interest-income/calculators/ii_dep_banks_other.review.md
+  chapter_review_state: REVIEWED        # source-grounding review 2026-07-23 verdict APPROVE; user gate passed 2026-07-23
+
+dimensions:
+  firm: b
+  time:
+    launchpoint_quarter: PQ0            # launch point (source: "lift-off quarter" q0) (D-005)
+    projection_quarters: 9              # FACT (PDF p. 6)
+  output_grain: [firm, scenario, quarter]
+  no_subcomponent_dimension: true
+
+inputs:
+  firm_data:                            # FR Y-14Q, Schedule G, Net Interest Income Worksheet (FACT, PDF p. 188)
+    - name: dep_banks_other_balance
+      fed_item: "line item 14 of the net interest income worksheet of FR Y-14Q, Schedule G —
+        SOURCE-STATED (PDF p. 188); interest-bearing deposits incl. Federal Reserve and FHLB deposits"
+      project_mapping:                  # CODE — physical sheet row TO BE CONFIRMED at company-reference
+        sheet: spot                     # D-007 two-sheet contract; working assumption, candidate PID
+        row: "ii_dep_banks_other / balance"
+        status: TO_BE_CONFIRMED
+      dims: [firm]
+      units: USD_millions               # D-006 canonical; scale declared per row at ingestion
+      timing: launchpoint, held constant                 # FACT flat-balance (PDF p. 189)
+      role: the single model balance B(b,0)
+  scenario:
+    - name: usd_3m_treasury
+      fed_name: 3-month Treasury yield (Treasury3m)      # FACT role (PDF p. 189) — the model rate itself
+      dims: [scenario, quarter]
+      units: annualized_rate            # PID D-004; percent-vs-decimal scale normalization: CODE
+      timing: q = 1..9 only; no PQ0 value needed (no recursion, no delta)
+      enters_via: used directly as the rate — unscaled, untransformed, unlagged
+      physical_source: MEV workbook per PID-5 pattern; column name UNCONFIRMED (shared with expense side) — CODE
+
+parameters: none                        # FACT — no beta, scalar, spread, floor, or threshold;
+                                        # Tables A7-A9 contain no row for this component
+
+transformations: none                   # no standalone derivation; the balance is used as reported
+
+equations:
+  A39_income:                           # FACT (PDF p. 189), verified against the page image 2026-07-23
+    source_title_verbatim: "Equation A39 - Interest Income on Deposits with Banks and Other"
+    formula: "F(b,t) = B(b,t) * Treasury3m(t)"
+    projection_form: "F(b,q) = B(b,q) * Treasury3m(q)"
+    rate_definition: "Treasury3m is the 3-month Treasury yield (FACT verbatim where-list);
+      used directly — no spread, no scaling, no lag (FACT: no other term appears in A39)"
+  rate_assignment:
+    formula: "AnnualizedRate(q) = usd_3m_treasury[q]"    # FACT role; annualized units (PID D-004)
+    note: "do NOT divide the Treasury rate before this assignment (PID D-004)"
+
+initial_conditions: none                # no recursion, no delta, no seed — the only PQ0 quantity is the balance
+
+balance_behavior:
+  convention: constant_balance          # FACT (PDF p. 189): "B(b,q) = B(b,q0) for all periods"
+  detail: "Balance(b,q) = Balance(b,0) for q = 1..9; measured once at the launch point; no growth or runoff"
+  varying_over_horizon: [usd_3m_treasury, dep_banks_other_interest_income]
+
+constraints_and_floors:
+  all: none                             # FACT absence — no floor, cap, or regime; a negative Treasury3m flips
+                                        # the income sign (arithmetically valid under A39) — log, never clamp (CODE)
+
+quarterly_dollar_calculation:
+  formula: "QuarterlyIncome(b,q) = Balance(b,0) * AnnualizedRate(q) / 4"
+  convention: PID D-004 — annualized rates throughout; divide by 4 only at the final income step
+    (simple nominal quarterization, not compounding)
+  source_status: the source states no annual->quarterly conversion for this component (FACT absence,
+    preserved; OQ-006 resolution)
+
+outputs:
+  - name: dep_banks_other_interest_income
+    dims: [firm, scenario, quarter]
+    units: USD_millions_per_quarter     # D-006
+    description: quarterly dollar interest income on deposits with banks and other
+
+validations:                            # CODE — non-normative; no invented fallbacks
+  - missing or negative launchpoint balance in item 14
+  - balance zero -> income identically zero (log; likely a reporting gap)
+  - usd_3m_treasury present for all q = 1..9 in every scenario
+  - negative Treasury rate logged (income sign flips; arithmetically valid)
+  - rate-scale sanity — annualized decimal in a plausible range to catch percent/decimal errors
+  - flat-balance invariant — balance identical for all q
+  - linearity invariant — income path exactly proportional to the scenario Treasury3m path (any deviation is a coding error)
+
+dependencies:
+  upstream_models: none                 # FACT — shared inputs only (usd_3m_treasury; FR Y-14Q Schedule G)
+  current_model_separation: "current approach is a panel regression (FACT via Question A161 wording,
+    PDF p. 190); current-suite mechanics out of scope — the two must not be mixed"
+  structural_sibling_note: "Equation A39 shares the one-line functional form of expense-side Eq A48
+    (ie_fed_funds_repo) — INT, navigation only; the sections are independent"
+  hedge_interface: "no hedge term in-model (FACT absence); cross-cutting v.c adjustment (Eqs A49-A51,
+    contingent on proposed FR Y-14Q B.2/B.3) may apply later; allocation unresolved (OQ-005)"
+  family_interface: "income path feeds asset-side aggregation and the reconciliation monitor against
+    frb_total_interest_income (project input, OQ-023 narrowing — never a Fed statement)"
+
+project_decisions:                      # user-confirmed; never attributable to the Federal Reserve; registry in handbook/open-questions.md
+  - {id: D-004, scope: project_wide, summary: annualized rates; /4 only at the final quarterly-dollar step}
+  - {id: D-005, scope: project_wide, summary: launch point (PQ0) terminology; source words preserved in quotes}
+  - {id: D-006, scope: project_wide, summary: canonical money unit USD millions; declared scale at ingestion}
+  - {id: D-007, scope: project_wide, summary: two-sheet firm-input contract (spot + wide quarterly)}
+  - {id: D-009, scope: project_wide, summary: compact 13-section chapter skeleton (this model's chapter follows it)}
+
+open_questions:
+  open:
+    - {id: OQ-005, topic: hedge-adjustment allocation across components}
+  resolved_for_project:
+    - {id: OQ-006, via: D-004, topic: annualized units; final-step /4}
+  pending_confirmations:                # CODE TODOs — candidate PIDs at company-reference verification
+    - physical firm-sheet row for the item 14 balance
+    - MEV workbook column name for usd_3m_treasury (shared item, PID-5 pattern)
+
+source_references:
+  - {claim: component proposal + composition (Fed/FHLB deposits) + source-stated balance line item 14 + short durations, pdf_page: 188, md: sec-173}
+  - {claim: Equation A39 + Treasury3m definition + B_b/F_b definitions + projection form, pdf_page: 189, md: sec-174}
+  - {claim: flat balance B(b,q) = B(b,q0) at lift-off, pdf_page: 189, md: sec-174}
+  - {claim: assumptions — 3M Treasury rate; reserves-rate tracking caveat; other-institution caveat, pdf_page: 189-190, md: sec-175}
+  - {claim: Questions A161/A162 (SQ-3 collision; SQ-4 "loans" misnomer), pdf_page: 190, md: sec-176}
+  - {claim: Table A6 row (Structural) + structural-model rationale, pdf_page: 168-169 and 172-173, md: sec-148 and sec-149}
+  - {claim: nine-quarter horizon, pdf_page: 6, md: sec-2}

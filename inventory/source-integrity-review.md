@@ -144,7 +144,20 @@ The Markdown source file is read-only; none of these are corrected in place. App
 - **Verified in full:** every in-scope equation (A32–A53), every in-scope table (A6–A9), footnotes 61–66, all December-revision items within scope, the Section v start boundary (p. 167) and end boundary (v.f begins p. 235).
 - **Not verified (accepted residual):** current-suite sections B.i–iv beyond the heading census (BACKGROUND/COMPARISON use only — verify on demand when a chapter cites them); out-of-scope December-revision items (pp. 237, 240, 243, 251–255); footnotes 1–60 (outside scope).
 - **Chapter-review re-verification (2026-07-17):** pp. 209–219 and 230–234 re-read as page images during the five liability-side chapter reviews; no new conversion defects found; source quirks SQ-15–SQ-17 added at the liability-side integration gate. Two duplicate filings were prevented at integration: the Equation A48 title typo was already logged as SQ-10, and the md stray pipes at lines 4645–4646 were already logged as CA-2g/CA-2h.
+- **Chapter-review re-verification (2026-07-23):** pp. 188–190 and 205–208 re-read as page images during the two asset-side calculator chapter reviews (`ii_dep_banks_other`, `ii_other_ida`); no new conversion defects found. Confirmations: the SQ-4 v.a(2) Questions-intro misnomer ("interest income on loans", p. 190) is present in the PDF itself; the CA-1 footnote-66 glue is md-only (the authoritative footnote ends at "…the 10-year Treasury yield.", p. 206); Equation A43's display carries no time subscript on the Treasury terms while its projection form does — both faithful in the md.
 
 ## 10. Fitness conclusion
 
 The Markdown conversion is **faithful for the entire Phase 1 net-interest scope**: no equation, table value, or line-item reference was damaged in conversion. All defects found are either trivial markup artifacts (§7) or quirks present in the Fed's own PDF (§8). The Markdown is approved as the primary searchable working source, with the PDF remaining authoritative and the §7 corrected readings applied when quoting. Material claims in downstream deliverables must cite `(PDF p. N; md sec-M)`.
+
+## 11. Second source collected (2026-07-23) — Market Risk Models volume (OQ-004)
+
+| File | Size | Content | SHA-256 |
+|---|---|---|---|
+| `sources/fed/market-risk-models.pdf` | 2,280,184 bytes | Second source — *Supervisory Stress Test Model Documentation: Market Risk Models*, October 2025, **Updated January 2026** | `7e9f633b927d7d0b0d1c8137c3d5a77e942851e975fadf7a0a5fd5c562727770` |
+
+- **Provenance:** downloaded 2026-07-23 from https://www.federalreserve.gov/supervisionreg/files/market-risk-models.pdf (linked from the Board's 2026 DFA stress-test model-documentation page). Collection user-approved at the asset-side roadmap decision (OQ-004 narrowing).
+- **Why collected:** PPNR footnotes 64–65 ("See Securities Model Description") hold the reinvestment assumptions and the Agency RMBS vendor prepayment model needed by securities chapters #3–#5.
+- **Identification [INT, strong basis]:** **Section A "Securities Model" (pp. 7–77)** is the referenced description — the running page header reads "Model Documentation: Securities Model"; no standalone securities volume exists in the 2026 documentation series; Section A documents the Agency MBS third-party vendor model (p. 10, page image verified); the PPNR source's own footnote 52 cross-references this same volume for the Yield Curve Model.
+- **Verification status:** title page, preface, Table of Contents, and Section A pp. 7–10 read as page images this session. **PENDING (Increment 2 prep):** Section A markdown working copy; full integrity review of Section A (equation/table register, page conventions, revision reconciliation for the January 2026 update). Until then, citations into this source use PDF page numbers only — no md anchors exist yet.
+- **Scope note:** §§1–10 of this review cover the PPNR source only; this addendum tracks the second source separately. If the checksum above changes, this addendum is void and must be rerun.
