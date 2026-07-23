@@ -92,11 +92,13 @@ Public-input request: Questions A169–A174 of section v.a(5) (PDF pp. 204–205
 
 None yet. Pending gate decisions and [CODE] items:
 
-| Pending item | Working assumption / proposal | Status |
+| Item | Decision / working assumption | Status |
 |---|---|---|
-| Input granularity | **Pre-aggregated buckets** (conventions §12, candidate PID-SEC-1): e.g. `fixed` (book-yield income path or AC path + book yield) / `floating` (t=0 coupon, AC, margin machinery) / maturing-balance schedule | PROPOSED — gate decision |
-| AC(t) path | Supplied per bucket (workbook-derived effective-interest schedule), or launch AC with the straight-line fallback where data are missing | PROPOSED — gate decision; [INT] §4 |
-| Reinvestment coupon series | `usd_1y_treasury` | TO BE CONFIRMED — OQ-025(d) |
+| Input granularity | **Security-level** positions contract; aggregation inside the model | **PID-SEC-1, user-confirmed 2026-07-23** (sheet layout pending the user's format upload) |
+| AC(t) path | Per-security effective-interest evolution (book yield constant), straight-line fallback where data are missing — exact treatment finalized with the positions format | [INT] §4 — finalize on format receipt |
+| Floater negative margin | Floor projected coupon at the security's coupon floor if available; else-branch TO_BE_CONFIRMED | **PID-SEC-2, user-confirmed 2026-07-23** (company convention, never Fed) |
+| Unsettled transactions | AC proxy = purchase price/100 × notional | **PID-SEC-3, user-confirmed 2026-07-23** (company convention) |
+| Reinvestment | `usd_1y_treasury` = par-curve 1Y yield; fixed-coupon 4-quarter window; rolls again; in-component attribution — OQ-025(a)(b)(d) resolved, user-confirmed 2026-07-23 | CONFIRMED |
 
 ## 10. Validation requirements ([CODE] — non-normative)
 

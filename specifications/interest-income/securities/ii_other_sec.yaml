@@ -31,7 +31,8 @@ dimensions:
   category: "{fixed, floating, zero_coupon-as-needed} within one component — coupon rules only"
   time: {launchpoint_quarter: PQ0, projection_quarters: 9}
   output_grain: [firm, scenario, quarter]
-  granularity_note: "Fed layer security-level (FACT); bucket proposal candidate PID-SEC-1"
+  granularity_note: "SECURITY-LEVEL — PID-SEC-1, user-confirmed 2026-07-23; positions-sheet
+    layout finalized on receipt of the user's format file; aggregation inside the model"
 
 inputs:
   firm_data:
@@ -125,8 +126,14 @@ project_decisions:
   - {id: D-005, scope: project_wide, summary: launch point terminology}
   - {id: D-006, scope: project_wide, summary: USD millions canonical}
   - {id: D-009, scope: project_wide, summary: compact chapter skeleton}
-  - {id: PID-SEC-1, status: CANDIDATE — gate, summary: pre-aggregated bucket inputs incl. the
-      AC-path / book-yield-income-path choice}
+  - {id: PID-SEC-1, status: CONFIRMED 2026-07-23, summary: security-level positions input;
+      aggregation inside the model; AC-path treatment finalized with the positions format}
+  - {id: PID-SEC-2, status: CONFIRMED 2026-07-23, summary: floater negative-margin floor at the
+      coupon floor if available (else-branch TO_BE_CONFIRMED)}
+  - {id: PID-SEC-3, status: CONFIRMED 2026-07-23, summary: unsettled-transaction AC proxy =
+      purchase price/100 x notional}
+  - {id: PID-SEC-4, status: CONFIRMED 2026-07-23, summary: coupon accrual uses prior-quarter EOP
+      current face}
 
 open_questions:
   open:

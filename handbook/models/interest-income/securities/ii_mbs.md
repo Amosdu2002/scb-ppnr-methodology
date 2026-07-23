@@ -33,7 +33,7 @@ Maturities incorporated; constant balance via the shared reinvestment assumption
 | Book yield (`book_yield`) | FR Y-14Q Schedule B.1 | i | Annualized rate | t=0 (constant for the security's life) | [FACT] (PDF pp. 196–197; md sec-182) |
 | Amortized cost (`amortized_cost`) | FR Y-14Q Schedule B.1 | i, t | USD | A41 numerator is **t-dated** | [FACT] (PDF p. 196; md sec-182) |
 | Weighted Average Life at t=0 (`wal_launchpoint`) | Vendor data | i | Years [INT — A41's 4×WAL denominator converts years→quarters; unit not stated, flagged] | Launch point | [FACT] formula role (PDF p. 196); unit [INT] |
-| **Agency RMBS vendor income** (`vendor_agency_rmbs_income`) | Third-party vendor model output | category, t | USD/quarter | PQ1..PQ9 | [FACT] vendor role (PDF p. 196); **declared input path** [CODE — candidate PID-MBS-1]; OQ-026 |
+| **Agency RMBS survival factor** (`agency_rmbs_survival_factor`) | Third-party vendor model output — company "prepayment" sheet: per-security remaining-balance factor, factor(PQ0) ≡ 1 | i, q (PQ0..PQ9) | Ratio (dimensionless) | Face(i,q) = factor(i,q) × Face(i,0) | [FACT] vendor role (PDF p. 196); semantics **[PID-MBS-1, user-confirmed 2026-07-23]** — resolves OQ-026 for project implementation |
 | Hedge legs | Proposed Schedule B.2/B.3 — not currently collected | d, t | — | Future data state | [FACT] (PDF p. 197); conventions §12 |
 
 ### 3.2 Scenario inputs
@@ -74,7 +74,7 @@ Where-list [FACT, verbatim]:
 ## 6. Calculation workflow
 
 1. **Categorize** each security: Agency residential MBS vs. all other MBS [FACT].
-2. **Agency RMBS income** = vendor-model output [FACT]; enters the project as a declared quarterly input path (§3.1, candidate PID-MBS-1) — composition with A41 terms UNKNOWN (OQ-026), so the path is taken as that category's total pre-hedge income [CODE working treatment].
+2. **Agency RMBS income** [PID-MBS-1, user-confirmed 2026-07-23]: the vendor supplies a per-security **survival factor** path (§3.1); Face(i,q) = factor(i,q) × Face(i,0); income is then computed by the A41 terms on that factor-driven face — coupon accrual = coupon(q) × **prior-quarter EOP face** [PID-SEC-4], accretion per the printed straight-line/WAL form. The vendor model itself stays a black box behind the factor path (the Fed-side composition absence is preserved as [FACT] — OQ-026 resolution note).
 3. **Other MBS coupon accrual**: beginning-of-period face × coupon/4; vendor coupon, book-yield fallback; zero-coupon at book yield; floating-rate coupon = imputed margin + 3M(q) (conventions §12).
 4. **Other MBS accretion**: effective-interest with constant coupon and book yield [FACT prose; formula unstated — implementation per the standard effective-interest schedule flagged INT]; straight-line fallback when coupon or book yield is missing [FACT].
 5. **Reinvestment income** on maturing/paying-down balances (non-Agency; Agency per OQ-026): as in `ii_ust` §6 step 4 (conventions §12).
@@ -102,12 +102,15 @@ Public-input request: Questions A165–A168 of section v.a(4) (PDF pp. 199–200
 
 None yet. Pending gate decisions and [CODE] items:
 
-| Pending item | Working assumption / proposal | Status |
+| Item | Decision / working assumption | Status |
 |---|---|---|
-| Input granularity | **Pre-aggregated buckets** (conventions §12, candidate PID-SEC-1): closed subcomponent set, e.g. `agency_rmbs` (vendor path) / `other_fixed` / `other_floating` (margin inputs) / `other_zero_coupon`, each with the paths §6 needs | PROPOSED — gate decision |
-| Agency RMBS vendor income path | Declared quarterly input `ii_mbs`/`vendor_agency_rmbs_income` — the firm supplies its vendor-equivalent output; the Fed's vendor model is not reimplemented | PROPOSED — candidate PID-MBS-1; OQ-026 |
+| Input granularity | **Security-level** positions contract; aggregation inside the model | **PID-SEC-1, user-confirmed 2026-07-23** (sheet layout pending the user's format upload) |
+| Agency RMBS vendor input | Per-security **survival factor** path (PQ0..PQ9, PQ0 ≡ 1); Face(i,q) = factor × Face(i,0); A41 terms computed on it | **PID-MBS-1, user-confirmed 2026-07-23** |
+| Floater negative margin | Floor projected coupon at the security's coupon floor if available; else-branch TO_BE_CONFIRMED | **PID-SEC-2, user-confirmed 2026-07-23** (company convention, never Fed) |
+| Unsettled transactions | AC proxy = purchase price/100 × notional when maturity/book yield/AC missing or zero near the settle date | **PID-SEC-3, user-confirmed 2026-07-23** (company convention) |
+| Coupon-accrual face | Prior-quarter EOP current face (operationalizes "beginning-of-the-period") | **PID-SEC-4, user-confirmed 2026-07-23** |
+| Reinvestment coupon series | `usd_1y_treasury` = par-curve 1Y yield; coupon fixed for the 4-quarter window; rolls again at maturity; attribution stays in this component | **OQ-025(a)(b)(d) resolved, user-confirmed 2026-07-23** |
 | WAL unit | Years, converted by A41's printed 4× factor | [INT] — confirm at company-reference |
-| Reinvestment coupon series | `usd_1y_treasury` | TO BE CONFIRMED — OQ-025(d) |
 
 ## 10. Validation requirements ([CODE] — non-normative)
 
@@ -126,7 +129,7 @@ None yet. Pending gate decisions and [CODE] items:
 
 ## 12. Open issues
 
-- [OQ-026 — OPEN, filed this session] Agency RMBS vendor income: composition with A41's terms unstated; vendor model is a black box (Monte Carlo, default calibration, itemized macro inputs — MRM pp. 18–19); paydown-reinvestment interaction for this category; working treatment = declared total-income path for the category (§6 step 2).
+- [OQ-026 — RESOLVED FOR PROJECT IMPLEMENTATION 2026-07-23 via PID-MBS-1] Vendor input = per-security survival-factor path; A41 terms computed on the factor-driven face (§6 step 2). The Fed-side composition absence is preserved as [FACT]; the vendor model stays a black box behind the factor path. Paydown-proceeds reinvestment cadence remains under OQ-025(c) (pending the positions-format upload).
 - [OQ-025 — OPEN] Reinvestment income residuals (see `ii_ust` §12), incl. paydown proceeds.
 - [OQ-005 — OPEN] Hedge-adjustment allocation.
 - [CA-2d — filed 2026-07-16] md stray pipe (banner).

@@ -35,8 +35,8 @@ dimensions:
     launchpoint_quarter: PQ0
     projection_quarters: 9              # FACT (PDF p. 6)
   output_grain: [firm, scenario, quarter]
-  granularity_note: "Fed layer is security-level (FACT); project proposes pre-aggregated bucket
-    inputs — candidate PID-SEC-1, Increment 2 gate decision (conventions #12)"
+  granularity_note: "SECURITY-LEVEL — PID-SEC-1, user-confirmed 2026-07-23; positions-sheet
+    layout finalized on receipt of the user's format file; aggregation inside the model"
 
 inputs:
   firm_data:                            # FR Y-14Q Schedule B.1 + vendor data (FACT, PDF p. 190)
@@ -70,16 +70,20 @@ inputs:
       dims: [scenario, quarter]
       units: annualized_rate
       enters_via: coupon on reinvested balances from the quarter after each maturity
-      physical_source: canonical usd_1y_treasury MEV; par-curve equivalence TO BE CONFIRMED — OQ-025(d)
+      physical_source: canonical usd_1y_treasury MEV = the par-curve 1Y yield — user-confirmed
+        2026-07-23 (OQ-025(d) resolved); coupon fixed for the reinvestment's 4-quarter window,
+        rolls again at maturity (OQ-025(a) resolved)
 
 parameters: none                        # FACT — Tables A7-A9 contain no row for this component
 
 transformations:
   reinvestment_ledger:                  # conventions #12; FACT (PPNR p. 193; MRM pp. 72-74) + INT
     formula: "matured_face(q) -> purchase hypothetical 1Y Treasury at face value on the first day
-      of quarter q+1; coupon = usd_1y_treasury[q+1]; reinvested income(q') = balance x rate/4 for
-      q' >= q+1; no accretion (purchased at face — INT); no hedges (FACT, MRM p. 73)"
-    open: "roll-again of reinvestments maturing inside the horizon UNKNOWN — OQ-025(a)"
+      of quarter q+1; coupon = usd_1y_treasury[q+1] FIXED for the four-quarter window
+      (user-confirmed); reinvested income(q') = balance x that fixed rate/4 for q' in q+1..q+4;
+      at q+5 the tranche ROLLS into a new 1Y at usd_1y_treasury[q+5] (OQ-025(a) resolved,
+      user-confirmed 2026-07-23); no accretion (purchased at face — INT); no hedges (FACT,
+      MRM p. 73); income attribution stays with the originating component (OQ-025(b) resolved)"
 
 equations:
   A40_income:                           # FACT (PDF p. 191), page image + text-layer verified 2026-07-23
@@ -133,8 +137,12 @@ project_decisions:
   - {id: D-005, scope: project_wide, summary: launch point (PQ0) terminology}
   - {id: D-006, scope: project_wide, summary: USD millions canonical; declared scale at ingestion}
   - {id: D-009, scope: project_wide, summary: compact chapter skeleton (this chapter follows it)}
-  - {id: PID-SEC-1, status: CANDIDATE — Increment 2 gate, summary: pre-aggregated bucket inputs
-      (existing-book coupon-accrual path, accretion path, maturing-face schedule)}
+  - {id: PID-SEC-1, status: CONFIRMED 2026-07-23, summary: security-level positions input;
+      aggregation inside the model}
+  - {id: PID-SEC-3, status: CONFIRMED 2026-07-23, summary: unsettled-transaction AC proxy =
+      purchase price/100 x notional}
+  - {id: PID-SEC-4, status: CONFIRMED 2026-07-23, summary: coupon accrual uses prior-quarter EOP
+      current face}
 
 open_questions:
   open:

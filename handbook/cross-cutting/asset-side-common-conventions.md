@@ -213,12 +213,24 @@ Stated once here; the three securities chapters (`ii_ust`, `ii_mbs`,
   `(MRM p. N)`; its equation labels ("Equation A-3", "A-32") numerically collide
   with PPNR equation names — never cite an equation number without the document
   prefix.
-- **Input granularity [CODE — gate proposal, candidate PID-SEC-1]:** the Fed
-  computes at security level (FR Y-14Q Schedule B.1 + vendor data). The project
-  proposes **pre-aggregated bucket inputs** through the existing two-sheet
-  contract (closed `subcomponent` sets per model), with the Agency RMBS vendor
-  income entering as a declared quarterly input path (candidate PID-MBS-1) — the
-  Fed-stated security-level layer is recorded as [FACT] in the chapters; the
-  bucket contract is a project decision pending user confirmation at the
-  Increment 2 gate. A third `[firm_data.positions]` sheet stays reserved if
-  security-level granularity is ever chosen instead.
+- **Input granularity [PID-SEC-1, user-confirmed 2026-07-23]:**
+  **security-level.** The firm holds full security-level data for every
+  position, so inputs arrive per security via a positions contract (the
+  `[firm_data.positions]` third sheet; layout finalized on receipt of the
+  user's format file, pending in `config/local/`) and aggregation to component
+  level happens **inside the model** — mirroring the Fed's own per-security
+  calculation. The earlier pre-aggregated-bucket proposal is superseded.
+  Companion confirmations (registry in `handbook/open-questions.md`):
+  **PID-MBS-1** — the Agency RMBS vendor input is a per-security
+  **remaining-balance (survival) factor** path (PQ0..PQ9, PQ0 ≡ 1);
+  Face(i,q) = factor(i,q) × Face(i,0), with income computed by the A41 terms on
+  the factor-driven face; **PID-SEC-2** — floater negative-margin floor at the
+  security's coupon floor if available (company convention; else-branch
+  TO_BE_CONFIRMED); **PID-SEC-3** — unsettled-transaction AC proxy = purchase
+  price/100 × notional; **PID-SEC-4** — coupon accrual uses the prior-quarter
+  end-of-period current face (the confirmed operationalization of the Fed's
+  "beginning-of-the-period" face). Reinvestment confirmations: rolls again at
+  maturity with the coupon fixed at the purchase-quarter 1Y yield for its
+  four-quarter window (OQ-025(a)); income attribution stays with the
+  originating component (OQ-025(b)); `usd_1y_treasury` is the par-curve 1Y
+  yield (OQ-025(d)).

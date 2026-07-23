@@ -92,11 +92,13 @@ Public-input request: Questions A161–A164 of section v.a(3) (PDF pp. 194–195
 
 None yet. Pending gate decisions and [CODE] items (candidate PIDs at the Increment 2 gate and company-reference verification):
 
-| Pending item | Working assumption / proposal | Status |
+| Item | Decision / working assumption | Status |
 |---|---|---|
-| Input granularity | **Pre-aggregated bucket inputs** (conventions §12, candidate PID-SEC-1): per-quarter existing-book coupon-accrual path, per-quarter existing-book accretion path, and the maturing-face schedule PQ1..PQ9 (drives reinvestment) — all derivable in the workbook from security-level data | PROPOSED — gate decision |
-| Reinvestment coupon series | `usd_1y_treasury` MEV as the 1Y par Treasury yield | TO BE CONFIRMED — OQ-025(d) |
-| Missing vendor coupon fallback | None stated for this component [FACT absence]; do **not** silently adopt the `ii_mbs` book-yield fallback without confirmation | OQ-027 |
+| Input granularity | **Security-level** positions contract (per-security face, coupon, AC, maturity); aggregation inside the model | **PID-SEC-1, user-confirmed 2026-07-23** (sheet layout pending the user's format upload) |
+| Reinvestment | `usd_1y_treasury` = par-curve 1Y yield [OQ-025(d) resolved]; coupon **fixed at the purchase-quarter yield for the 4-quarter window**; **rolls again** at maturity [OQ-025(a) resolved]; attribution stays in-component [OQ-025(b) resolved] — all user-confirmed 2026-07-23 | CONFIRMED |
+| Unsettled transactions | AC proxy = purchase price/100 × notional | **PID-SEC-3, user-confirmed 2026-07-23** (company convention) |
+| Coupon-accrual face | Prior-quarter EOP current face | **PID-SEC-4, user-confirmed 2026-07-23** |
+| Missing vendor coupon fallback | None stated for this component [FACT absence]; do **not** silently adopt the `ii_mbs` book-yield fallback without confirmation | OQ-027 — OPEN |
 
 ## 10. Validation requirements ([CODE] — non-normative)
 

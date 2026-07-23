@@ -31,8 +31,9 @@ dimensions:
     {fixed, floating, zero_coupon} for the coupon rules"
   time: {launchpoint_quarter: PQ0, projection_quarters: 9}
   output_grain: [firm, scenario, quarter]
-  granularity_note: "Fed layer security-level (FACT); project proposes closed bucket set —
-    candidate PID-SEC-1 (conventions #12)"
+  granularity_note: "SECURITY-LEVEL — PID-SEC-1, user-confirmed 2026-07-23 (firm holds full
+    security-level data); positions-sheet layout finalized on receipt of the user's format file;
+    aggregation inside the model (conventions #12)"
 
 inputs:
   firm_data:
@@ -56,15 +57,17 @@ inputs:
       fed_item: "vendor data; t=0 Weighted Average Life in A41's 4xWAL denominator (FACT role)"
       dims: [security]
       units: years                      # INT — the printed 4x factor implies years; unit not stated
-    - name: vendor_agency_rmbs_income
+    - name: agency_rmbs_survival_factor
       fed_item: "vendor model 'used to calculate the income to better reflect the impacts of
         prepayments' for Agency residential MBS (FACT, PDF p. 196; fn 65 -> MRM pp. 18-20)"
-      project_mapping:
-        treatment: "DECLARED quarterly input path per category — the firm supplies its
-          vendor-equivalent output; the Fed's Monte Carlo vendor model is NOT reimplemented"
-        status: PROPOSED — candidate PID-MBS-1; composition with A41 terms UNKNOWN (OQ-026)
-      dims: [category, quarter]
-      units: USD_millions_per_quarter
+      project_mapping:                  # PID-MBS-1, user-confirmed 2026-07-23 — resolves OQ-026
+        treatment: "per-security remaining-balance (survival) factor from the company
+          'prepayment' sheet: factor(i,PQ0) = 1; Face(i,q) = factor(i,q) * Face(i,0); the A41
+          terms are computed on the factor-driven face (coupon accrual per PID-SEC-4). The Fed's
+          Monte Carlo vendor model is NOT reimplemented — it stays a black box behind this path"
+        status: CONFIRMED (PID-MBS-1)
+      dims: [security, quarter]         # PQ0..PQ9, PQ0 = 1
+      units: ratio_dimensionless
     - name: hedge_legs
       fed_item: "proposed Schedule B.2/B.3 — future data state (FACT, PDF p. 197)"
       status: future_data_state
@@ -147,19 +150,27 @@ project_decisions:
   - {id: D-005, scope: project_wide, summary: launch point terminology}
   - {id: D-006, scope: project_wide, summary: USD millions canonical}
   - {id: D-009, scope: project_wide, summary: compact chapter skeleton}
-  - {id: PID-SEC-1, status: CANDIDATE — gate, summary: pre-aggregated bucket inputs}
-  - {id: PID-MBS-1, status: CANDIDATE — gate, summary: Agency RMBS vendor income as a declared
-      quarterly input path (firm-supplied vendor-equivalent output)}
+  - {id: PID-SEC-1, status: CONFIRMED 2026-07-23, summary: security-level positions input;
+      aggregation inside the model}
+  - {id: PID-MBS-1, status: CONFIRMED 2026-07-23, summary: Agency RMBS vendor input = per-security
+      survival-factor path (PQ0=1); A41 terms on the factor-driven face}
+  - {id: PID-SEC-2, status: CONFIRMED 2026-07-23, summary: floater negative-margin floor at the
+      coupon floor if available (company convention; else-branch TO_BE_CONFIRMED)}
+  - {id: PID-SEC-3, status: CONFIRMED 2026-07-23, summary: unsettled-transaction AC proxy =
+      purchase price/100 x notional}
+  - {id: PID-SEC-4, status: CONFIRMED 2026-07-23, summary: coupon accrual uses prior-quarter EOP
+      current face}
 
 open_questions:
   open:
     - {id: OQ-005, topic: hedge-adjustment allocation}
     - {id: OQ-025, topic: reinvestment income residuals incl. paydown proceeds}
-    - {id: OQ-026, topic: "Agency RMBS vendor income — composition with A41 terms unstated;
-        black-box vendor model; paydown/reinvestment interaction; working treatment = declared
-        category income path"}
+    - {id: OQ-025c, topic: paydown-proceeds reinvestment cadence — pending the positions-format upload}
   resolved_for_project:
     - {id: OQ-004, via: collection + extracts 2026-07-23, topic: Securities Model Description}
+    - {id: OQ-026, via: PID-MBS-1 2026-07-23, topic: vendor input = survival-factor path}
+    - {id: OQ-025abd, via: user confirmations 2026-07-23, topic: roll-again w/ fixed 4-quarter
+        coupon; in-component attribution; usd_1y_treasury = par-curve 1Y yield}
 
 source_references:
   - {claim: component proposal + vendor model for residential MBS, pdf_page: 195, md: sec-181}
