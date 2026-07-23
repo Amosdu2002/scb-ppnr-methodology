@@ -1,0 +1,156 @@
+# Coding-oriented specification — ii_ust.
+# Interest Income on U.S. Treasuries (proposed 2026 PPNR suite).
+# STATUS: PROPOSED for the 2026 stress test (public comment) — NOT adopted.
+# Labels: FACT = Fed source-stated (cited); INT = interpretation; PID = user-confirmed project
+# decision (never a Fed statement); CODE = coding consideration; UNKNOWN = not stated anywhere
+# authoritative — never defaulted.
+# Second source: MRM Section A (sources/fed/market-risk-models-securities-extracts.md; OQ-004
+# resolved) — cite as (MRM p. N); MRM equation labels ("A-32") collide numerically with PPNR
+# names ("A32") — always keep the document prefix.
+# Source-integrity notes: SQ-3 — Questions A161–A164 collide with v.a(2)'s numbering; Equation
+# A40 prints "Maturity in Quarter" (singular; text-layer verified 2026-07-23) — preserved.
+# Citations: (PDF p. N; md sec-M). Follows specifications/model-spec-guidelines.md (Increment 2).
+
+model:
+  id: ii_ust
+  fed_name: "Interest Income on U.S. Treasuries"
+  fed_section: B.v.a(3)
+  source_pages_pdf: [190, 195]
+  source_anchors_md: [sec-177, sec-180]
+  model_type: structural                # FACT — Table A6 (PDF pp. 168-169)
+  model_form: securities_three_term__straight_line_variant
+  side: interest_income
+  status: proposed_2026_stress_test__public_comment__NOT_adopted
+  estimation: none                      # FACT — no estimated parameter anywhere in v.a(3)
+  shared_machinery: handbook/cross-cutting/asset-side-common-conventions.md#12   # D-003 cross-reference
+  chapter: handbook/models/interest-income/securities/ii_ust.md
+  review: reviews/interest-income/securities/ii_ust.review.md
+  chapter_review_state: DRAFTED__AWAITING_USER_REVIEW   # source-grounding review 2026-07-23; Increment 2 gate pending
+
+dimensions:
+  security: i                           # FACT — security-level microdata (Schedule B.1 + vendor)
+  derivative: d                         # hedge legs (future data state)
+  firm: b                               # aggregation grain
+  time:
+    launchpoint_quarter: PQ0
+    projection_quarters: 9              # FACT (PDF p. 6)
+  output_grain: [firm, scenario, quarter]
+  granularity_note: "Fed layer is security-level (FACT); project proposes pre-aggregated bucket
+    inputs — candidate PID-SEC-1, Increment 2 gate decision (conventions #12)"
+
+inputs:
+  firm_data:                            # FR Y-14Q Schedule B.1 + vendor data (FACT, PDF p. 190)
+    - name: current_face_value
+      fed_item: "FR Y-14Q Schedule B.1; beginning-of-period face at t (FACT, PDF p. 192)"
+      dims: [security, quarter]
+      units: USD_millions               # D-006 at the model boundary
+      timing: beginning-of-period; declines at maturities; replenished per reinvestment
+    - name: coupon_rate
+      fed_item: "vendor data — 'which in some cases may not be available'; NO fallback stated
+        for this component (FACT absence — OQ-027)"
+      dims: [security]
+      units: annualized_rate
+    - name: amortized_cost_launchpoint
+      fed_item: "FR Y-14Q Schedule B.1, t=0 (FACT, PDF p. 191)"
+      dims: [security]
+      units: USD_millions
+    - name: maturity_quarters_launchpoint
+      fed_item: "vendor data ('maturity') / Schedule B.1; t=0, in quarters (FACT role in A40)"
+      dims: [security]
+      units: quarters
+    - name: hedge_legs
+      fed_item: "proposed FR Y-14Q Schedule B.2/B.3 — not currently collected (FACT, PDF p. 192)"
+      status: future_data_state         # hedge term = 0 until then
+  scenario:
+    - name: existing_book
+      value: none                       # FACT absence — Equation A40 contains no scenario variable
+    - name: usd_1y_treasury
+      fed_name: "1-year par Treasury yield at the forecast quarter — reinvestment coupon
+        (FACT, MRM p. 73)"
+      dims: [scenario, quarter]
+      units: annualized_rate
+      enters_via: coupon on reinvested balances from the quarter after each maturity
+      physical_source: canonical usd_1y_treasury MEV; par-curve equivalence TO BE CONFIRMED — OQ-025(d)
+
+parameters: none                        # FACT — Tables A7-A9 contain no row for this component
+
+transformations:
+  reinvestment_ledger:                  # conventions #12; FACT (PPNR p. 193; MRM pp. 72-74) + INT
+    formula: "matured_face(q) -> purchase hypothetical 1Y Treasury at face value on the first day
+      of quarter q+1; coupon = usd_1y_treasury[q+1]; reinvested income(q') = balance x rate/4 for
+      q' >= q+1; no accretion (purchased at face — INT); no hedges (FACT, MRM p. 73)"
+    open: "roll-again of reinvestments maturing inside the horizon UNKNOWN — OQ-025(a)"
+
+equations:
+  A40_income:                           # FACT (PDF p. 191), page image + text-layer verified 2026-07-23
+    source_title_verbatim: "Equation A40 - Interest Income on U.S. Treasuries Projection"
+    formula: "InterestIncome(i,t) = CouponAccrual(i,t) + AccretionAmortization(i,t) + HedgeIncome(d,t)"
+    coupon_accrual: "CurrentFaceValue(i,t) * CouponRate(i,t) / 4        # /4 SOURCE-STATED"
+    accretion_amortization: "(CurrentFaceValue(i,t=0) - AmortizedCost(i,t=0)) / MaturityInQuarter(i,t=0)
+      # straight-line; t=0 numerator AND denominator — constant per-quarter amount; 'Maturity in
+      # Quarter' singular preserved verbatim"
+    hedge_income: "NotionalAmount(d,t) * (PayRate(d,t) - ReceiveRate(d,t)) / 4   # initially zero (FACT)"
+
+initial_conditions:
+  per_security: [current_face_value_t0, amortized_cost_launchpoint, maturity_quarters_launchpoint]
+
+balance_behavior:
+  convention: constant_balance_via_reinvestment          # FACT (PDF pp. 192-193) — NOT frozen faces
+  detail: "maturities incorporated; matured securities cease to exist (MRM p. 68 fn 54, INT applied
+    to income); proceeds reinvested per transformations.reinvestment_ledger; purchases on the first
+    day of the quarter after maturity (FACT, PDF p. 193)"
+
+constraints_and_floors:
+  all: none                             # FACT absence — no floor, cap, or regime in v.a(3)
+
+quarterly_dollar_calculation:
+  formula: "sum over securities of the A40 terms; /4 conversions are INSIDE the source-stated
+    equations — the source governs, D-004 not invoked (conventions #4/#12; OQ-006 language)"
+
+outputs:
+  - name: ust_interest_income
+    dims: [firm, scenario, quarter]
+    units: USD_millions_per_quarter     # D-006
+    description: quarterly dollar interest income on U.S. Treasuries (pre-hedge)
+
+validations:                            # CODE — non-normative; no invented fallbacks
+  - non-negative face; maturity_quarters > 0; finite amortized cost
+  - missing vendor coupon -> error naming OQ-027 (no fallback stated for this component)
+  - reinvestment ledger conservation — cumulative reinvested balance == cumulative matured face
+  - reinvested income never starts in the maturing quarter itself
+  - usd_1y_treasury present for all quarters with a maturity event; negative yields logged
+  - hedge term identically zero in the current data state
+
+dependencies:
+  upstream_models: none
+  second_source: "MRM Section A — reinvestment methodology (pp. 72-74) and fn 54 (p. 68);
+    explicit PPNR income-model cross-link (MRM p. 73)"
+  hedge_interface: "embedded term zero now; proposed B.2/B.3 would enable it; Portfolio Layer
+    Method allocation to most prevalent type; cross-cutting v.c allocation unresolved (OQ-005)"
+  family_interface: "asset-side aggregation; frb_total_interest_income monitor (conventions #10)"
+
+project_decisions:
+  - {id: D-005, scope: project_wide, summary: launch point (PQ0) terminology}
+  - {id: D-006, scope: project_wide, summary: USD millions canonical; declared scale at ingestion}
+  - {id: D-009, scope: project_wide, summary: compact chapter skeleton (this chapter follows it)}
+  - {id: PID-SEC-1, status: CANDIDATE — Increment 2 gate, summary: pre-aggregated bucket inputs
+      (existing-book coupon-accrual path, accretion path, maturing-face schedule)}
+
+open_questions:
+  open:
+    - {id: OQ-005, topic: hedge-adjustment allocation across components}
+    - {id: OQ-025, topic: "reinvestment income residuals — roll-again; uniform-into-Treasuries and
+        component attribution; par-curve -> usd_1y_treasury mapping; 'current' wording inside
+        Alternative Approaches (MRM Question A1)"}
+    - {id: OQ-027, topic: "missing vendor-coupon fallback unstated for this component"}
+  resolved_for_project:
+    - {id: OQ-004, via: collection + extracts 2026-07-23, topic: Securities Model Description}
+
+source_references:
+  - {claim: component proposal + security-level microdata + three-summand approach, pdf_page: 190, md: sec-177}
+  - {claim: Equation A40 + where-list + beginning-of-period face + vendor coupon caveat + straight-line accretion + hedge zero/B.2-B.3/Portfolio Layer Method, pdf_page: 191-192, md: sec-178}
+  - {claim: maturity incorporation + reinvestment + same-assumption + fn 64 referral + first-day purchases, pdf_page: 192-193, md: sec-178}
+  - {claim: assumptions (hedge gap; reinvestment materiality; exclusions), pdf_page: 193-194, md: sec-179}
+  - {claim: Questions A161-A164 (SQ-3), pdf_page: 194-195, md: sec-180}
+  - {claim: reinvestment instrument detail + PPNR cross-link, mrm_page: 72-74}
+  - {claim: matured security ceases to exist; proceeds reinvested, mrm_page: 68}

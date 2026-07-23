@@ -164,3 +164,61 @@ segment vs. security-level vs. panel ratio), and different parameter sets (none 
 Table A9). These are genuine methodology differences and must never be harmonized into a common
 formula — the family grouping in §1 bounds sharing; it never licenses it beyond what the source
 states.
+
+## 12. Securities family shared machinery (added at Increment 2, 2026-07-23)
+
+Stated once here; the three securities chapters (`ii_ust`, `ii_mbs`,
+`ii_other_sec`) cross-reference this section and carry only their deviations
+(D-003 cross-reference pattern).
+
+- **Three-term template [FACT, per section]:** Interest Income(i,t) = Coupon
+  Accrual(i,t) + AccretionAmortization(i,t) + Hedge Income(d,t), per security i
+  and derivative d — Eq A40 (PDF p. 191), Eq A41 (PDF p. 196), Eq A42 (PDF
+  p. 201; combined coupon+accretion form). The ÷4 conversions here are
+  **source-stated inside the equations** (CouponRate/4; BookYield/4;
+  (PayRate−ReceiveRate)/4) — the source governs, not D-004 (§4 above).
+- **Hedge-income data states [FACT]:** FR Y-14Q Schedule B.2 currently lacks
+  leg-level fields, so "the initial assumption for Hedge Income(d,t) will be
+  zero"; proposed B.2/B.3 revisions would enable the in-model term; a Portfolio
+  Layer Method hedge's income is computed separately and added to the firm-level
+  aggregate for the most prevalent securities type in the closed portfolio
+  (PDF pp. 192, 197, 202–203). Division of responsibility with the cross-cutting
+  v.c adjustment remains OQ-005 (§9 above).
+- **Reinvestment [FACT + INT]:** each section states: constant balance is
+  maintained via a reinvestment assumption; reinvestments replace securities that
+  pay down; "The same reinvestment assumption is used across both the interest
+  income on securities models and the Securities Model"; and, for coupon accrual,
+  "all purchases in future quarters are made on the first day of the quarter
+  subsequent to the maturing quarter of the security" (PDF pp. 192–193, 198,
+  203). The detail lives in the collected second source (OQ-004 resolution):
+  proceeds are reinvested into a **hypothetical one-year U.S. Treasury,
+  purchased at face value, issued on the purchase date, with coupon equal to the
+  par Treasury curve yield at the forecast quarter**; accounting intent (AFS/HTM)
+  preserved; **no hedges on reinvestments** (MRM pp. 72–74, §(vii) Reinvestment
+  Methodology — see `sources/fed/market-risk-models-securities-extracts.md`).
+  [INT, strong basis]: that passage is the referenced assumption — it explicitly
+  names "the proposed structural model for interest income on securities, as
+  detailed in the PPNR Model documentation" (MRM p. 73). Residual income-side
+  mechanics are **OQ-025**; income-side consequences [INT]: a reinvestment
+  purchased at face value carries no discount/premium, so it contributes coupon
+  accrual only (no accretion), at the 1-year Treasury yield of its purchase
+  quarter, from the first day of the quarter after maturity.
+- **Floating-rate margin imputation [FACT — `ii_mbs` and `ii_other_sec` only]:**
+  margin data are unavailable, so "the model will impute the margin assuming an
+  index of the 3-month Treasury": margin = t=0 coupon − t=0 **spot** 3-month
+  Treasury; the margin is added to the scenario 3-month Treasury in all forward
+  quarters (PDF pp. 196, 201). This is the reason `IncomeScenarioPaths` carries
+  the PQ0 value of `usd_3m_treasury` (§5 above).
+- **Second-source citation rule:** cite the Market Risk Models volume as
+  `(MRM p. N)`; its equation labels ("Equation A-3", "A-32") numerically collide
+  with PPNR equation names — never cite an equation number without the document
+  prefix.
+- **Input granularity [CODE — gate proposal, candidate PID-SEC-1]:** the Fed
+  computes at security level (FR Y-14Q Schedule B.1 + vendor data). The project
+  proposes **pre-aggregated bucket inputs** through the existing two-sheet
+  contract (closed `subcomponent` sets per model), with the Agency RMBS vendor
+  income entering as a declared quarterly input path (candidate PID-MBS-1) — the
+  Fed-stated security-level layer is recorded as [FACT] in the chapters; the
+  bucket contract is a project decision pending user confirmation at the
+  Increment 2 gate. A third `[firm_data.positions]` sheet stays reserved if
+  security-level granularity is ever chosen instead.

@@ -1,0 +1,146 @@
+# Coding-oriented specification — ii_other_sec.
+# Interest Income on Other Securities (proposed 2026 PPNR suite).
+# STATUS: PROPOSED for the 2026 stress test (public comment) — NOT adopted.
+# Labels: FACT / INT / PID / CODE / UNKNOWN as per guidelines; second-source citations (MRM p. N).
+# Source-integrity notes: SQ-8 REFINED 2026-07-23 — the PDF's A42 typo "AccrectionAmortization"
+# is in the MAIN EQUATION LINE only (p. 201); the where-list is spelled correctly (text-layer
+# glyph-count check). CA-4 (new) — the md typo'd BOTH spots (lines 3999/4003): md where-list
+# deviates from the PDF. CA-2e — md stray pipe (line 4013). "is considering" wording preserved.
+# Citations: (PDF p. N; md sec-M). Follows specifications/model-spec-guidelines.md (Increment 2).
+
+model:
+  id: ii_other_sec
+  fed_name: "Interest Income on Other Securities"
+  fed_section: B.v.a(5)
+  source_pages_pdf: [200, 205]
+  source_anchors_md: [sec-185, sec-188]
+  model_type: structural                # FACT — Table A6
+  model_form: securities_three_term__book_yield_collapsed_variant
+  side: interest_income
+  status: proposed_2026_stress_test__public_comment__NOT_adopted   # section says "is considering" (FACT preserved)
+  estimation: none                      # FACT
+  shared_machinery: handbook/cross-cutting/asset-side-common-conventions.md#12
+  chapter: handbook/models/interest-income/securities/ii_other_sec.md
+  review: reviews/interest-income/securities/ii_other_sec.review.md
+  chapter_review_state: DRAFTED__AWAITING_USER_REVIEW   # source-grounding review 2026-07-23; gate pending
+
+dimensions:
+  security: i
+  derivative: d
+  firm: b
+  category: "{fixed, floating, zero_coupon-as-needed} within one component — coupon rules only"
+  time: {launchpoint_quarter: PQ0, projection_quarters: 9}
+  output_grain: [firm, scenario, quarter]
+  granularity_note: "Fed layer security-level (FACT); bucket proposal candidate PID-SEC-1"
+
+inputs:
+  firm_data:
+    - name: amortized_cost
+      fed_item: "Schedule B.1; the A42 combined term is t-DATED (FACT, PDF p. 201); the AC(t)
+        path formula is NOT given (FACT absence) — effective-interest evolution INT"
+      dims: [security, quarter]
+      units: USD_millions
+    - name: book_yield
+      fed_item: "'The Board uses the book yield reported in the FR Y-14Q, Schedule B.1'; constant
+        for the security's life (FACT, PDF pp. 201-202)"
+      dims: [security]
+      units: annualized_rate
+    - name: coupon_rate
+      fed_item: "Schedule B.1 'rate' / vendor data; t=0 value feeds the floating-margin imputation
+        (FACT, PDF pp. 200-201)"
+      dims: [security]
+      units: annualized_rate
+    - name: hedge_legs
+      fed_item: "proposed Schedule B.2/B.3 — future data state (FACT, PDF p. 202; the proposal is
+        attributed 'In the Securities Model Description')"
+      status: future_data_state
+  scenario:
+    - name: usd_3m_treasury
+      enters_via: "floating-margin imputation — t0 coupon and t0 SPOT 3M infer the margin; margin
+        added to 3M(q) forward (FACT verbatim, PDF p. 201; PQ0 value required)"
+      dims: [scenario, quarter]
+      units: annualized_rate
+    - name: usd_1y_treasury
+      enters_via: reinvestment coupon (MRM p. 73); mapping OQ-025(d)
+      dims: [scenario, quarter]
+      units: annualized_rate
+
+parameters: none                        # FACT — Tables A7-A9 contain no row
+
+transformations:
+  floating_margin_imputation: "margin(i) = coupon(i,t=0) - usd_3m_treasury[PQ0];
+    coupon(i,q) = margin(i) + usd_3m_treasury[q]   # FACT; insertion into the A42 combined
+    book-yield term not spelled out — INT flag (chapter §6 step 3)"
+  reinvestment_ledger: "as ii_ust spec (conventions #12)"
+
+equations:
+  A42_income:                           # FACT (PDF p. 201), page image + text-layer verified
+    source_title_verbatim: "Equation A42 - Interest Income on Other Securities Projection"
+    formula_verbatim_main_line: "InterestIncome(i,t) = CouponAccrual(i,t) + AccrectionAmortization(i,t)
+      + HedgeIncome(d,t)   # SQ-8 typo preserved — main line only"
+    combined_term: "CouponAccrual(i,t) + AccretionAmortization(i,t) = AmortizedCost(i,t) * BookYield(i,t) / 4
+      # where-list, spelled correctly in the PDF (CA-4: md deviates); /4 SOURCE-STATED"
+    hedge_income: "NotionalAmount(d,t) * (PayRate(d,t) - ReceiveRate(d,t)) / 4   # initially zero"
+  method_rules:                         # FACT (PDF p. 202)
+    effective_interest: "coupon and book yield constant for the security's life"
+    fallback: "straight-line when coupon OR book yield missing"
+    prepayments: "none modeled — broad asset classes (source-acknowledged limitation)"
+
+initial_conditions:
+  per_security: [amortized_cost_t0, book_yield, coupon_t0]
+
+balance_behavior:
+  convention: constant_balance_via_reinvestment          # FACT (PDF p. 203, referral sentence present)
+  detail: "maturities incorporated; first-day-of-subsequent-quarter purchases; shared 1Y-Treasury
+    reinvestment (MRM pp. 72-74)"
+
+constraints_and_floors:
+  all: none                             # FACT absence
+
+quarterly_dollar_calculation:
+  formula: "sum over securities of AC(i,t) x BookYield(i)/4 (+ hedge when data exist) + reinvested
+    income; /4 source-stated inside A42 — D-004 not invoked"
+
+outputs:
+  - name: other_sec_interest_income
+    dims: [firm, scenario, quarter]
+    units: USD_millions_per_quarter
+    description: quarterly dollar interest income on other securities (pre-hedge)
+
+validations:                            # CODE
+  - book yield present per security/bucket; no rate basis at all -> error
+  - floating buckets have t0 coupon and PQ0 spot 3M; margins logged
+  - AC > 0; AC-vs-face drift monitor (log only)
+  - straight-line fallback usage logged
+  - reinvestment ledger conservation
+  - hedge term identically zero in the current data state
+
+dependencies:
+  upstream_models: none
+  second_source: "MRM Section A — reinvestment (pp. 72-74)"
+  hedge_interface: "embedded term zero; v.c external; OQ-005"
+  family_interface: "asset-side aggregation; frb_total_interest_income monitor"
+
+project_decisions:
+  - {id: D-005, scope: project_wide, summary: launch point terminology}
+  - {id: D-006, scope: project_wide, summary: USD millions canonical}
+  - {id: D-009, scope: project_wide, summary: compact chapter skeleton}
+  - {id: PID-SEC-1, status: CANDIDATE — gate, summary: pre-aggregated bucket inputs incl. the
+      AC-path / book-yield-income-path choice}
+
+open_questions:
+  open:
+    - {id: OQ-005, topic: hedge-adjustment allocation}
+    - {id: OQ-025, topic: reinvestment income residuals incl. cross-asset uniform-into-Treasuries
+        attribution}
+  resolved_for_project:
+    - {id: OQ-004, via: collection + extracts 2026-07-23, topic: Securities Model Description}
+
+source_references:
+  - {claim: component proposal ("is considering") + microdata + three summands, pdf_page: 200, md: sec-185}
+  - {claim: Equation A42 (main-line typo; where-list correct) + combined term + book yield source + floating-margin imputation verbatim, pdf_page: 201, md: sec-186}
+  - {claim: no prepayments + effective-interest + constancy + straight-line fallback + hedge zero ("In the Securities Model Description"), pdf_page: 202, md: sec-186}
+  - {claim: reinvestment + referral sentence + first-day purchases, pdf_page: 203, md: sec-186}
+  - {claim: assumptions 1-5 (source spellings preserved), pdf_page: 203-204, md: sec-187}
+  - {claim: Questions A169-A174, pdf_page: 204-205, md: sec-188}
+  - {claim: reinvestment instrument detail + PPNR cross-link, mrm_page: 72-74}

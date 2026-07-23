@@ -1,0 +1,172 @@
+# Coding-oriented specification — ii_mbs.
+# Interest Income on Mortgage-Backed Securities (proposed 2026 PPNR suite).
+# STATUS: PROPOSED for the 2026 stress test (public comment) — NOT adopted.
+# Labels: FACT / INT / PID / CODE / UNKNOWN as per guidelines; second-source citations (MRM p. N).
+# Source-integrity notes: CA-2d — md stray pipe after "…will be zero." (line 3933; none in PDF
+# p. 197); A41 spelling "AccretionAmortization" CONFIRMED CORRECT via text layer 2026-07-23
+# (SQ-8 is A42-only). Citations: (PDF p. N; md sec-M).
+# Follows specifications/model-spec-guidelines.md (Increment 2).
+
+model:
+  id: ii_mbs
+  fed_name: "Interest Income on Mortgage-Backed Securities"
+  fed_section: B.v.a(4)
+  source_pages_pdf: [195, 200]
+  source_anchors_md: [sec-181, sec-184]
+  model_type: structural                # FACT — Table A6
+  model_form: securities_three_term__wal_variant_plus_vendor_category
+  side: interest_income
+  status: proposed_2026_stress_test__public_comment__NOT_adopted
+  estimation: none                      # FACT; vendor model runs on default calibration (MRM p. 19)
+  shared_machinery: handbook/cross-cutting/asset-side-common-conventions.md#12
+  chapter: handbook/models/interest-income/securities/ii_mbs.md
+  review: reviews/interest-income/securities/ii_mbs.review.md
+  chapter_review_state: DRAFTED__AWAITING_USER_REVIEW   # source-grounding review 2026-07-23; gate pending
+
+dimensions:
+  security: i
+  derivative: d
+  firm: b
+  category: "{agency_rmbs, other_mbs} — FACT split (PDF p. 196); other_mbs subdivides
+    {fixed, floating, zero_coupon} for the coupon rules"
+  time: {launchpoint_quarter: PQ0, projection_quarters: 9}
+  output_grain: [firm, scenario, quarter]
+  granularity_note: "Fed layer security-level (FACT); project proposes closed bucket set —
+    candidate PID-SEC-1 (conventions #12)"
+
+inputs:
+  firm_data:
+    - name: current_face_value
+      fed_item: "Schedule B.1; beginning-of-period face (FACT, PDF p. 196)"
+      dims: [security, quarter]
+      units: USD_millions
+    - name: coupon_rate
+      fed_item: "vendor data; FALLBACK to Schedule B.1 book yield when unavailable (FACT, PDF p. 196)"
+      dims: [security, quarter]
+      units: annualized_rate
+    - name: book_yield
+      fed_item: "Schedule B.1; constant for the security's life (FACT, PDF pp. 196-197)"
+      dims: [security]
+      units: annualized_rate
+    - name: amortized_cost
+      fed_item: "Schedule B.1; A41's accretion numerator is t-DATED (FACT, PDF p. 196 — unlike A40)"
+      dims: [security, quarter]
+      units: USD_millions
+    - name: wal_launchpoint
+      fed_item: "vendor data; t=0 Weighted Average Life in A41's 4xWAL denominator (FACT role)"
+      dims: [security]
+      units: years                      # INT — the printed 4x factor implies years; unit not stated
+    - name: vendor_agency_rmbs_income
+      fed_item: "vendor model 'used to calculate the income to better reflect the impacts of
+        prepayments' for Agency residential MBS (FACT, PDF p. 196; fn 65 -> MRM pp. 18-20)"
+      project_mapping:
+        treatment: "DECLARED quarterly input path per category — the firm supplies its
+          vendor-equivalent output; the Fed's Monte Carlo vendor model is NOT reimplemented"
+        status: PROPOSED — candidate PID-MBS-1; composition with A41 terms UNKNOWN (OQ-026)
+      dims: [category, quarter]
+      units: USD_millions_per_quarter
+    - name: hedge_legs
+      fed_item: "proposed Schedule B.2/B.3 — future data state (FACT, PDF p. 197)"
+      status: future_data_state
+  scenario:
+    - name: usd_3m_treasury
+      enters_via: "floating-margin imputation — margin = t0 coupon - t0 SPOT 3M; margin + 3M(q)
+        forward (FACT, PDF p. 196; needs the PQ0 value — conventions #12)"
+      dims: [scenario, quarter]
+      units: annualized_rate
+    - name: usd_1y_treasury
+      enters_via: reinvestment coupon (MRM p. 73); mapping OQ-025(d)
+      dims: [scenario, quarter]
+      units: annualized_rate
+    - name: vendor_model_macro_inputs
+      note: "mortgage rate, prime, unemployment, HPI, zero-coupon Treasury + SOFR curves, MBS/CMO
+        OAS auxiliary indices — enter the VENDOR model, not this model (FACT, MRM pp. 18-19);
+        behind the declared vendor path"
+
+parameters: none                        # FACT — Tables A7-A9 contain no row
+
+transformations:
+  floating_margin_imputation:           # FACT (PDF p. 196); shared with ii_other_sec (conventions #12)
+    formula: "margin(i) = coupon(i,t=0) - usd_3m_treasury[PQ0]; coupon(i,q) = margin(i) + usd_3m_treasury[q]"
+  reinvestment_ledger: "as ii_ust spec; paydowns also covered (MRM p. 72); Agency-category
+    interaction with vendor income UNKNOWN (OQ-026)"
+
+equations:
+  A41_income:                           # FACT (PDF p. 196), page image + text-layer verified
+    source_title_verbatim: "Equation A41 - Interest Income on Mortgage-Backed Securities Projection"
+    formula: "InterestIncome(i,t) = CouponAccrual(i,t) + AccretionAmortization(i,t) + HedgeIncome(d,t)"
+    coupon_accrual: "CurrentFaceValue(i,t) * CouponRate(i,t) / 4"
+    accretion_amortization: "(CurrentFaceValue(i,t) - AmortizedCost(i,t)) / (4 * WeightedAverageLife(i,t=0))
+      # t-dated numerator; prose maps this straight-line/WAL form to the AGENCY category and the
+      # effective-interest method (no formula given — FACT absence) to other MBS (PDF p. 197) — INT flag"
+    hedge_income: "NotionalAmount(d,t) * (PayRate(d,t) - ReceiveRate(d,t)) / 4   # initially zero"
+  category_rules:                       # FACT (PDF pp. 196-197)
+    agency_rmbs: "income from the vendor model (declared path; OQ-026)"
+    other_mbs: "no prepayments; vendor coupon w/ book-yield fallback; zero-coupon accrues at book
+      yield; floating margin imputed; effective-interest accretion w/ constant coupon+book yield,
+      straight-line fallback"
+
+initial_conditions:
+  per_security: [current_face_value_t0, amortized_cost_t0, wal_launchpoint, coupon_t0]
+
+balance_behavior:
+  convention: constant_balance_via_reinvestment          # FACT (PDF p. 198)
+  detail: "maturities + paydowns replaced per the shared assumption; first-day-of-subsequent-quarter
+    purchases; NOTE this section's reinvestment paragraph omits the referral sentence (faithful
+    difference, PDF p. 198)"
+
+constraints_and_floors:
+  all: none                             # FACT absence
+
+quarterly_dollar_calculation:
+  formula: "sum of category incomes; /4 conversions source-stated inside A41 — D-004 not invoked"
+
+outputs:
+  - name: mbs_interest_income
+    dims: [firm, scenario, quarter]
+    units: USD_millions_per_quarter
+    description: quarterly dollar interest income on MBS (pre-hedge; incl. declared Agency vendor path)
+
+validations:                            # CODE
+  - every security/bucket in exactly one category; unknown categories error
+  - floating buckets have t0 coupon and PQ0 spot 3M; imputed margins logged (negative legal)
+  - fallback usage logged (book-yield; straight-line); missing coupon AND book yield -> error
+  - wal_launchpoint > 0 where the A41 accretion form applies
+  - reinvestment ledger conservation; paydowns non-negative
+  - vendor path present when Agency balance nonzero; vendor path w/o Agency balance logged
+
+dependencies:
+  upstream_models: none
+  vendor_model: "third-party Monte Carlo prepayment/pricing model (MRM pp. 18-20) — behind the
+    declared income path; default calibration, no overlay (FACT)"
+  second_source: "MRM Section A — vendor model (pp. 18-20); reinvestment (pp. 72-74)"
+  hedge_interface: "embedded term zero; v.c external; OQ-005"
+  family_interface: "asset-side aggregation; frb_total_interest_income monitor"
+
+project_decisions:
+  - {id: D-005, scope: project_wide, summary: launch point terminology}
+  - {id: D-006, scope: project_wide, summary: USD millions canonical}
+  - {id: D-009, scope: project_wide, summary: compact chapter skeleton}
+  - {id: PID-SEC-1, status: CANDIDATE — gate, summary: pre-aggregated bucket inputs}
+  - {id: PID-MBS-1, status: CANDIDATE — gate, summary: Agency RMBS vendor income as a declared
+      quarterly input path (firm-supplied vendor-equivalent output)}
+
+open_questions:
+  open:
+    - {id: OQ-005, topic: hedge-adjustment allocation}
+    - {id: OQ-025, topic: reinvestment income residuals incl. paydown proceeds}
+    - {id: OQ-026, topic: "Agency RMBS vendor income — composition with A41 terms unstated;
+        black-box vendor model; paydown/reinvestment interaction; working treatment = declared
+        category income path"}
+  resolved_for_project:
+    - {id: OQ-004, via: collection + extracts 2026-07-23, topic: Securities Model Description}
+
+source_references:
+  - {claim: component proposal + vendor model for residential MBS, pdf_page: 195, md: sec-181}
+  - {claim: Equation A41 + where-list + vendor statement + fn 65 + coupon fallback + zero-coupon + floating margin, pdf_page: 196, md: sec-182}
+  - {claim: no non-Agency prepayments + category accretion methods + hedge zero/B.2-B.3, pdf_page: 197, md: sec-182}
+  - {claim: reinvestment paragraph (no referral sentence) + first-day purchases, pdf_page: 198, md: sec-182}
+  - {claim: assumptions 1-6, pdf_page: 198-199, md: sec-183}
+  - {claim: Questions A165-A168, pdf_page: 199-200, md: sec-184}
+  - {claim: vendor mechanics + itemized macro inputs + OAS auxiliary indices, mrm_page: 18-20}
+  - {claim: reinvestment methodology + paydowns + PPNR cross-link, mrm_page: 72-74}
