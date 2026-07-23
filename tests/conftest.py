@@ -18,6 +18,7 @@ from scb_ppnr.interest_expense import (
     ScenarioPaths,
 )
 from scb_ppnr.interest_expense.schemas import PROJECTION_QUARTERS
+from scb_ppnr.interest_income import IncomeScenarioPaths
 
 
 def flat(value: float, quarters: tuple[int, ...] = PROJECTION_QUARTERS) -> dict[int, float]:
@@ -40,6 +41,23 @@ def make_scenario():
         if bbb is None:
             bbb = flat(0.0600)
         return ScenarioPaths(scenario_id, t3m, t1y, bbb)
+
+    return _make
+
+
+@pytest.fixture
+def make_income_scenario():
+    def _make(scenario_id: str = "sev_adverse", t3m=None, t10y=None, prime=None, mortgage=None) -> IncomeScenarioPaths:
+        if t3m is None:
+            t3m = {0: 0.0300, 1: 0.0400, 2: 0.0350, 3: 0.0350, 4: 0.0300,
+                   5: 0.0250, 6: 0.0250, 7: 0.0300, 8: 0.0350, 9: 0.0400}
+        if t10y is None:
+            t10y = flat(0.0500)
+        if prime is None:
+            prime = flat(0.0700)
+        if mortgage is None:
+            mortgage = flat(0.0650)
+        return IncomeScenarioPaths(scenario_id, t3m, t10y, prime, mortgage)
 
     return _make
 

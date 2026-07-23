@@ -35,6 +35,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..core.schemas import PROJECTION_QUARTERS, ValidationFailure
+from ..interest_income.schemas import (
+    DepBanksOtherInputs,
+    IncomeFamilyInputs,
+    OtherIdaInputs,
+)
 from ..interest_expense.schemas import (
     FOREIGN_SUBCOMPONENTS,
     OTHER_DOM_SUBCOMPONENTS,
@@ -62,6 +67,11 @@ _PLAIN_FIELDS: dict[str, dict[str, str]] = {
     "ie_foreign_dep": {},
     "ie_fed_funds_repo": {"fed_funds_purchased_balance": _BALANCE, "repo_sold_balance": _BALANCE},
     "ie_other_borrowing": {"total_balance": _BALANCE, "cp_share": _SHARE, "subdebt_share": _SHARE},
+    # Interest-income models (asset side) share the same two-sheet contract and
+    # registry; one physical spot/quarterly sheet pair serves both families, and
+    # each loader consumes only its own rows.
+    "ii_dep_banks_other": {"balance": _BALANCE},
+    "ii_other_ida": {"total_balance": _BALANCE, "short_rate_share": _SHARE},
     "family": {},
 }
 _SUBCOMPONENT_FIELDS: dict[str, str] = {"rate_launchpoint": _RATE, "balance": _BALANCE, "elb_spread": _RATE}
@@ -263,4 +273,40 @@ def load_family_inputs(config: IngestionConfig) -> FamilyInputs:
         frb_total_interest_expense=frb_total,
         frb_total_interest_income=paths.get(("family", "frb_total_interest_income")),
         frb_net_interest_income=paths.get(("family", "frb_net_interest_income")),
+    )
+
+
+def load_income_inputs(config: IngestionConfig) -> IncomeFamilyInputs:
+    """Family A (calculator) income inputs from the same two-sheet contract.
+
+    Reads only the spot sheet — the Increment 1 income models have no
+    quarterly-path inputs (the FRB family paths remain on the expense-side
+    family bundle until the Increment 4 income orchestrator consumes
+    `frb_total_interest_income` as its monitor target)."""
+    if config.firm_data is None:
+        raise ValidationFailure("config has no [firm_data] section")
+    spot_path, spot_rows = _read_sheet(
+        config, config.firm_data.spot, role="spot", required_columns={"model", "field", "value"}
+    )
+    values = _parse_spot_rows(spot_rows, spot_path)
+
+    missing: list[str] = []
+
+    def need(model: str, fld: str) -> float:
+        key: _SpotKey = (model, fld, None)
+        if key not in values:
+            missing.append(f"{model}.{fld}")
+            return 0.0
+        return values[key]
+
+    dep_banks = {f: need("ii_dep_banks_other", f) for f in _PLAIN_FIELDS["ii_dep_banks_other"]}
+    other_ida = {f: need("ii_other_ida", f) for f in _PLAIN_FIELDS["ii_other_ida"]}
+    if missing:
+        raise ValidationFailure(f"{spot_path}: missing required inputs: {', '.join(missing)}")
+
+    firm_id = config.firm_data.firm_id
+    return IncomeFamilyInputs(
+        firm_id=firm_id,
+        dep_banks_other=DepBanksOtherInputs(firm_id, **dep_banks),
+        other_ida=OtherIdaInputs(firm_id, **other_ida),
     )

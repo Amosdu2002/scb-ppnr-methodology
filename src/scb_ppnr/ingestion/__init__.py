@@ -14,7 +14,7 @@ from .config import (
     TableSource,
     load_config,
 )
-from .firm_data_loader import load_family_inputs
+from .firm_data_loader import load_family_inputs, load_income_inputs
 from .mev_loader import MevScenario, load_mev_scenario
 from .normalize import Quarter, parse_quarter
 from .tables import read_table
@@ -32,6 +32,7 @@ __all__ = [
     "TableSource",
     "load_config",
     "load_family_inputs",
+    "load_income_inputs",
     "load_mev_scenario",
     "parse_quarter",
     "read_table",

@@ -18,7 +18,8 @@ so several configured scenarios can share one sheet. Label matching is
 whitespace-trimmed and case-insensitive.
 
 `MevScenario.interest_expense_scenario_paths()` selects the three canonical series
-the interest-expense family consumes; other families will select their own."""
+the interest-expense family consumes; `interest_income_scenario_paths()` selects
+the four income-side series (3M/10Y Treasury, Prime, mortgage rate)."""
 
 from __future__ import annotations
 
@@ -32,6 +33,7 @@ from ..core.schemas import (
     ValidationFailure,
 )
 from ..interest_expense.schemas import ScenarioPaths
+from ..interest_income.schemas import IncomeScenarioPaths
 from .config import SERIES_KIND_RATE, IngestionConfig
 from .normalize import Quarter, apply_rate_scale, parse_quarter, require_confirmed, to_float
 from .tables import read_table
@@ -64,6 +66,17 @@ class MevScenario:
             usd_3m_treasury=self.series_window("usd_3m_treasury", SCENARIO_QUARTERS_WITH_LAUNCH),
             usd_1y_treasury=self.series_window("usd_1y_treasury", PROJECTION_QUARTERS),
             bbb_corporate_yield=self.series_window("bbb_corporate_yield", PROJECTION_QUARTERS),
+        )
+
+    def interest_income_scenario_paths(self) -> IncomeScenarioPaths:
+        # The 3M series carries PQ0 for the securities floating-margin imputation
+        # (t = 0 spot, Increment 2); the other income series are PQ1..PQ9 only.
+        return IncomeScenarioPaths(
+            scenario_id=self.scenario_id,
+            usd_3m_treasury=self.series_window("usd_3m_treasury", SCENARIO_QUARTERS_WITH_LAUNCH),
+            usd_10y_treasury=self.series_window("usd_10y_treasury", PROJECTION_QUARTERS),
+            prime_rate=self.series_window("prime_rate", PROJECTION_QUARTERS),
+            mortgage_rate=self.series_window("mortgage_rate", PROJECTION_QUARTERS),
         )
 
 

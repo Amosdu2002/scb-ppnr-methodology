@@ -32,6 +32,18 @@ scale = "percent"
 column = "BBB Corporate Yield"
 scale = "percent"
 
+[mev.series.usd_10y_treasury]
+column = "USD 10Y Treasury"
+scale = "percent"
+
+[mev.series.prime_rate]
+column = "Prime Rate"
+scale = "percent"
+
+[mev.series.mortgage_rate]
+column = "Mortgage Rate"
+scale = "percent"
+
 [firm_data]
 firm_id = "SYNTHETIC_FIRM"
 

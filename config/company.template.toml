@@ -45,6 +45,22 @@ scale = "TO_BE_CONFIRMED"               # quantity is a BBB YIELD or a BBB SPREA
                                         # be passed as the yield — resolve any Treasury addition
                                         # upstream); unit scale
 
+# Income-side series (asset-side conventions chapter §3). The Family A calculators
+# use the two Treasury series; Prime and the mortgage rate arrive with the loans
+# family but are part of the income scenario container from day one.
+
+[mev.series.usd_10y_treasury]
+column = "TO_BE_CONFIRMED"              # working assumption "USD 10Y Treasury" — confirm (PID-5 pattern)
+scale = "TO_BE_CONFIRMED"
+
+[mev.series.prime_rate]
+column = "TO_BE_CONFIRMED"              # ii_loans retail variable base rate (Increment 3)
+scale = "TO_BE_CONFIRMED"
+
+[mev.series.mortgage_rate]
+column = "TO_BE_CONFIRMED"              # ii_loans ARM base rate (Increment 3)
+scale = "TO_BE_CONFIRMED"
+
 [firm_data]
 firm_id = "<FIRM_ID>"
 frb_expense_sign = "negative"           # D-008: the FRB file enters the interest-expense path as

@@ -23,3 +23,6 @@ ie_fed_funds_repo,repo_sold_balance,,millions,400
 ie_other_borrowing,total_balance,,millions,1000
 ie_other_borrowing,cp_share,,decimal,0.10
 ie_other_borrowing,subdebt_share,,decimal,0.20
+ii_dep_banks_other,balance,,millions,1000
+ii_other_ida,total_balance,,millions,2000
+ii_other_ida,short_rate_share,,decimal,0.60

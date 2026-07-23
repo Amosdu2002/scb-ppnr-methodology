@@ -1,22 +1,22 @@
-Scenario Name,Date,USD 3M Treasury,USD 1Y Treasury,BBB Corporate Yield,USD 10Y Treasury
-Actual,2025Q2,4.10,4.20,6.10,4.60
-Actual,2025Q3,3.80,4.10,6.05,4.55
-Actual,2025Q4,3.00,4.00,6.00,4.50
-Supervisory Severely Adverse,2026Q1,4.00,4.00,6.00,4.50
-Supervisory Severely Adverse,2026Q2,3.50,4.00,6.00,4.45
-Supervisory Severely Adverse,2026Q3,3.50,4.00,6.00,4.40
-Supervisory Severely Adverse,2026Q4,3.00,4.00,6.00,4.35
-Supervisory Severely Adverse,2027Q1,2.50,4.00,6.00,4.30
-Supervisory Severely Adverse,2027Q2,2.50,4.00,6.00,4.30
-Supervisory Severely Adverse,2027Q3,3.00,4.00,6.00,4.35
-Supervisory Severely Adverse,2027Q4,3.50,4.00,6.00,4.40
-Supervisory Severely Adverse,2028Q1,4.00,4.00,6.00,4.45
-Supervisory Baseline,2026Q1,3.00,3.90,5.80,4.40
-Supervisory Baseline,2026Q2,3.00,3.90,5.80,4.40
-Supervisory Baseline,2026Q3,2.90,3.90,5.75,4.40
-Supervisory Baseline,2026Q4,2.90,3.90,5.75,4.35
-Supervisory Baseline,2027Q1,2.80,3.85,5.70,4.35
-Supervisory Baseline,2027Q2,2.80,3.85,5.70,4.35
-Supervisory Baseline,2027Q3,2.80,3.85,5.70,4.30
-Supervisory Baseline,2027Q4,2.70,3.80,5.65,4.30
-Supervisory Baseline,2028Q1,2.70,3.80,5.65,4.30
+Scenario Name,Date,USD 3M Treasury,USD 1Y Treasury,BBB Corporate Yield,USD 10Y Treasury,Prime Rate,Mortgage Rate
+Actual,2025Q2,4.10,4.20,6.10,4.60,7.50,6.90
+Actual,2025Q3,3.80,4.10,6.05,4.55,7.25,6.80
+Actual,2025Q4,3.00,4.00,6.00,4.50,7.00,6.70
+Supervisory Severely Adverse,2026Q1,4.00,4.00,6.00,4.50,7.00,6.50
+Supervisory Severely Adverse,2026Q2,3.50,4.00,6.00,4.45,7.00,6.50
+Supervisory Severely Adverse,2026Q3,3.50,4.00,6.00,4.40,7.00,6.50
+Supervisory Severely Adverse,2026Q4,3.00,4.00,6.00,4.35,7.00,6.50
+Supervisory Severely Adverse,2027Q1,2.50,4.00,6.00,4.30,7.00,6.50
+Supervisory Severely Adverse,2027Q2,2.50,4.00,6.00,4.30,7.00,6.50
+Supervisory Severely Adverse,2027Q3,3.00,4.00,6.00,4.35,7.00,6.50
+Supervisory Severely Adverse,2027Q4,3.50,4.00,6.00,4.40,7.00,6.50
+Supervisory Severely Adverse,2028Q1,4.00,4.00,6.00,4.45,7.00,6.50
+Supervisory Baseline,2026Q1,3.00,3.90,5.80,4.40,6.00,5.80
+Supervisory Baseline,2026Q2,3.00,3.90,5.80,4.40,6.00,5.80
+Supervisory Baseline,2026Q3,2.90,3.90,5.75,4.40,6.00,5.80
+Supervisory Baseline,2026Q4,2.90,3.90,5.75,4.35,6.00,5.80
+Supervisory Baseline,2027Q1,2.80,3.85,5.70,4.35,6.00,5.80
+Supervisory Baseline,2027Q2,2.80,3.85,5.70,4.35,6.00,5.80
+Supervisory Baseline,2027Q3,2.80,3.85,5.70,4.30,6.00,5.80
+Supervisory Baseline,2027Q4,2.70,3.80,5.65,4.30,6.00,5.80
+Supervisory Baseline,2028Q1,2.70,3.80,5.65,4.30,6.00,5.80
