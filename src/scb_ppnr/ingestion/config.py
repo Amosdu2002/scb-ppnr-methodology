@@ -15,7 +15,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
 
-from ..interest_expense.schemas import ValidationFailure
+from ..core.schemas import ValidationFailure
 
 SERIES_KIND_RATE = "rate"    # scale-normalized to annualized decimal (scale required)
 SERIES_KIND_LEVEL = "level"  # taken as-is, e.g. an index level (scale must be absent)

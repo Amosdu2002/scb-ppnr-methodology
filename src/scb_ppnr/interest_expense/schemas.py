@@ -14,91 +14,32 @@ worksheet, an MDRM lookup, a CSV, a database, or a synthetic test fixture.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Mapping
 
-PROJECTION_QUARTERS: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7, 8, 9)
-LAUNCH_QUARTER: int = 0
-SCENARIO_QUARTERS_WITH_LAUNCH: tuple[int, ...] = (LAUNCH_QUARTER, *PROJECTION_QUARTERS)
+from ..core.schemas import (
+    LAUNCH_QUARTER,
+    PROJECTION_QUARTERS,
+    RATE_SCALE_GUARD,
+    SCENARIO_QUARTERS_WITH_LAUNCH,
+    ValidationFailure,
+    check_balance,
+    check_finite,
+    check_rate,
+    check_share,
+    freeze_path,
+    require_id,
+)
 
-# A "rate" at or beyond this magnitude is treated as percent-scale leakage
-# (e.g. 4.25 passed where 0.0425 was meant) and rejected at the canonical boundary.
-RATE_SCALE_GUARD: float = 0.5
+# The side-neutral conventions moved verbatim to scb_ppnr.core.schemas at the core
+# extraction (2026-07-23); the re-imports above and these aliases keep this module's
+# public and internal API byte-for-byte compatible — same objects, same behavior.
+_finite = check_finite
+_require_id = require_id
 
 OTHER_DOM_SUBCOMPONENTS: tuple[str, ...] = ("mma", "savings", "transaction")
 FOREIGN_SUBCOMPONENTS: tuple[str, ...] = ("foreign_nontime", "foreign_time")
-
-
-class ValidationFailure(ValueError):
-    """Contract violation on canonical inputs or a calculation invariant.
-
-    Never caught to substitute a fallback value — failures surface, nothing
-    defaults silently (conventions §6)."""
-
-
-def _finite(name: str, value: Any) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValidationFailure(f"{name} must be a number, got {value!r}")
-    v = float(value)
-    if not math.isfinite(v):
-        raise ValidationFailure(f"{name} must be finite, got {value!r}")
-    return v
-
-
-def check_rate(name: str, value: Any) -> float:
-    v = _finite(name, value)
-    if abs(v) >= RATE_SCALE_GUARD:
-        raise ValidationFailure(
-            f"{name} = {v} looks percent-scaled; canonical rates are annualized decimals "
-            f"(|rate| < {RATE_SCALE_GUARD}). Normalize percent vs decimal at the ingestion "
-            f"boundary, never inside the models."
-        )
-    return v
-
-
-def check_balance(name: str, value: Any) -> float:
-    v = _finite(name, value)
-    if v < 0.0:
-        raise ValidationFailure(f"{name} must be >= 0 USD, got {v}")
-    return v
-
-
-def check_share(name: str, value: Any) -> float:
-    v = _finite(name, value)
-    if not 0.0 <= v <= 1.0:
-        raise ValidationFailure(f"{name} must lie in [0, 1], got {v}")
-    return v
-
-
-def freeze_path(
-    name: str,
-    values: Mapping[int, Any],
-    quarters: tuple[int, ...],
-    check=_finite,
-) -> Mapping[int, float]:
-    """Validate and defensively copy a quarter→value mapping.
-
-    The mapping must cover exactly `quarters` (no gaps, no extras); each value is
-    validated by `check`. Returns a read-only view over a fresh dict in quarter
-    order, so the caller's mapping is never aliased or mutated."""
-    if not isinstance(values, Mapping):
-        raise ValidationFailure(f"{name} must be a mapping of quarter -> value, got {type(values).__name__}")
-    got = set(values.keys())
-    expected = set(quarters)
-    if got != expected:
-        missing = sorted(expected - got)
-        extra = sorted(q for q in got if q not in expected)
-        raise ValidationFailure(
-            f"{name} must cover exactly quarters {list(quarters)}; missing {missing}, unexpected {extra}"
-        )
-    return MappingProxyType({q: check(f"{name}[PQ{q}]", values[q]) for q in quarters})
-
-
-def _require_id(name: str, value: Any) -> None:
-    if not isinstance(value, str) or not value.strip():
-        raise ValidationFailure(f"{name} must be a non-empty string, got {value!r}")
 
 
 # ---------------------------------------------------------------------------

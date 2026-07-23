@@ -10,7 +10,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from ..interest_expense.schemas import ValidationFailure
+from ..core.schemas import ValidationFailure
 
 Row = dict[str, object]
 

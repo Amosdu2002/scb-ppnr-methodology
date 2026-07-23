@@ -34,10 +34,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from ..interest_expense.schemas import (
     FOREIGN_SUBCOMPONENTS,
     OTHER_DOM_SUBCOMPONENTS,
-    PROJECTION_QUARTERS,
     DepositSubcomponent,
     DomTimeDepInputs,
     FamilyInputs,
@@ -45,7 +45,6 @@ from ..interest_expense.schemas import (
     ForeignDepInputs,
     OtherBorrowingInputs,
     OtherDomDepInputs,
-    ValidationFailure,
 )
 from .config import EXPENSE_SIGN_NEGATIVE, IngestionConfig, TableSource
 from .normalize import apply_money_scale, apply_rate_scale, to_float

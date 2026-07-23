@@ -13,7 +13,7 @@ import datetime as _dt
 import re
 from dataclasses import dataclass
 
-from ..interest_expense.schemas import ValidationFailure
+from ..core.schemas import ValidationFailure
 
 TO_BE_CONFIRMED = "TO_BE_CONFIRMED"
 SCALE_PERCENT = "percent"

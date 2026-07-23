@@ -26,12 +26,12 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
-from ..interest_expense.schemas import (
+from ..core.schemas import (
     PROJECTION_QUARTERS,
     SCENARIO_QUARTERS_WITH_LAUNCH,
-    ScenarioPaths,
     ValidationFailure,
 )
+from ..interest_expense.schemas import ScenarioPaths
 from .config import SERIES_KIND_RATE, IngestionConfig
 from .normalize import Quarter, apply_rate_scale, parse_quarter, require_confirmed, to_float
 from .tables import read_table
