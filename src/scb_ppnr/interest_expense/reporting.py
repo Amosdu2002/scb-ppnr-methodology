@@ -11,7 +11,7 @@ from .schemas import PROJECTION_QUARTERS, FamilyResult
 
 def family_report(result: FamilyResult, frb_total: Mapping[int, float]) -> str:
     lines = [f"firm={result.firm_id}  scenario={result.scenario_id}", ""]
-    lines.append("Quarterly expense paths (USD per quarter, pre-hedge):")
+    lines.append("Quarterly expense paths (USD MILLIONS per quarter — canonical unit, D-006; pre-hedge):")
     lines.append(
         "model".ljust(22) + "".join(f"PQ{q}".rjust(9) for q in PROJECTION_QUARTERS) + "     total".rjust(11)
     )
