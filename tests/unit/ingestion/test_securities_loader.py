@@ -164,8 +164,8 @@ def test_prepayment_blank_cells_read_as_zero(tmp_path, make_income_scenario):
     assert all(agency.face_path[q] == 0.0 for q in range(3, 10))                      # blanks → 0
     assert any("read as 0" in w and "AGY00009X" in w for w in inputs.warnings)
     result = project_mbs(inputs.mbs, make_income_scenario(), firm_id=inputs.firm_id, floor_mode="security_floor")
-    assert result.quarters[3].diagnostics.coupon_accrual == pytest.approx(0.05 * 300.0 / 4)   # PQ4 on PQ3 EOP face
-    assert result.quarters[4].diagnostics.coupon_accrual == 0.0                       # face 0 from PQ4 onward
+    assert result.quarters[2].diagnostics.coupon_accrual == pytest.approx(0.05 * 300.0 / 4)   # PQ3 on PQ2 EOP face
+    assert result.quarters[3].diagnostics.coupon_accrual == 0.0                       # PQ3 EOP face is 0 → PQ4 accrues nothing
 
     scenario = make_income_scenario()
     ust_result = project_ust(inputs.ust, scenario, firm_id=inputs.firm_id)
