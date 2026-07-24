@@ -251,4 +251,4 @@ def test_multi_lot_cusip_apportions_prepayment_and_step_variable_vocab(tmp_path,
     assert variable.rate_type == "floating"                                    # VARIABLE mapped
     step = next(p for p in inputs.mbs if p.security_id.startswith("STP"))
     assert step.rate_type == "fixed"                                           # STEP CPN interim-fixed
-    assert any("step-coupon" in w and "INTERIM" in w for w in inputs.warnings)
+    assert any("step-coupon" in w and "confirmed" in w for w in inputs.warnings)

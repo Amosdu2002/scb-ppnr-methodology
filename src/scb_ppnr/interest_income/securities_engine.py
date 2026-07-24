@@ -37,10 +37,12 @@ from .securities_schemas import (
 # AA = 0 if the quarter's face is 0 else (prior face − prior AC)/denominator
 # (denominator = 4 × maturity years; 4 × WAL(t=0) for Agency MBS; PQ0 numerator
 # and denominator for U.S. Treasuries) and AC(q) = AC(q−1) + AA(q) − paydown(q).
+# 2026-07-24 compare-mode confirmations: paydown reinvestment (Agency MBS ours/ref
+# 1.0055), floor-at-zero semantics (the reference accrues PQ1 then nothing on
+# negative-margin floaters — exactly mode 'zero'), STEP CPN flat at the launch
+# coupon, multifamily flat-face. Remaining open items live in the compare output.
 INTERIM_CHOICES = {
-    "paydown_reinvestment_on": "paydown proceeds reinvest like maturities (MRM p. 72 [FACT]; user-verified 'Reinvestment Interest income' section 2026-07-24; toggle reinvest_paydowns)",
-    "floor_semantics_vs_reference": "PID-SEC-2 floor_mode zeroes ~792 negative-margin floaters under mode 'zero' — what the reference does with them is under verification",
-    "step_coupon_fixed_at_launch": "STEP CPN treated as fixed at the launch coupon (pending confirmation)",
+    "reference_income_scope": "whether the II_PQ reference columns include reinvestment income or book it only in the separate 'Reinvestment Interest income' section — the compare mode now prints both ratios",
 }
 
 

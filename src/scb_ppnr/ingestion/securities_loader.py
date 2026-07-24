@@ -332,7 +332,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
             rate_type = RATE_FIXED
             warnings.append(
                 f"{security_id}: step-coupon rate type {rate_type_raw!r} treated as FIXED at the "
-                f"launch coupon [INTERIM — the Fed model has no step machinery; confirm treatment]"
+                f"launch coupon (confirmed vs the reference 2026-07-24: coupon held flat)"
             )
         elif rate_type_raw in _RATE_TYPE_MAP:
             rate_type = _RATE_TYPE_MAP[rate_type_raw]

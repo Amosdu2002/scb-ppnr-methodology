@@ -280,15 +280,17 @@ def run_compare(config, args) -> None:
             ours = {q: flows.total.get(q, 0.0) + reinv[q] for q in quarters}
             ref = position.reference_income
             ours_total = sum(ours.values())
+            ours_xr_total = ours_total - sum(reinv[q] for q in quarters)   # excluding reinvestment
             ref_total = sum(ref[q] for q in quarters)
             for q in quarters:
                 ours_q[q] += ours[q]
                 ref_q[q] += ref[q]
 
-            stats = per_cat.setdefault(position.category, {"n": 0, "ours": 0.0, "ref": 0.0,
+            stats = per_cat.setdefault(position.category, {"n": 0, "ours": 0.0, "ours_xr": 0.0, "ref": 0.0,
                                                            "<=0.1%": 0, "<=1%": 0, "<=5%": 0, ">5%": 0})
             stats["n"] += 1
             stats["ours"] += ours_total
+            stats["ours_xr"] += ours_xr_total
             stats["ref"] += ref_total
             diff = ours_total - ref_total
             rel = abs(diff) / abs(ref_total) if ref_total != 0.0 else (0.0 if abs(diff) < 1e-9 else 1.0)
@@ -311,8 +313,9 @@ def run_compare(config, args) -> None:
     print("\n================ COMPARE SUMMARY TO RELAY (counts/bands/ratios only) ================")
     for category, stats in sorted(per_cat.items()):
         ratio = stats["ours"] / stats["ref"] if stats["ref"] else float("nan")
+        ratio_xr = stats["ours_xr"] / stats["ref"] if stats["ref"] else float("nan")
         print(f"COMPARE {category}: n={stats['n']} <=0.1%:{stats['<=0.1%']} <=1%:{stats['<=1%']} "
-              f"<=5%:{stats['<=5%']} >5%:{stats['>5%']} ours/ref={ratio:.4f}")
+              f"<=5%:{stats['<=5%']} >5%:{stats['>5%']} ours/ref={ratio:.4f} xr/ref={ratio_xr:.4f}")
     total_ours, total_ref = sum(ours_q.values()), sum(ref_q.values())
     print(f"COMPARE-TOTAL: ours/ref={total_ours / total_ref:.4f}" if total_ref else "COMPARE-TOTAL: no reference")
     print("COMPARE-BY-QUARTER ours/ref:",
