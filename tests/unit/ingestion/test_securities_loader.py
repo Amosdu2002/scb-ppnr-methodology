@@ -113,6 +113,7 @@ def standard_workbook(tmp_path: Path) -> None:
     prepay = [
         ["AGY00001A", 1000e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 7200e6],
         ["ZRO00001Z", 500e6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],       # PQ1 = 0 → skipped at load
+        ["BLK00001B", None, None, None, None, None, None, None, None, None, None, None],  # all blank → PQ1 reads 0 → skipped
     ]
     build_workbook(tmp_path / "securities.xlsx", positions, enrichment, prepay)
 
@@ -145,8 +146,26 @@ def test_loader_end_to_end(tmp_path, make_income_scenario):
     mismatches = [w for w in inputs.warnings if "floater-indicator" in w]
     assert len(mismatches) == 1 and "UNS00001A" in mismatches[0]                      # monitor, not fatal
     pq1_skips = [w for w in inputs.warnings if "PQ1 face is 0" in w]
-    assert len(pq1_skips) == 1 and "ZRO00001Z" in pq1_skips[0]                        # user-directed skip
+    assert len(pq1_skips) == 2                                                        # numeric 0 AND blank PQ1
+    assert any("ZRO00001Z" in w for w in pq1_skips) and any("BLK00001B" in w for w in pq1_skips)
     assert not any("matches no in-scope" in w for w in inputs.warnings)               # skipped ≠ leftover
+
+
+def test_prepayment_blank_cells_read_as_zero(tmp_path, make_income_scenario):
+    positions = [[REPORT, "AGY00009X", "Agency MBS", 450e6, 500e6, 500e6, "AFS", 5.0, None]]
+    enrichment = [["AGY00009X", None, 5.0, "FIXED", None, 2.5, "N"]]
+    prepay = [["AGY00009X", 500e6, 400e6, 300e6, None, None, None, None, None, None, None, 0]]
+    build_workbook(tmp_path / "securities.xlsx", positions, enrichment, prepay)
+    inputs = load_securities_inputs(make_config(tmp_path))
+    agency = inputs.mbs[0]
+    assert agency.face_path is not None
+    assert agency.face_path[1] == pytest.approx(400.0)
+    assert agency.face_path[2] == pytest.approx(300.0)
+    assert all(agency.face_path[q] == 0.0 for q in range(3, 10))                      # blanks → 0
+    assert any("read as 0" in w and "AGY00009X" in w for w in inputs.warnings)
+    result = project_mbs(inputs.mbs, make_income_scenario(), firm_id=inputs.firm_id, floor_mode="security_floor")
+    assert result.quarters[3].diagnostics.coupon_accrual == pytest.approx(0.05 * 300.0 / 4)   # PQ4 on PQ3 EOP face
+    assert result.quarters[4].diagnostics.coupon_accrual == 0.0                       # face 0 from PQ4 onward
 
     scenario = make_income_scenario()
     ust_result = project_ust(inputs.ust, scenario, firm_id=inputs.firm_id)

@@ -80,9 +80,12 @@ monotone non-increasing. Rules [PID-MBS-1 / PID-SEC-5]:
   for the same CUSIP (tolerance-checked; mismatch surfaces).
 - An Agency MBS **absent** from this sheet carries **no prepayment** — face held flat
   (user-stated: such positions are multi-family).
-- A row whose **PQ1 face is 0 is skipped at load** (user-directed 2026-07-24), with a logged
-  warning per row. Consequence: if the skipped CUSIP is still an in-scope Agency MBS position,
-  it falls back to the flat-face (no-prepayment) treatment above.
+- **Pivot blanks read as 0** — an empty cell means "no balance" in a pivot; blanks are
+  converted to 0 with a logged per-row warning listing the affected quarters (never guessed
+  differently).
+- A row whose **PQ1 face is 0 — including blank — is skipped at load** (user-directed
+  2026-07-24), with a logged warning per row. Consequence: if the skipped CUSIP is still an
+  in-scope Agency MBS position, it falls back to the flat-face (no-prepayment) treatment above.
 - Non-Agency securities never appear here (no prepayments modeled [FACT, PPNR pp. 197, 202]).
 
 ## 5. Category → model assignment (PID-SEC-5)

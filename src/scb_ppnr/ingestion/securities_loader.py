@@ -202,23 +202,30 @@ def _prepayment_map(worksheet, path: Path, money_scale: str, warnings: list[str]
         if _blank(label) or str(label).strip().lower() == "grand total":
             continue
         cusip = str(label).strip()
-        # User-directed rule (2026-07-24): a row whose PQ1 face is 0 is skipped at load.
-        pq1_column = month_columns[1]
-        pq1_raw = row[pq1_column] if pq1_column < len(row) else None
-        if not _blank(pq1_raw) and to_float(pq1_raw, context=f"{path} prepayment {cusip} PQ1") == 0.0:
-            warnings.append(
-                f"prepayment row {cusip}: PQ1 face is 0 — row skipped (user-directed 2026-07-24); "
-                f"if the security is still an in-scope Agency MBS position it falls back to the "
-                f"flat-face (no-prepayment) treatment"
-            )
-            continue
+        # Pivot semantics: blank cells mean "no balance" and are read as 0 (logged per row).
         path_values: dict[int, float] = {}
+        blank_quarters: list[int] = []
         for quarter, column in month_columns.items():
             raw = row[column] if column < len(row) else None
             if _blank(raw):
-                raise ValidationFailure(f"{path}: prepayment row {line} ({cusip}): PQ{quarter} cell is blank")
-            value = to_float(raw, context=f"{path} prepayment {cusip} PQ{quarter}")
-            path_values[quarter] = apply_money_scale(money_scale, value, context=f"{path} prepayment {cusip} PQ{quarter}")
+                path_values[quarter] = 0.0
+                blank_quarters.append(quarter)
+            else:
+                value = to_float(raw, context=f"{path} prepayment {cusip} PQ{quarter}")
+                path_values[quarter] = apply_money_scale(money_scale, value, context=f"{path} prepayment {cusip} PQ{quarter}")
+        # User-directed rule (2026-07-24): a row whose PQ1 face is 0 (or blank) is skipped at load.
+        if path_values[1] == 0.0:
+            warnings.append(
+                f"prepayment row {cusip}: PQ1 face is 0 — row skipped (user-directed 2026-07-24; "
+                f"blank cells read as 0); if the security is still an in-scope Agency MBS position "
+                f"it falls back to the flat-face (no-prepayment) treatment"
+            )
+            continue
+        if blank_quarters:
+            warnings.append(
+                f"prepayment row {cusip}: blank cell(s) at PQ{blank_quarters} read as 0 "
+                f"(pivot semantics — logged, never guessed differently)"
+            )
         faces[cusip] = path_values
     return faces
 
