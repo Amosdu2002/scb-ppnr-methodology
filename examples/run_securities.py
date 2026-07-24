@@ -12,6 +12,7 @@ Requires openpyxl. Output amounts: USD MILLIONS per quarter (D-006), pre-hedge."
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import tempfile
 from pathlib import Path
 
@@ -51,6 +52,7 @@ def _synthetic_demo() -> tuple[IngestionConfig, IncomeScenarioPaths]:
     import openpyxl
 
     tmp = Path(tempfile.mkdtemp(prefix="scb_ppnr_securities_demo_"))
+    epoch = dt.date(1899, 12, 30)
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Positions"
@@ -62,10 +64,10 @@ def _synthetic_demo() -> tuple[IngestionConfig, IncomeScenarioPaths]:
     ws.append([20241231, "DEMOAGY01", "Agency MBS", 950e6, 1000e6, 1200e6, "AFS", 5.0, None])
     ws.append([20241231, "DEMOOTH01", "Corporate Bond", 2000e6, 2000e6, 2000e6, "AFS", 5.0, None])
     ito = wb.create_sheet("ITO")
-    ito.append(["CUSIP", "Maturity (yr)", "Coupon Rate", "CPN_TYP", "CPN_Floor", "WAL"])
-    ito.append(["DEMOUST01", 1.0, 4.0, "FIXED", None, None])
+    ito.append(["CUSIP", "Maturity Date", "Coupon Rate", "CPN_TYP", "CPN_Floor", "WAL"])
+    ito.append(["DEMOUST01", (dt.date(2025, 12, 31) - epoch).days, 4.0, "FIXED", None, None])
     ito.append(["DEMOAGY01", None, 5.0, "FIXED", None, 2.5])
-    ito.append(["DEMOOTH01", 10.5, 5.0, "FIXED", None, None])
+    ito.append(["DEMOOTH01", (dt.date(2035, 6, 30) - epoch).days, 5.0, "FIXED", None, None])
     prepay = wb.create_sheet("prepay")
     prepay.append(["Sum of current_face", "Column Labels"])
     prepay.append(["Row Labels", 0, 3, 6, 9, 12, 15, 18, 21, 24, 27, "Grand Total"])
@@ -83,7 +85,7 @@ def _synthetic_demo() -> tuple[IngestionConfig, IncomeScenarioPaths]:
                 money_scale="dollars", coupon_scale="percent", book_yield_scale="percent",
                 floor_mode=FLOOR_MODE_SECURITY, prepayment_sheet="prepay",
                 enrichment=(SecuritiesEnrichmentSheet(
-                    sheet="ITO", key_column="CUSIP", maturity_years_column="Maturity (yr)",
+                    sheet="ITO", key_column="CUSIP", maturity_column="Maturity Date",
                     coupon_column="Coupon Rate", rate_type_column="CPN_TYP",
                     wal_column="WAL", floor_column="CPN_Floor", header_row=1,
                 ),),

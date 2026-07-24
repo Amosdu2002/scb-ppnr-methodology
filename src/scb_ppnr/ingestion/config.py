@@ -62,13 +62,11 @@ class SecuritiesEnrichmentSheet:
     """One enrichment tab of the securities workbook (PID-SEC-6): per-security
     maturity/coupon/rate-type/floor/WAL keyed by CUSIP or ISIN. Column names are
     per-tab (the physical tabs spell headers differently); `header_row` is the
-    1-based row carrying those names. `maturity_years_column` carries YEARS to
-    maturity as a decimal (PID-SEC-6 amendment 2026-07-24 — maturity DATES were
-    incomplete across the tabs, so the years column is the canonical input)."""
+    1-based row carrying those names."""
 
     sheet: str
     key_column: str
-    maturity_years_column: str
+    maturity_column: str
     coupon_column: str
     rate_type_column: str
     wal_column: str
@@ -226,7 +224,7 @@ def load_config(path: Path | str) -> IngestionConfig:
                     SecuritiesEnrichmentSheet(
                         sheet=str(_require(entry, "sheet", context)),
                         key_column=str(_require(entry, "key_column", context)),
-                        maturity_years_column=str(_require(entry, "maturity_years_column", context)),
+                        maturity_column=str(_require(entry, "maturity_column", context)),
                         coupon_column=str(_require(entry, "coupon_column", context)),
                         rate_type_column=str(_require(entry, "rate_type_column", context)),
                         wal_column=str(_require(entry, "wal_column", context)),

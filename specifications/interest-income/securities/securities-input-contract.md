@@ -58,7 +58,7 @@ fields per security:
 
 | Field | Notes |
 |---|---|
-| `maturity_years` | **YEARS to maturity, decimal** (`maturity_years_column`) — PID-SEC-6 amendment 2026-07-24: maturity **dates** were incomplete across the tabs, so the years column is the canonical input; maturity_quarters = ceil(4 × years), minimum 1 ([CODE] rounding); non-positive or blank → missing (PID-SEC-3 may proxy) |
+| `maturity_date` | **Excel serial number** (days since 1899-12-30) — normalized at ingestion |
 | `coupon_rate` | **percent scale** (e.g. 7.25) — normalized to annualized decimal; user-stated **never blank** |
 | `rate_type` | FIXED \| FLOATING \| ZERO COUPON (zero-coupon accrues at book yield [FACT, PPNR p. 196]) |
 | `coupon_floor` | may be blank (incl. literal "(blank)" — treated as missing); feeds PID-SEC-2 |
@@ -107,17 +107,16 @@ listed above follow this convention only after being surfaced and confirmed.
 
 ## 6. Normalization conventions [CODE]
 
-- **Dates**: `yyyymmdd` integers (`report_date`) and `mm/dd/yyyy` (`pricing_date`) are
-  positions-sheet fields; the enrichment maturity is **not** a date — it arrives as decimal
-  years (§3; PID-SEC-6 amendment 2026-07-24).
+- **Three date encodings**, normalized at ingestion: `yyyymmdd` integers (`report_date`),
+  Excel serials (enrichment `maturity_date`), `mm/dd/yyyy` (`pricing_date`).
 - **Rates**: enrichment coupon rates are percent-scale → annualized decimal (D-004 basis);
   `book_yield` scale declared in config (percent | decimal), never guessed.
 - **Money**: `current_face_value` and prepayment faces are USD (whole-dollar magnitudes
   observed); canonical model unit stays USD millions (D-006) — the loader converts once, with
   the positions-sheet money scale declared per §7.
 - Literal placeholder strings ("(blank)") and empty cells are both **missing**.
-- Maturity years → `maturity_quarters` = ceil(4 × years), minimum 1 ([CODE], logged);
-  WAL years → the A41 4× factor applies as printed [FACT].
+- Maturity date → `maturity_quarters` relative to `report_date` (rounding convention fixed at
+  code time and logged); WAL years → the A41 4× factor applies as printed [FACT].
 
 ## 7. Confirmation register (updated 2026-07-24)
 

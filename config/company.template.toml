@@ -102,8 +102,7 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
 sheet = "<ENRICHMENT_TAB_NAME>"
 header_row = 2                          # 1-based row carrying the column names below
 key_column = "<CUSIP_OR_ISIN_COLUMN>"
-maturity_years_column = "<MATURITY_YEARS_COLUMN>"   # YEARS to maturity, decimal (PID-SEC-6
-                                                    # amendment: dates were incomplete across tabs)
+maturity_column = "<MATURITY_DATE_COLUMN>"      # Excel serial dates
 coupon_column = "<COUPON_RATE_COLUMN>"
 rate_type_column = "<RATE_TYPE_COLUMN>"         # FIXED | FLOATING | ZERO COUPON
 floor_column = "<COUPON_FLOOR_COLUMN>"          # delete this line if the tab has none
