@@ -15,7 +15,6 @@ price/100 × current face when maturity/book-yield/AC are missing or zero."""
 
 from __future__ import annotations
 
-import datetime as _dt
 import math
 from pathlib import Path
 
@@ -35,12 +34,8 @@ from ..interest_income.securities_schemas import (
 from .config import IngestionConfig, SecuritiesConfig, SecuritiesEnrichmentSheet
 from .normalize import apply_money_scale, apply_rate_scale, to_float
 
-_EXCEL_EPOCH = _dt.date(1899, 12, 30)
-_DAYS_PER_QUARTER = 91.3125          # 365.25 / 4 — quarters rounded up ([CODE], logged in contract §6)
-
 # Positions-sheet columns located via the MDRM header row (contract §2).
 _POSITIONS_MDRM = {
-    "D_DT": "report_date",
     "CQSCP083": "identifier_value",
     "CQSCP084": "security_description_1",
     "CQSCP087": "amortized_cost",
@@ -87,33 +82,6 @@ def _blank(value: object) -> bool:
     return value is None or (isinstance(value, str) and value.strip().upper() in _MISSING_STRINGS)
 
 
-def _parse_date(value: object, *, context: str) -> _dt.date:
-    """Normalize the contract's three date encodings (§6)."""
-    if isinstance(value, _dt.datetime):
-        return value.date()
-    if isinstance(value, _dt.date):
-        return value
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        number = float(value)
-        if 10_000_000.0 <= number <= 99_991_231.0:       # yyyymmdd integer
-            text = str(int(number))
-            return _dt.date(int(text[:4]), int(text[4:6]), int(text[6:8]))
-        if 0.0 < number < 200_000.0:                      # Excel serial
-            return _EXCEL_EPOCH + _dt.timedelta(days=int(round(number)))
-    if isinstance(value, str):
-        text = value.strip()
-        for fmt in ("%m/%d/%Y", "%Y-%m-%d"):
-            try:
-                return _dt.datetime.strptime(text, fmt).date()
-            except ValueError:
-                continue
-        try:
-            return _parse_date(float(text.replace(",", "")), context=context)
-        except (ValueError, ValidationFailure):
-            pass
-    raise ValidationFailure(f"{context}: cannot interpret {value!r} as a date (yyyymmdd, Excel serial, or mm/dd/yyyy)")
-
-
 def _positions_rows(worksheet, path: Path) -> tuple[list[dict[str, object]], dict[str, int]]:
     rows = list(worksheet.iter_rows(values_only=True))
     header_index: int | None = None
@@ -147,7 +115,7 @@ def _enrichment_map(workbook, spec: SecuritiesEnrichmentSheet, path: Path) -> di
     if len(rows) < spec.header_row:
         raise ValidationFailure(f"{path}:{spec.sheet}: header_row {spec.header_row} beyond sheet end")
     header = {str(c).strip(): i for i, c in enumerate(rows[spec.header_row - 1]) if c is not None and str(c).strip()}
-    needed = {"key": spec.key_column, "maturity": spec.maturity_column, "coupon": spec.coupon_column,
+    needed = {"key": spec.key_column, "maturity_years": spec.maturity_years_column, "coupon": spec.coupon_column,
               "rate_type": spec.rate_type_column, "wal": spec.wal_column}
     if spec.floor_column is not None:
         needed["floor"] = spec.floor_column
@@ -251,8 +219,6 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
     finally:
         workbook.close()
 
-    report_date = _parse_date(records[0]["report_date"], context=f"{path} D_DT") if "report_date" in records[0] and not _blank(records[0].get("report_date")) else None
-
     skipped_out_of_scope = 0
     skipped_wal = 0
     unmatched: list[str] = []
@@ -317,14 +283,18 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 )
                 continue
 
+        # PID-SEC-6 amendment (2026-07-24): maturity arrives as YEARS (decimal);
+        # quarters = ceil(4 × years), minimum 1 ([CODE] rounding, contract §6).
         maturity_quarters = None
-        if not _blank(fields.get("maturity")) and report_date is not None:
-            maturity_date = _parse_date(fields["maturity"], context=f"{context} maturity")
-            days = (maturity_date - report_date).days
-            if days <= 0:
-                warnings.append(f"{security_id}: maturity {maturity_date} not after the report date {report_date} — treated as missing (PID-SEC-3 may proxy)")
+        if not _blank(fields.get("maturity_years")):
+            maturity_years = to_float(fields["maturity_years"], context=f"{context} maturity_years")
+            if maturity_years <= 0.0:
+                warnings.append(
+                    f"{security_id}: non-positive maturity {maturity_years} years — treated as "
+                    f"missing (PID-SEC-3 may proxy)"
+                )
             else:
-                maturity_quarters = max(1, math.ceil(days / _DAYS_PER_QUARTER))
+                maturity_quarters = max(1, math.ceil(4.0 * maturity_years))
 
         face = apply_money_scale(sc.money_scale, to_float(record["current_face_value"], context=f"{context} current_face"), context=f"{context} current_face")
         ac_raw = None if _blank(record.get("amortized_cost")) else to_float(record["amortized_cost"], context=f"{context} amortized_cost")

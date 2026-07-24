@@ -4,7 +4,6 @@ PID-SEC-3 proxy; parked WAL skip; prepayment pivot parsing; dollars→millions."
 
 from __future__ import annotations
 
-import datetime as dt
 from pathlib import Path
 
 import pytest
@@ -27,13 +26,7 @@ from scb_ppnr.interest_income import (
     project_ust,
 )
 
-EPOCH = dt.date(1899, 12, 30)
 REPORT = 20241231
-
-
-def serial(year: int, month: int, day: int) -> int:
-    return (dt.date(year, month, day) - EPOCH).days
-
 
 MDRM = ["D_DT", "CQSCP083", "CQSCP084", "CQSCP087", "CQSCP089", "CQSCP090", "CQSCP092", "CQSCP094", "CQSCJH21"]
 
@@ -49,7 +42,7 @@ def build_workbook(path: Path, positions: list[list], enrichment: list[list], pr
     for row in positions:
         ws.append(row)
     ito = wb.create_sheet("ITO")
-    ito.append(["CUSIP", "Maturity Date", "Coupon Rate", "CPN_TYP", "CPN_Floor", "WAL", "Formula"])
+    ito.append(["CUSIP", "Maturity (yr)", "Coupon Rate", "CPN_TYP", "CPN_Floor", "WAL", "Formula"])
     for row in enrichment:
         ito.append(row)
     if prepay is not None:
@@ -78,7 +71,7 @@ def make_config(tmp_path: Path, *, prepayment: bool = True) -> IngestionConfig:
                 prepayment_sheet="prepay" if prepayment else None,
                 enrichment=(
                     SecuritiesEnrichmentSheet(
-                        sheet="ITO", key_column="CUSIP", maturity_column="Maturity Date",
+                        sheet="ITO", key_column="CUSIP", maturity_years_column="Maturity (yr)",
                         coupon_column="Coupon Rate", rate_type_column="CPN_TYP",
                         wal_column="WAL", floor_column="CPN_Floor",
                         floater_indicator_column="Formula", header_row=1,
@@ -102,13 +95,14 @@ def standard_workbook(tmp_path: Path) -> None:
         [REPORT, "WAL00001A", "Municipal Bond", 90e6, 100e6, 100e6, "AFS", 5.0, None],
     ]
     enrichment = [
-        ["UST00001A", serial(2025, 12, 31), 4.0, "FIXED", None, None, "N"],
+        # maturity now in YEARS (decimal) — PID-SEC-6 amendment 2026-07-24
+        ["UST00001A", 1.0, 4.0, "FIXED", None, None, "N"],
         ["AGY00001A", None, 5.0, "FIXED", None, 2.5, "N"],
         ["AGY00002B", None, 5.0, "FIXED", None, 3.0, "N"],
-        ["CMB00001A", serial(2035, 12, 31), 4.0, "FIXED", None, None, "N"],
-        ["OTH00001A", serial(2035, 6, 30), 5.0, "FIXED", None, None, "N"],
+        ["CMB00001A", 11.0, 4.0, "FIXED", None, None, "N"],
+        ["OTH00001A", 10.5, 5.0, "FIXED", None, None, "N"],
         ["UNS00001A", None, 5.0, "FIXED", None, None, "Y"],       # deliberate flag mismatch
-        ["WAL00001A", serial(2030, 12, 31), 3.0, "FIXED", None, -0.1, "N"],
+        ["WAL00001A", 6.0, 3.0, "FIXED", None, -0.1, "N"],
     ]
     prepay = [
         ["AGY00001A", 1000e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 7200e6],
@@ -129,7 +123,7 @@ def test_loader_end_to_end(tmp_path, make_income_scenario):
     ust = inputs.ust[0]
     assert ust.current_face == pytest.approx(1000.0)              # dollars → millions
     assert ust.coupon_rate == pytest.approx(0.04)                 # percent → decimal
-    assert ust.maturity_quarters == 4                             # 365 days → 4 quarters
+    assert ust.maturity_quarters == 4                             # 1.0 years → ceil(4 × 1.0) = 4 quarters
 
     agency = next(p for p in inputs.mbs if p.security_id == "AGY00001A")
     assert agency.face_path is not None and agency.face_path[0] == pytest.approx(1000.0)
@@ -179,7 +173,7 @@ def test_prepayment_blank_cells_read_as_zero(tmp_path, make_income_scenario):
 
 def test_unmapped_category_is_a_hard_error(tmp_path):
     positions = [[REPORT, "COV00001A", "Covered Bond", 100e6, 100e6, 100e6, "AFS", 5.0, None]]
-    enrichment = [["COV00001A", serial(2030, 1, 1), 4.0, "FIXED", None, None]]
+    enrichment = [["COV00001A", 5.0, 4.0, "FIXED", None, None]]
     build_workbook(tmp_path / "securities.xlsx", positions, enrichment, None)
     with pytest.raises(ValidationFailure, match="not in the confirmed PID-SEC-5 mapping"):
         load_securities_inputs(make_config(tmp_path, prepayment=False))
