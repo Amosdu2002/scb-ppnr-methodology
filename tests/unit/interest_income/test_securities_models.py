@@ -114,6 +114,20 @@ def test_mbs_agency_face_path_recursion(make_income_scenario):
     assert result.quarters[2].diagnostics.accretion == pytest.approx(3.15)
 
 
+def test_mbs_paydown_proceeds_reinvest(make_income_scenario):
+    scenario = make_income_scenario()                     # t1y flat 4%
+    face_path = {0: 1000.0, 1: 800.0, **{q: 800.0 for q in range(2, 10)}}
+    pos = _pos(MODEL_MBS, "AGY000003", coupon_rate=0.05, amortized_cost=950.0,
+               wal_years=2.5, face_path=face_path)
+    result = project_mbs([pos], scenario, firm_id="F", floor_mode=FLOOR_MODE_NONE)
+    assert result.quarters[0].diagnostics.reinvested_income == 0.0
+    # 200 paid down in PQ1 → 1Y Treasury bought PQ2 at 4%, rolls at PQ6: 2.0/qtr PQ2..PQ9
+    assert all(result.quarters[q - 1].diagnostics.reinvested_income == pytest.approx(2.0) for q in range(2, 10))
+    off = project_mbs([pos], scenario, firm_id="F", floor_mode=FLOOR_MODE_NONE, reinvest_paydowns=False)
+    assert all(q.diagnostics.reinvested_income == 0.0 for q in off.quarters)
+    assert any("reinvest_paydowns=false" in w for w in off.warnings)
+
+
 def test_mbs_agency_pq0_mismatch_warns(make_income_scenario):
     face_path = {0: 990.0, **{q: 990.0 for q in range(1, 10)}}
     pos = _pos(MODEL_MBS, "AGY000002", coupon_rate=0.05, wal_years=2.0, face_path=face_path)

@@ -164,7 +164,8 @@ def main() -> None:
 
     results = [
         project_ust(inputs.ust, scenario, firm_id=inputs.firm_id, on_error=on_error),
-        project_mbs(inputs.mbs, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error),
+        project_mbs(inputs.mbs, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error,
+                    reinvest_paydowns=config.firm_data.securities.reinvest_paydowns),
         project_other_sec(inputs.other_sec, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error),
     ]
     tables = "\n".join(_render_model(result) for result in results)

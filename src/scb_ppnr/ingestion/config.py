@@ -100,6 +100,8 @@ class SecuritiesConfig:
     on_security_error: str = "stop"     # "stop" (strict default) | "skip" — skip mode isolates a
                                         # failing security with a HIGHLIGHT warning instead of
                                         # halting the run (debugging/company-reference phase)
+    reinvest_paydowns: bool = True      # MRM p. 72: paydown proceeds reinvest like maturities
+                                        # (default ON); toggle for A/B against the reference
 
 
 @dataclass(frozen=True)
@@ -250,6 +252,7 @@ def load_config(path: Path | str) -> IngestionConfig:
                 enrichment=tuple(enrichment),
                 price_mdrm=str(sec.get("price_mdrm", "CQSCJH21")),
                 on_security_error=str(sec.get("on_security_error", "stop")).strip().lower(),
+                reinvest_paydowns=bool(sec.get("reinvest_paydowns", True)),
             )
             if securities.on_security_error not in ("stop", "skip"):
                 raise ValidationFailure(

@@ -137,6 +137,13 @@ def _positions_rows(
                     columns[field] = cells[mdrm]
             if price_mdrm in cells:
                 columns["price"] = cells[price_mdrm]
+            # Reference per-security income columns (verification only): the workbook's
+            # own II_PQ1..II_PQ9, when present on the same header row.
+            reference_columns = {f"II_PQ{q}": cells[f"II_PQ{q}"] for q in range(1, 10) if f"II_PQ{q}" in cells}
+            if len(reference_columns) == 9:
+                for q in range(1, 10):
+                    columns[f"reference_pq{q}"] = reference_columns[f"II_PQ{q}"]
+                notes.append("reference income columns II_PQ1..II_PQ9 found — attached for compare mode")
             break
     if header_index is None:
         raise ValidationFailure(f"{path}: positions sheet has no MDRM header row (looked for CQSCP084)")
@@ -427,6 +434,20 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         if book_yield == 0.0:
             book_yield = None
 
+        reference_income = None
+        if all(f"reference_pq{q}" in record for q in range(1, 10)):
+            try:
+                reference_income = {
+                    q: apply_money_scale(sc.money_scale, to_float(record[f"reference_pq{q}"], context=f"{context} II_PQ{q}"),
+                                         context=f"{context} II_PQ{q}")
+                    for q in range(1, 10)
+                    if not _blank(record.get(f"reference_pq{q}"))
+                }
+                if len(reference_income) != 9:
+                    reference_income = None               # partial rows carry no reference
+            except ValidationFailure:
+                reference_income = None                   # unparseable reference cells — verification only
+
         face_path = None
         if agency_prepay and cusip in prepayment:
             used_prepayment.add(cusip)
@@ -459,6 +480,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 wal_years=wal,
                 face_path=face_path,
                 ac_proxied=ac_proxied,
+                reference_income=reference_income,
             )
         )
 

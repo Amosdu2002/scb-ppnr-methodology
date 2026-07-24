@@ -94,6 +94,13 @@ monotone non-increasing. Rules [PID-MBS-1 / PID-SEC-5]:
   with a logged summary count.
 - **Missing enrichment (2026-07-24):** a position with no enrichment match is **skipped with a
   HIGHLIGHT warning** (previously a hard stop) — pending user confirmation of skip vs data fix.
+- **Paydown reinvestment (2026-07-24, OQ-025(c) resolution):** quarterly face declines
+  (paydowns) reinvest into the 1Y-Treasury ledger exactly like maturities (MRM p. 72 [FACT];
+  first-day-of-following-quarter timing [INT]); config `reinvest_paydowns` (default true)
+  toggles it for A/B runs.
+- **Reference income columns (verification only):** when the header row carries
+  `II_PQ1..II_PQ9`, they are attached per position as `reference_income` for the diagnostic's
+  `--compare` mode; the models never consume them.
 
 ## 5. Category → model assignment (PID-SEC-5)
 

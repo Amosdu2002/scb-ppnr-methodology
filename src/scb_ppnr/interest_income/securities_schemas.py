@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Mapping
 
 from ..core.schemas import (
+    PROJECTION_QUARTERS,
     SCENARIO_QUARTERS_WITH_LAUNCH,
     ValidationFailure,
     check_balance,
@@ -99,6 +100,9 @@ class SecurityPosition:
     wal_years: float | None = None
     face_path: Mapping[int, float] | None = None
     ac_proxied: bool = False
+    reference_income: Mapping[int, float] | None = None   # verification only — the workbook's own
+                                                          # per-security II_PQ1..PQ9 (USD millions);
+                                                          # never consumed by the models
 
     def __post_init__(self) -> None:
         require_id("security_id", self.security_id)
@@ -133,6 +137,12 @@ class SecurityPosition:
                 self, "face_path",
                 freeze_path(f"{self.security_id}.face_path", self.face_path,
                             SCENARIO_QUARTERS_WITH_LAUNCH, check_balance),
+            )
+        if self.reference_income is not None:
+            object.__setattr__(
+                self, "reference_income",
+                freeze_path(f"{self.security_id}.reference_income", self.reference_income,
+                            PROJECTION_QUARTERS, check_finite),   # sign-unconstrained
             )
         if self.rate_type == RATE_ZERO_COUPON and self.coupon_rate not in (None, 0.0):
             raise ValidationFailure(f"{self.security_id}: zero-coupon security carries a nonzero coupon_rate {self.coupon_rate}")

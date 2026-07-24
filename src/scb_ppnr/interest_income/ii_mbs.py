@@ -82,10 +82,16 @@ def _agency_flows(position: SecurityPosition, coupon: dict[int, float], warnings
 
     coupon_cash: dict[int, float] = {}
     accretion: dict[int, float] = {}
+    paydowns: dict[int, float] = {}
     ac = position.amortized_cost
     for quarter in range(1, last_quarter + 1):
         face_prior = face_path[quarter - 1]
         coupon_cash[quarter] = quarterly(face_prior, coupon[quarter])
+        paydown = face_prior - face_path[quarter]
+        if paydown < 0.0:
+            warnings.append(f"{position.security_id}: face path INCREASES at PQ{quarter} — no paydown booked (surfaced, monotone expected)")
+        elif paydown > 0.0:
+            paydowns[quarter] = paydown                    # reinvests per MRM p. 72 (toggleable)
         if position.ac_proxied:
             accretion[quarter] = 0.0
         else:
@@ -93,7 +99,8 @@ def _agency_flows(position: SecurityPosition, coupon: dict[int, float], warnings
     matured = {}
     if maturity is not None and maturity <= PROJECTION_QUARTERS[-1]:
         matured = {maturity: face_path[maturity]}
-    return PerSecurityFlows(position.security_id, coupon_cash, accretion, matured, alive_through=last_quarter)
+    return PerSecurityFlows(position.security_id, coupon_cash, accretion, matured,
+                            alive_through=last_quarter, paydown_face=paydowns)
 
 
 def _other_mbs_flows(position: SecurityPosition, coupon: dict[int, float], warnings: list[str]) -> PerSecurityFlows:
@@ -137,6 +144,7 @@ def project_mbs(
     firm_id: str,
     floor_mode: str,
     on_error: str = "stop",
+    reinvest_paydowns: bool = True,
 ) -> IncomeModelResult:
     warnings: list[str] = []
     flows = []
@@ -161,4 +169,7 @@ def project_mbs(
         warnings.append(f"{skipped} MBS position(s) skipped on error — HIGHLIGHTED above; income understated by their contribution")
     if not flows:
         warnings.append("no in-scope MBS positions — income is identically zero (logged)")
-    return aggregate_model_result(MODEL_ID, firm_id, scenario, flows, warnings)
+    if not reinvest_paydowns:
+        warnings.append("reinvest_paydowns=false — paydown proceeds NOT reinvested (A/B toggle; MRM p. 72 says they are)")
+    return aggregate_model_result(MODEL_ID, firm_id, scenario, flows, warnings,
+                                  reinvest_paydowns=reinvest_paydowns)

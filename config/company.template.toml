@@ -103,6 +103,8 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
 # on_security_error = "skip"            # "stop" (strict default) | "skip" — skip isolates a
                                         # failing security with a HIGHLIGHT warning and a count
                                         # instead of halting the run (debugging phase)
+# reinvest_paydowns = true              # MRM p. 72: paydown proceeds reinvest like maturities
+                                        # (default true); set false only for A/B comparison runs
 
 [[firm_data.securities.enrichment]]     # one block per enrichment tab (repeat as needed)
 sheet = "<ENRICHMENT_TAB_NAME>"

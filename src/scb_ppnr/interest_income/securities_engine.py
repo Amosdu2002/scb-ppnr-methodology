@@ -37,7 +37,7 @@ INTERIM_CHOICES = {
     "agency_ac_recursion": "agency_accretion_step — AC scales with the survival ratio, then adds the A41 straight-line amount",
     "floating_accretion_straight_line": "other-MBS floaters use straight-line accretion (the constant-coupon effective-interest assumption does not hold)",
     "other_sec_floating_book_yield_shift": "ii_other_sec floaters shift book yield by the same 3M-Treasury delta as the coupon (chapter §6 step 3 [INT])",
-    "no_paydown_reinvestment": "Agency paydown proceeds are not reinvested (OQ-025(c) open)",
+    "paydown_reinvestment_on": "Agency paydown proceeds reinvest like maturities (MRM p. 72 covers 'decreasing in balance due to partial paydowns' [FACT]; purchase timing mirrors the maturity rule [INT]; config toggle reinvest_paydowns — resolves OQ-025(c) for implementation, 2026-07-24)",
 }
 
 
@@ -153,17 +153,25 @@ def reinvestment_income(
 @dataclass(frozen=True)
 class PerSecurityFlows:
     """One security's projected flows: cash-coupon and accretion legs per
-    quarter, maturity events, and the last quarter it contributes."""
+    quarter, maturity and paydown events, and the last quarter it contributes."""
 
     security_id: str
     coupon_cash: Mapping[int, float]
     accretion: Mapping[int, float]
     matured_face: Mapping[int, float]
     alive_through: int
+    paydown_face: Mapping[int, float] | None = None    # Agency prepayment paydowns (quarter -> USD mm)
 
     @property
     def total(self) -> Mapping[int, float]:
         return {q: self.coupon_cash.get(q, 0.0) + self.accretion.get(q, 0.0) for q in PROJECTION_QUARTERS}
+
+    def reinvestment_events(self, include_paydowns: bool) -> dict[int, float]:
+        events = dict(self.matured_face)
+        if include_paydowns and self.paydown_face:
+            for quarter, amount in self.paydown_face.items():
+                events[quarter] = events.get(quarter, 0.0) + amount
+        return events
 
 
 def aggregate_model_result(
@@ -172,16 +180,19 @@ def aggregate_model_result(
     scenario: IncomeScenarioPaths,
     flows: Iterable[PerSecurityFlows],
     warnings: Iterable[str],
+    *,
+    reinvest_paydowns: bool = True,
 ) -> IncomeModelResult:
     """Sum per-security flows, run the component's reinvestment ledger on its
-    pooled maturity events (attribution stays in-component — OQ-025(b)), and
-    assemble the IncomeModelResult. rate/balance are None by design: the
-    securities template has no single balance × rate decomposition — the
-    decomposition lives in the typed diagnostics."""
+    pooled maturity AND paydown events (attribution stays in-component —
+    OQ-025(b); paydowns per MRM p. 72, toggleable), and assemble the
+    IncomeModelResult. rate/balance are None by design: the securities template
+    has no single balance × rate decomposition — the decomposition lives in the
+    typed diagnostics."""
     flow_list = list(flows)
     matured_total: dict[int, float] = {}
     for flow in flow_list:
-        for quarter, amount in flow.matured_face.items():
+        for quarter, amount in flow.reinvestment_events(reinvest_paydowns).items():
             matured_total[quarter] = matured_total.get(quarter, 0.0) + amount
     reinvested, reinvested_balance = reinvestment_income(matured_total, scenario)
 

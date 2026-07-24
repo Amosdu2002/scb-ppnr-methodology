@@ -28,7 +28,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 
-from scb_ppnr.ingestion import load_config
+from scb_ppnr.ingestion import load_config, load_mev_scenario, load_securities_inputs
 from scb_ppnr.ingestion.securities_loader import (
     _POSITIONS_MDRM,
     _RATE_TYPE_MAP,
@@ -67,6 +67,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
     parser.add_argument("--detail", type=int, default=10, help="how many problem securities to detail (local only)")
+    parser.add_argument("--compare", action="store_true",
+                        help="diff our per-security income against the workbook's own II_PQ1..II_PQ9 columns")
+    parser.add_argument("--scenario", default=None, help="scenario id for --compare (defaults to the first configured)")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -220,6 +223,102 @@ def main() -> None:
     print("INTENT-COUNTS:", "; ".join(f"{k or '(blank)'}={n}" for k, n in intent_counts.most_common()))
     print("known categories in the PID-SEC-5 map:", len(CATEGORY_MODEL_MAP))
     print("==========================================================================================")
+
+    if args.compare:
+        run_compare(config, args)
+
+
+def run_compare(config, args) -> None:
+    """Per-security diff: our income vs the workbook's own II_PQ1..II_PQ9 columns.
+
+    Local section shows category aggregates in USD millions and the worst movers
+    (masked ids). The relay section carries only counts, tolerance bands, and
+    ours/reference RATIOS — no amounts."""
+    from scb_ppnr.interest_income import ii_mbs as m_mbs
+    from scb_ppnr.interest_income import ii_other_sec as m_osec
+    from scb_ppnr.interest_income import ii_ust as m_ust
+    from scb_ppnr.interest_income.securities_engine import reinvestment_income
+
+    sc = config.firm_data.securities
+    if config.mev is None:
+        raise SystemExit("--compare needs a [mev] section for the scenario")
+    scenario_id = args.scenario or next(iter(config.mev.scenarios))
+    scenario = load_mev_scenario(config, scenario_id).interest_income_scenario_paths()
+    inputs = load_securities_inputs(config)
+
+    quarters = range(1, 10)
+    bands = ((0.001, "<=0.1%"), (0.01, "<=1%"), (0.05, "<=5%"))
+    per_cat: dict[str, dict[str, float]] = {}
+    worst: list[tuple[float, str]] = []
+    ours_q = {q: 0.0 for q in quarters}
+    ref_q = {q: 0.0 for q in quarters}
+    no_reference = 0
+    compare_skipped = 0
+
+    def flows_for(position, sink):
+        if position.model == "ii_ust":
+            return m_ust._flows(position, sink)
+        if position.model == "ii_mbs":
+            coupon = m_mbs._coupon_path(position, scenario, sc.floor_mode, sink)
+            if position.face_path is not None:
+                return m_mbs._agency_flows(position, coupon, sink)
+            return m_mbs._other_mbs_flows(position, coupon, sink)
+        return m_osec._flows(position, scenario, sc.floor_mode, sink)
+
+    for group in (inputs.ust, inputs.mbs, inputs.other_sec):
+        for position in group:
+            if position.reference_income is None:
+                no_reference += 1
+                continue
+            sink: list[str] = []
+            try:
+                flows = flows_for(position, sink)
+            except ValidationFailure:
+                compare_skipped += 1
+                continue
+            reinv, _ = reinvestment_income(flows.reinvestment_events(sc.reinvest_paydowns), scenario)
+            ours = {q: flows.total.get(q, 0.0) + reinv[q] for q in quarters}
+            ref = position.reference_income
+            ours_total = sum(ours.values())
+            ref_total = sum(ref[q] for q in quarters)
+            for q in quarters:
+                ours_q[q] += ours[q]
+                ref_q[q] += ref[q]
+
+            stats = per_cat.setdefault(position.category, {"n": 0, "ours": 0.0, "ref": 0.0,
+                                                           "<=0.1%": 0, "<=1%": 0, "<=5%": 0, ">5%": 0})
+            stats["n"] += 1
+            stats["ours"] += ours_total
+            stats["ref"] += ref_total
+            diff = ours_total - ref_total
+            rel = abs(diff) / abs(ref_total) if ref_total != 0.0 else (0.0 if abs(diff) < 1e-9 else 1.0)
+            for threshold, label in bands:
+                if rel <= threshold:
+                    stats[label] += 1
+                    break
+            else:
+                stats[">5%"] += 1
+                worst.append((abs(diff), f"{_mask(position.security_id)} [{position.category}/{position.rate_type}] "
+                                         f"rel-gap {rel:6.1%} sign {'OURS-HIGH' if diff > 0 else 'OURS-LOW'}"))
+
+    print("\nCOMPARE — LOCAL DETAIL (USD millions; masked ids):")
+    for category, stats in sorted(per_cat.items()):
+        print(f"  {category:42s} n={stats['n']:>6}  ours={stats['ours']:14.2f}  ref={stats['ref']:14.2f}")
+    worst.sort(reverse=True)
+    for _, line in worst[:15]:
+        print(f"  worst: {line}")
+
+    print("\n================ COMPARE SUMMARY TO RELAY (counts/bands/ratios only) ================")
+    for category, stats in sorted(per_cat.items()):
+        ratio = stats["ours"] / stats["ref"] if stats["ref"] else float("nan")
+        print(f"COMPARE {category}: n={stats['n']} <=0.1%:{stats['<=0.1%']} <=1%:{stats['<=1%']} "
+              f"<=5%:{stats['<=5%']} >5%:{stats['>5%']} ours/ref={ratio:.4f}")
+    total_ours, total_ref = sum(ours_q.values()), sum(ref_q.values())
+    print(f"COMPARE-TOTAL: ours/ref={total_ours / total_ref:.4f}" if total_ref else "COMPARE-TOTAL: no reference")
+    print("COMPARE-BY-QUARTER ours/ref:",
+          " ".join(f"PQ{q}={ours_q[q] / ref_q[q]:.3f}" if ref_q[q] else f"PQ{q}=n/a" for q in quarters))
+    print(f"COMPARE-NO-REFERENCE: {no_reference}   COMPARE-SKIPPED: {compare_skipped}")
+    print("======================================================================================")
 
 
 if __name__ == "__main__":
