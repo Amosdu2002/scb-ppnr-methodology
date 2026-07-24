@@ -88,7 +88,10 @@ sheet = "<QUARTERLY_TAB_NAME>"
 # native multi-sheet workbook: the Schedule B.1-layout positions sheet (located by
 # its MDRM header row), enrichment tabs (per-tab column names below), and the
 # prepayment pivot ("Row Labels" + month offsets 0,3,...,27; PID-MBS-1).
-# floor_mode (PID-SEC-2): "zero" | "security_floor" | "none".
+# floor_mode (PID-SEC-2): "zero" | "security_floor" | "none" | "security_floor_else_zero".
+# "security_floor_else_zero" is the reference-workbook rule (2026-07-24): EVERY
+# floater's projected coupon is floored at the security's coupon floor when on
+# file, else at 0.
 [firm_data.securities]
 workbook = "<PATH_TO_SECURITIES_WORKBOOK>.xlsx"
 positions_sheet = "<POSITIONS_SHEET_NAME>"
@@ -105,6 +108,14 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
                                         # instead of halting the run (debugging phase)
 # reinvest_paydowns = true              # MRM p. 72: paydown proceeds reinvest like maturities
                                         # (default true); set false only for A/B comparison runs
+# PID-SEC-9 — optional positions-sheet technical input columns (exact header text
+# on the MDRM header row; DECIMAL units, no scale applied). Precedence: maturity
+# date stays primary (years column = fallback); enrichment coupon stays primary
+# (coupon column fills blanks); the floor column is PREFERRED over the
+# enrichment floor. Delete any line whose column the sheet does not carry.
+# positions_maturity_years_column = "Maturity (yr)"
+# positions_coupon_column = "Coupon Rate (decimal)"
+# positions_floor_column = "Coupon Rate Floor (decimal)"
 
 [[firm_data.securities.enrichment]]     # one block per enrichment tab (repeat as needed)
 sheet = "<ENRICHMENT_TAB_NAME>"

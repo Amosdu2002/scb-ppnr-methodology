@@ -34,11 +34,17 @@ RATE_FLOATING = "floating"
 RATE_ZERO_COUPON = "zero_coupon"
 _RATE_TYPES = (RATE_FIXED, RATE_FLOATING, RATE_ZERO_COUPON)
 
-# PID-SEC-2 (finalized 2026-07-24): config-switchable negative-margin floor modes.
+# PID-SEC-2 (finalized 2026-07-24): config-switchable floater floor modes.
+# The first three are scoped to negative-launch-margin floaters (the original
+# user statement). Mode 4, security_floor_else_zero, is the reference-workbook
+# rule inferred from the 2026-07-24 compare observations: EVERY floater's
+# projected coupon is floored at the security's coupon floor when on file,
+# else at 0 (reproduces "PQ1 bigger, PQ2–9 constant" and "constant PQ1–9").
 FLOOR_MODE_ZERO = "zero"
 FLOOR_MODE_SECURITY = "security_floor"
 FLOOR_MODE_NONE = "none"
-FLOOR_MODES = (FLOOR_MODE_ZERO, FLOOR_MODE_SECURITY, FLOOR_MODE_NONE)
+FLOOR_MODE_SECURITY_ELSE_ZERO = "security_floor_else_zero"
+FLOOR_MODES = (FLOOR_MODE_ZERO, FLOOR_MODE_SECURITY, FLOOR_MODE_NONE, FLOOR_MODE_SECURITY_ELSE_ZERO)
 
 # PID-SEC-5 (user-confirmed): SECURITY_DESCRIPTION_1 -> (model, agency_prepayment).
 # Exactly the confirmed categories; anything else errors (never defaulted).

@@ -11,7 +11,15 @@ integers; Excel serials; mm/dd/yyyy strings); scales are declared, never guessed
 (PID-SEC-5 — surface and ask); equity-intent and out-of-scope positions are
 excluded with a count; non-positive WAL rows are skipped with a highlighted
 warning (user-parked 2026-07-24); PID-SEC-3 proxies amortized cost from
-price/100 × current face when maturity/book-yield/AC are missing or zero."""
+price/100 × current face when maturity/book-yield/AC are missing or zero.
+
+PID-SEC-9 (2026-07-24): the positions sheet may carry the reference workbook's
+own model-input columns on the MDRM header row (decimal units). When declared
+in config they act as: maturity-years FALLBACK when the enrichment maturity
+date is missing (feeds the PID-SEC-8 denominator — removes the AA-held-at-0
+gap), coupon FALLBACK when the enrichment coupon is blank (rescues
+FLOATER-NO-COUPON rows), and PREFERRED floor source over the enrichment floor
+(drives floor_mode 'security_floor_else_zero')."""
 
 from __future__ import annotations
 
@@ -92,6 +100,16 @@ def _blank(value: object) -> bool:
     return value is None or (isinstance(value, str) and value.strip().upper() in _MISSING_STRINGS)
 
 
+def _technical_columns(sc: SecuritiesConfig) -> dict[str, str]:
+    """PID-SEC-9 optional positions-sheet input columns: record field → exact header text."""
+    declared = {
+        "tech_maturity_years": sc.positions_maturity_years_column,
+        "tech_coupon": sc.positions_coupon_column,
+        "tech_floor": sc.positions_floor_column,
+    }
+    return {field: name for field, name in declared.items() if name is not None}
+
+
 def _parse_date(value: object, *, context: str) -> _dt.date:
     """Normalize the contract's three date encodings (§6)."""
     if isinstance(value, _dt.datetime):
@@ -120,7 +138,8 @@ def _parse_date(value: object, *, context: str) -> _dt.date:
 
 
 def _positions_rows(
-    worksheet, path: Path, price_mdrm: str = "CQSCJH21"
+    worksheet, path: Path, price_mdrm: str = "CQSCJH21",
+    technical_columns: dict[str, str] | None = None,
 ) -> tuple[list[dict[str, object]], dict[str, int], list[str]]:
     rows = list(worksheet.iter_rows(values_only=True))
     notes: list[str] = []
@@ -135,6 +154,15 @@ def _positions_rows(
                     columns[field] = cells[mdrm]
             if price_mdrm in cells:
                 columns["price"] = cells[price_mdrm]
+            # PID-SEC-9: config-declared technical input columns on the same header row.
+            for field, name in (technical_columns or {}).items():
+                if name in cells:
+                    columns[field] = cells[name]
+                else:
+                    raise ValidationFailure(
+                        f"{path}: configured positions-sheet column {name!r} (PID-SEC-9) not found "
+                        f"on the MDRM header row — check the exact header text in the config"
+                    )
             # Reference per-security income columns (verification only): the workbook's
             # own II_PQ1..II_PQ9, when present on the same header row.
             reference_columns = {f"II_PQ{q}": cells[f"II_PQ{q}"] for q in range(1, 10) if f"II_PQ{q}" in cells}
@@ -269,7 +297,9 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
     workbook = _load_workbook(path)
     warnings: list[str] = []
     try:
-        records, _, header_notes = _positions_rows(_sheet(workbook, sc.positions_sheet, path), path, sc.price_mdrm)
+        records, _, header_notes = _positions_rows(
+            _sheet(workbook, sc.positions_sheet, path), path, sc.price_mdrm, _technical_columns(sc)
+        )
         if not records:
             raise ValidationFailure(f"{path}: positions sheet has no data rows")
         enrichment: dict[str, dict[str, object]] = {}
@@ -287,6 +317,9 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
 
     skipped_out_of_scope = 0
     skipped_wal = 0
+    tech_maturity_rows = 0
+    tech_coupon_rows = 0
+    tech_floor_rows = 0
     unmatched: list[str] = []
     grouped: dict[str, list[SecurityPosition]] = {MODEL_UST: [], MODEL_MBS: [], MODEL_OTHER_SEC: []}
 
@@ -359,10 +392,20 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         coupon = None
         if not _blank(fields.get("coupon")):
             coupon = apply_rate_scale(sc.coupon_scale, to_float(fields["coupon"], context=f"{context} coupon"), context=f"{context} coupon")
+        elif "tech_coupon" in record and not _blank(record.get("tech_coupon")):
+            # PID-SEC-9: enrichment coupon blank — positions-sheet coupon column (decimal).
+            coupon = to_float(record["tech_coupon"], context=f"{context} coupon (positions sheet, decimal)")
+            tech_coupon_rows += 1
+            warnings.append(f"{security_id}: enrichment coupon blank — positions-sheet coupon column used (decimal; PID-SEC-9)")
         if rate_type == RATE_ZERO_COUPON:
             coupon = None                                   # zero-coupon: cash coupon is identically zero
         floor = None
-        if "floor" in (fields or {}) and not _blank(fields.get("floor")):
+        if "tech_floor" in record and not _blank(record.get("tech_floor")):
+            # PID-SEC-9: the positions-sheet floor column (decimal) is PREFERRED —
+            # it is the reference workbook's own floor input.
+            floor = to_float(record["tech_floor"], context=f"{context} floor (positions sheet, decimal)")
+            tech_floor_rows += 1
+        elif "floor" in (fields or {}) and not _blank(fields.get("floor")):
             floor = apply_rate_scale(sc.coupon_scale, to_float(fields["floor"], context=f"{context} floor"), context=f"{context} floor")
 
         wal = None
@@ -388,6 +431,16 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 # used in accretion denominators); whole quarters only time the maturity event.
                 maturity_years = days / 365.0
                 maturity_quarters = max(1, math.ceil(4.0 * maturity_years))
+        # PID-SEC-9 (2026-07-24): maturity date missing — the positions sheet's own
+        # maturity-years column is the fallback (decimal years; the reference's input).
+        if maturity_years is None and "tech_maturity_years" in record and not _blank(record.get("tech_maturity_years")):
+            years = to_float(record["tech_maturity_years"], context=f"{context} maturity years (positions sheet)")
+            if years > 0.0:
+                maturity_years = years
+                maturity_quarters = max(1, math.ceil(4.0 * years))
+                tech_maturity_rows += 1
+            else:
+                warnings.append(f"{security_id}: positions-sheet maturity years {years} not positive — left missing (surfaced)")
         # PID-SEC-7 (user-confirmed 2026-07-24): Agency MBS without a maturity date
         # use WAL as the maturity in years; quarters = ceil(4 × WAL).
         if maturity_years is None and agency_prepay and wal is not None:
@@ -489,6 +542,15 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         warnings.append(f"{skipped_out_of_scope} equity-intent/out-of-scope position(s) excluded (PID-SEC-5)")
     if skipped_wal:
         warnings.append(f"{skipped_wal} position(s) skipped for non-positive WAL — HIGHLIGHTED for later decision")
+    if tech_maturity_rows:
+        warnings.append(
+            f"{tech_maturity_rows} position(s): maturity date missing — positions-sheet maturity-years "
+            f"column used for the PID-SEC-8 denominator and event timing (PID-SEC-9)"
+        )
+    if tech_floor_rows:
+        warnings.append(f"{tech_floor_rows} position(s): floor taken from the positions-sheet floor column (decimal; PID-SEC-9)")
+    if tech_coupon_rows:
+        warnings.append(f"{tech_coupon_rows} position(s): coupon taken from the positions-sheet coupon column (decimal; PID-SEC-9)")
 
     return SecuritiesInputs(
         firm_id=config.firm_data.firm_id,

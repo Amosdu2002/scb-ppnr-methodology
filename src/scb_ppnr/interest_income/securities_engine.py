@@ -13,7 +13,8 @@ of the following quarter; the coupon is the par-curve 1Y yield of the purchase
 quarter (`usd_1y_treasury`), FIXED for the tranche's four-quarter window; at
 maturity the tranche rolls into a new 1Y at the then-current yield; no accretion
 (purchased at face), no hedges; income attribution stays with the originating
-component. Paydown proceeds are NOT reinvested yet — OQ-025(c) open, flagged."""
+component. Paydown proceeds reinvest exactly like maturities (MRM p. 72;
+`reinvest_paydowns` toggle; validated vs the reference 2026-07-24)."""
 
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ from .common import build_income_result
 from .schemas import IncomeModelResult, IncomeQuarterResult, IncomeScenarioPaths
 from .securities_schemas import (
     FLOOR_MODE_SECURITY,
+    FLOOR_MODE_SECURITY_ELSE_ZERO,
     FLOOR_MODE_ZERO,
     FLOOR_MODES,
     SecuritiesQuarterDiagnostics,
@@ -40,10 +42,12 @@ from .securities_schemas import (
 # 2026-07-24 compare-mode confirmations: paydown reinvestment (Agency MBS ours/ref
 # 1.0055), floor-at-zero semantics (the reference accrues PQ1 then nothing on
 # negative-margin floaters — exactly mode 'zero'), STEP CPN flat at the launch
-# coupon, multifamily flat-face. Remaining open items live in the compare output.
-INTERIM_CHOICES = {
-    "reference_income_scope": "whether the II_PQ reference columns include reinvestment income or book it only in the separate 'Reinvestment Interest income' section — the compare mode now prints both ratios",
-}
+# coupon, multifamily flat-face. reference_income_scope RESOLVED 2026-07-24 by
+# the dual ratios: the II_PQ columns EXCLUDE reinvestment income (booked only in
+# the separate 'Reinvestment Interest income' section) — UST xr/ref = 0.9985 vs
+# 1.0081 including, Agency MBS 0.9975 vs 1.0055 — so xr/ref is the primary
+# verification ratio. No interim choices remain open in this module.
+INTERIM_CHOICES: dict[str, str] = {}
 
 
 def quarterly(amount_balance: float, annualized_rate: float) -> float:
@@ -59,9 +63,12 @@ def floating_coupon_path(
 ) -> dict[int, float]:
     """Imputed floating coupon (FACT, PPNR pp. 196/201) + PID-SEC-2 floor modes.
 
-    margin = t0 coupon − t0 spot 3M; coupon(q) = margin + 3M(q). The floor is
-    scoped to negative-launch-margin floaters (PID-SEC-2) and applied per the
-    configured mode; every bind is logged, never silent."""
+    margin = t0 coupon − t0 spot 3M; coupon(q) = margin + 3M(q). Modes 'zero' /
+    'security_floor' / 'none' are scoped to negative-launch-margin floaters (the
+    original PID-SEC-2 statement). Mode 'security_floor_else_zero' — the
+    reference-workbook rule (2026-07-24 observations) — floors EVERY floater at
+    max(coupon(q), security floor if on file else 0). Every bind is logged,
+    never silent."""
     if floor_mode not in FLOOR_MODES:
         raise ValidationFailure(f"floor_mode must be one of {FLOOR_MODES}, got {floor_mode!r}")
     if position.coupon_rate is None:
@@ -74,10 +81,18 @@ def floating_coupon_path(
             f"(t0 coupon {position.coupon_rate} < t0 spot 3M {scenario.usd_3m_treasury[0]}) — "
             f"PID-SEC-2 floor_mode={floor_mode!r} governs"
         )
+    universal_floor: float | None = None
+    if floor_mode == FLOOR_MODE_SECURITY_ELSE_ZERO:
+        universal_floor = position.coupon_floor if position.coupon_floor is not None else 0.0
     path: dict[int, float] = {}
+    floored_quarters: list[int] = []
     for quarter in PROJECTION_QUARTERS:
         coupon = margin + scenario.usd_3m_treasury[quarter]
-        if negative_margin:
+        if universal_floor is not None:
+            if coupon < universal_floor:
+                coupon = universal_floor
+                floored_quarters.append(quarter)
+        elif negative_margin:
             if floor_mode == FLOOR_MODE_ZERO and coupon < 0.0:
                 warnings.append(f"{position.security_id}: PQ{quarter} coupon {coupon:.6f} floored at 0 (mode 'zero')")
                 coupon = 0.0
@@ -89,6 +104,12 @@ def floating_coupon_path(
                 coupon = position.coupon_floor
             # FLOOR_MODE_NONE (or security mode without a floor on file): raw value stands.
         path[quarter] = coupon
+    if floored_quarters:
+        source = "security floor" if position.coupon_floor is not None else "0 — no floor on file"
+        warnings.append(
+            f"{position.security_id}: coupon floored at {universal_floor} ({source}) in "
+            f"quarters {floored_quarters} (mode 'security_floor_else_zero')"
+        )
     return path
 
 

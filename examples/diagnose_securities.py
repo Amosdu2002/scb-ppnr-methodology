@@ -20,6 +20,8 @@ Issue codes:
   S3-PROXY-OK             PID-SEC-3 trigger fired, price present -> AC proxied (works)
   S3-STOP[<legs>]         PID-SEC-3 trigger fired, AC missing/zero AND price blank -> the hard stop
                           legs: MAT (maturity missing), BY0 (book yield missing/zero), AC0 (AC missing/zero)
+  SEC9-MATURITY-FROM-POSITIONS  maturity date missing -> positions-sheet maturity-years column used (PID-SEC-9)
+  FLOATER-CPN-FROM-POSITIONS    floating with a blank enrichment coupon -> positions-sheet coupon used (PID-SEC-9)
   OK                      loads cleanly
 """
 
@@ -41,6 +43,7 @@ from scb_ppnr.ingestion.securities_loader import (
     _positions_rows,
     _prepayment_map,
     _sheet,
+    _technical_columns,
 )
 from scb_ppnr.interest_income import OUT_OF_SCOPE, RATE_FLOATING, ValidationFailure, assign_model
 from scb_ppnr.interest_income.securities_schemas import CATEGORY_MODEL_MAP
@@ -82,7 +85,9 @@ def main() -> None:
     relay: list[str] = []
     try:
         # ---- 1. Column map --------------------------------------------------
-        records, columns, header_notes = _positions_rows(_sheet(workbook, sc.positions_sheet, path), path, sc.price_mdrm)
+        records, columns, header_notes = _positions_rows(
+            _sheet(workbook, sc.positions_sheet, path), path, sc.price_mdrm, _technical_columns(sc)
+        )
         print(f"positions sheet {sc.positions_sheet!r}: {len(records)} data rows")
         for note in header_notes:
             print(f"header note: {note}")
@@ -163,9 +168,12 @@ def main() -> None:
             continue
 
         if _RATE_TYPE_MAP.get(rate_raw) == RATE_FLOATING and _state(fields.get("coupon")) == "EMPTY":
-            codes["FLOATER-NO-COUPON"] += 1
-            details.append(f"  #{index} {_mask(sid)} [{category}]: FLOATING with an empty coupon cell — margin imputation impossible")
-            continue
+            if _state(record.get("tech_coupon")) in ("NUMBER", "ZERO"):
+                codes["FLOATER-CPN-FROM-POSITIONS"] += 1   # PID-SEC-9 fallback covers it — loads fine
+            else:
+                codes["FLOATER-NO-COUPON"] += 1
+                details.append(f"  #{index} {_mask(sid)} [{category}]: FLOATING with an empty coupon cell — margin imputation impossible")
+                continue
 
         wal_state = _state(fields.get("wal"))
         wal_ok = wal_state == "NUMBER" and float(str(fields["wal"]).replace(",", "")) > 0
@@ -174,6 +182,9 @@ def main() -> None:
             continue
 
         maturity_missing = _blank(fields.get("maturity")) or report_date is None
+        if maturity_missing and _state(record.get("tech_maturity_years")) == "NUMBER":
+            codes["SEC9-MATURITY-FROM-POSITIONS"] += 1     # PID-SEC-9 fallback covers it
+            maturity_missing = False
         if maturity_missing and agency and wal_ok:
             codes["SEC7-WAL-MATURITY"] += 1
             maturity_missing = False
@@ -287,12 +298,18 @@ def run_compare(config, args) -> None:
                 ref_q[q] += ref[q]
 
             stats = per_cat.setdefault(position.category, {"n": 0, "ours": 0.0, "ours_xr": 0.0, "ref": 0.0,
-                                                           "<=0.1%": 0, "<=1%": 0, "<=5%": 0, ">5%": 0})
+                                                           "<=0.1%": 0, "<=1%": 0, "<=5%": 0, ">5%": 0,
+                                                           "ref-zero": 0})
             stats["n"] += 1
             stats["ours"] += ours_total
             stats["ours_xr"] += ours_xr_total
             stats["ref"] += ref_total
-            diff = ours_total - ref_total
+            if ref_total == 0.0 and abs(ours_total) > 1e-9:
+                stats["ref-zero"] += 1                     # reference row books NO income at all
+                                                           # (e.g. blank sovereign-ZCB II_PQ rows)
+            # Bands on the xr basis: II_PQ excludes reinvestment (resolved 2026-07-24),
+            # so the like-for-like per-security diff is ours-excluding-reinvestment vs ref.
+            diff = ours_xr_total - ref_total
             rel = abs(diff) / abs(ref_total) if ref_total != 0.0 else (0.0 if abs(diff) < 1e-9 else 1.0)
             for threshold, label in bands:
                 if rel <= threshold:
@@ -311,13 +328,20 @@ def run_compare(config, args) -> None:
         print(f"  worst: {line}")
 
     print("\n================ COMPARE SUMMARY TO RELAY (counts/bands/ratios only) ================")
+    print("(xr/ref is PRIMARY — resolved 2026-07-24: the II_PQ columns exclude reinvestment income)")
+    total_xr = 0.0
     for category, stats in sorted(per_cat.items()):
         ratio = stats["ours"] / stats["ref"] if stats["ref"] else float("nan")
         ratio_xr = stats["ours_xr"] / stats["ref"] if stats["ref"] else float("nan")
+        total_xr += stats["ours_xr"]
         print(f"COMPARE {category}: n={stats['n']} <=0.1%:{stats['<=0.1%']} <=1%:{stats['<=1%']} "
-              f"<=5%:{stats['<=5%']} >5%:{stats['>5%']} ours/ref={ratio:.4f} xr/ref={ratio_xr:.4f}")
+              f"<=5%:{stats['<=5%']} >5%:{stats['>5%']} ref-zero:{stats['ref-zero']} "
+              f"xr/ref={ratio_xr:.4f} incl-reinv/ref={ratio:.4f}")
     total_ours, total_ref = sum(ours_q.values()), sum(ref_q.values())
-    print(f"COMPARE-TOTAL: ours/ref={total_ours / total_ref:.4f}" if total_ref else "COMPARE-TOTAL: no reference")
+    if total_ref:
+        print(f"COMPARE-TOTAL: xr/ref={total_xr / total_ref:.4f} incl-reinv/ref={total_ours / total_ref:.4f}")
+    else:
+        print("COMPARE-TOTAL: no reference")
     print("COMPARE-BY-QUARTER ours/ref:",
           " ".join(f"PQ{q}={ours_q[q] / ref_q[q]:.3f}" if ref_q[q] else f"PQ{q}=n/a" for q in quarters))
     print(f"COMPARE-NO-REFERENCE: {no_reference}   COMPARE-SKIPPED: {compare_skipped}")

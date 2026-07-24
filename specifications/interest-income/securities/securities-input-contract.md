@@ -50,6 +50,21 @@ block are tolerated; the loader locates the header block by the MDRM row. Column
 | `transtype` | (internal) | transaction-type context (unsettled trades) | text |
 | `frb_model_category` | (derived) | optional convenience column; the loader **recomputes** the PID-SEC-5 assignment from `security_description_1` and cross-checks — mismatch is an error | text |
 
+### 2a. Optional technical input columns (PID-SEC-9, 2026-07-24)
+
+The positions sheet may additionally carry the reference implementation's **own model-input
+columns** on the same MDRM header row, located by **exact header text** declared in config
+(`[firm_data.securities]` keys). All three are **decimal** units — no scale is applied:
+
+| Config key | Role | Precedence |
+|---|---|---|
+| `positions_maturity_years_column` | maturity in years (decimal) | **fallback** when the enrichment maturity date is missing — feeds the PID-SEC-8 accretion denominator AND event timing (quarters = ceil(4 × years)); PID-SEC-7 (Agency WAL) applies only after both are missing |
+| `positions_coupon_column` | coupon rate (decimal) | **fills blanks** — the enrichment coupon stays primary |
+| `positions_floor_column` | coupon floor (decimal) | **preferred** over the enrichment floor when non-blank — it is the reference's own floor input, and drives `floor_mode = "security_floor_else_zero"` (PID-SEC-2 mode 4) |
+
+A declared-but-absent column is a hard error (surface and ask — a config/data mismatch, never
+silently ignored). Usage is logged as per-run counts, per-security for coupon fills.
+
 ## 3. Enrichment tabs ("vendor data" role [FACT])
 
 One or more tabs (region splits allowed), each keyed by `identifier_value` (CUSIP or ISIN);
@@ -139,8 +154,10 @@ listed above follow this convention only after being surfaced and confirmed.
 | Positions-sheet money scale | **CONFIRMED: whole USD** (user, 2026-07-24); declared in config as `money_scale = "dollars"`, converted once to the canonical USD millions (D-006) |
 | PID-SEC-3 price column | **CONFIRMED: `price` (CQSCJH21), per-100** (user: "always around 100 ish") |
 | PID-SEC-3 notional column | **CONFIRMED: `current_face_value`** (user, 2026-07-24) |
-| PID-SEC-2 floor treatment | **CONFIRMED: three config-switchable modes** — `floor_mode` ∈ `zero` \| `security_floor` \| `none` (see PID-SEC-2) |
+| PID-SEC-2 floor treatment | **Four config-switchable modes** — `floor_mode` ∈ `zero` \| `security_floor` \| `none` \| `security_floor_else_zero`; the fourth (2026-07-24) is the reference-workbook rule: every floater floored at its security floor when on file, else at 0 — pending compare-run confirmation |
 | `book_yield` scale | declare in config (`percent` \| `decimal`) — refused if undeclared |
+| Reference II_PQ income scope | **RESOLVED 2026-07-24 (dual ratios):** the II_PQ1..9 columns EXCLUDE reinvestment income — compare mode's primary ratio is xr/ref |
+| PID-SEC-9 technical columns | maturity-years fallback / coupon blank-fill / preferred floor — precedence table in §2a; validated on the next compare run |
 
 ## 8. Out of scope for this contract
 

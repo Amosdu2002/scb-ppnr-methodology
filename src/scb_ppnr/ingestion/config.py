@@ -77,7 +77,9 @@ class SecuritiesEnrichmentSheet:
 
 # PID-SEC-2 floor modes (mirrored from interest_income.securities_schemas —
 # config stays free of model imports; the loader re-validates against the model set).
-_FLOOR_MODES = ("zero", "security_floor", "none")
+# "security_floor_else_zero" (2026-07-24) is the reference-workbook rule: every
+# floater floored at its security floor when on file, else at 0.
+_FLOOR_MODES = ("zero", "security_floor", "none", "security_floor_else_zero")
 
 
 @dataclass(frozen=True)
@@ -102,6 +104,16 @@ class SecuritiesConfig:
                                         # halting the run (debugging/company-reference phase)
     reinvest_paydowns: bool = True      # MRM p. 72: paydown proceeds reinvest like maturities
                                         # (default ON); toggle for A/B against the reference
+    # PID-SEC-9 (2026-07-24): optional positions-sheet technical columns — the
+    # reference workbook's own model-input columns on the MDRM header row.
+    # Header names are exact cell text (e.g. "Maturity (yr)"). All three carry
+    # DECIMAL rates / decimal years (no scale applied). Precedence: maturity
+    # date (enrichment) stays primary, the years column is the fallback;
+    # enrichment coupon stays primary, the coupon column fills blanks; the
+    # floor column is PREFERRED over the enrichment floor when non-blank.
+    positions_maturity_years_column: str | None = None
+    positions_coupon_column: str | None = None
+    positions_floor_column: str | None = None
 
 
 @dataclass(frozen=True)
@@ -253,6 +265,15 @@ def load_config(path: Path | str) -> IngestionConfig:
                 price_mdrm=str(sec.get("price_mdrm", "CQSCJH21")),
                 on_security_error=str(sec.get("on_security_error", "stop")).strip().lower(),
                 reinvest_paydowns=bool(sec.get("reinvest_paydowns", True)),
+                positions_maturity_years_column=(
+                    str(sec["positions_maturity_years_column"]) if "positions_maturity_years_column" in sec else None
+                ),
+                positions_coupon_column=(
+                    str(sec["positions_coupon_column"]) if "positions_coupon_column" in sec else None
+                ),
+                positions_floor_column=(
+                    str(sec["positions_floor_column"]) if "positions_floor_column" in sec else None
+                ),
             )
             if securities.on_security_error not in ("stop", "skip"):
                 raise ValidationFailure(

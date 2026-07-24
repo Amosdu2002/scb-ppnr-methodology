@@ -13,6 +13,7 @@ import pytest
 from scb_ppnr.interest_income import (
     FLOOR_MODE_NONE,
     FLOOR_MODE_SECURITY,
+    FLOOR_MODE_SECURITY_ELSE_ZERO,
     FLOOR_MODE_ZERO,
     MODEL_MBS,
     MODEL_OTHER_SEC,
@@ -66,6 +67,29 @@ def test_floating_floor_modes(make_income_scenario):
     positive = _pos(MODEL_OTHER_SEC, rate_type=RATE_FLOATING, coupon_rate=0.0500)
     for mode in (FLOOR_MODE_NONE, FLOOR_MODE_ZERO, FLOOR_MODE_SECURITY):
         assert floating_coupon_path(positive, scenario, mode, [])[1] == pytest.approx(0.0460)
+
+
+def test_floating_security_floor_else_zero_mode(make_income_scenario):
+    # Reference-workbook rule (2026-07-24): EVERY floater floored at
+    # max(margin + 3M(q), security floor if on file else 0).
+    scenario = make_income_scenario(t3m={0: 0.0100, **flat(0.0060)})
+    with_floor = _pos(MODEL_OTHER_SEC, rate_type=RATE_FLOATING, coupon_rate=0.0020, coupon_floor=0.0010)
+    sink: list[str] = []
+    path = floating_coupon_path(with_floor, scenario, FLOOR_MODE_SECURITY_ELSE_ZERO, sink)
+    assert all(path[q] == pytest.approx(0.0010) for q in range(1, 10))       # raw −0.002 → floor
+    assert any("security_floor_else_zero" in w and "security floor" in w for w in sink)
+
+    no_floor = _pos(MODEL_OTHER_SEC, rate_type=RATE_FLOATING, coupon_rate=0.0020)
+    path0 = floating_coupon_path(no_floor, scenario, FLOOR_MODE_SECURITY_ELSE_ZERO, [])
+    assert all(path0[q] == 0.0 for q in range(1, 10))                        # no floor on file → 0
+
+    # Positive-margin floater still binds when the path drops below its floor —
+    # this is the mode's difference vs the negative-margin-scoped modes.
+    positive = _pos(MODEL_OTHER_SEC, rate_type=RATE_FLOATING, coupon_rate=0.0500, coupon_floor=0.0480)
+    sink2: list[str] = []
+    pathp = floating_coupon_path(positive, scenario, FLOOR_MODE_SECURITY_ELSE_ZERO, sink2)
+    assert pathp[1] == pytest.approx(0.0480)                                 # raw 0.046 < floor 0.048
+    assert floating_coupon_path(positive, scenario, FLOOR_MODE_SECURITY, [])[1] == pytest.approx(0.0460)
 
 
 def test_reference_accretion_step_hand_values():

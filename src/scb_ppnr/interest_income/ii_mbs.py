@@ -4,19 +4,18 @@ Two source-stated regimes in one component:
 
 Agency prepayment securities (PID-MBS-1): the vendor-supplied projected face
 path drives the balances — coupon accrual = coupon(q) × face(q−1)/4
-(PID-SEC-4), accretion per the printed A41 straight-line/WAL form on
-prior-quarter values with the AC recursion isolated in
-securities_engine.agency_accretion_step [INTERIM]. An Agency security absent
-from the prepayment sheet arrives with face_path=None and is treated as
-flat-face (multi-family, no prepayment — PID-SEC-5).
+(PID-SEC-4), accretion per the PID-SEC-8 reference recursion
+(securities_engine.reference_accretion_step) over 4 × WAL(t=0), with paydowns
+absorbed into AC. An Agency security absent from the prepayment sheet arrives
+with face_path=None and is treated as flat-face (multi-family, no prepayment —
+PID-SEC-5; flat treatment confirmed vs the reference 2026-07-24).
 
 All other MBS: flat face; vendor coupon with the Fed-stated book-yield
-fallback; zero-coupon accrues at book yield; floaters use the imputed-margin
-machinery with the PID-SEC-2 floor modes and straight-line accretion
-[INTERIM]; fixed-rate uses the effective-interest method (constant coupon and
-book yield), straight-line fallback when data are missing [FACT]. Maturities
-feed the shared 1Y-Treasury reinvestment ledger; Agency paydown proceeds are
-NOT reinvested yet (OQ-025(c) open, flagged)."""
+fallback; zero-coupon accrues via AA only; floaters use the imputed-margin
+machinery with the PID-SEC-2 floor modes; accretion follows the PID-SEC-8
+form over 4 × maturity years. Maturities AND Agency paydowns feed the shared
+1Y-Treasury reinvestment ledger (MRM p. 72; validated vs the reference
+2026-07-24; `reinvest_paydowns` toggle)."""
 
 from __future__ import annotations
 

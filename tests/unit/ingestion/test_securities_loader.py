@@ -11,7 +11,7 @@ import pytest
 
 openpyxl = pytest.importorskip("openpyxl")
 
-from scb_ppnr.ingestion import load_securities_inputs
+from scb_ppnr.ingestion import load_config, load_securities_inputs
 from scb_ppnr.ingestion.config import (
     FirmDataConfig,
     IngestionConfig,
@@ -38,14 +38,16 @@ def serial(year: int, month: int, day: int) -> int:
 MDRM = ["D_DT", "CQSCP083", "CQSCP084", "CQSCP087", "CQSCP089", "CQSCP090", "CQSCP092", "CQSCP094", "CQSCJH21"]
 
 
-def build_workbook(path: Path, positions: list[list], enrichment: list[list], prepay: list[list] | None) -> None:
+def build_workbook(path: Path, positions: list[list], enrichment: list[list], prepay: list[list] | None,
+                   extra_headers: list[str] | None = None) -> None:
+    header = MDRM + (extra_headers or [])               # PID-SEC-9 technical columns share the MDRM row
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Positions"
-    ws.append([None] * len(MDRM))                       # blank row
-    ws.append(["tech"] * len(MDRM))                     # tech-name row (unused by the loader)
-    ws.append(["desc"] * len(MDRM))                     # description row
-    ws.append(MDRM)                                     # MDRM header row
+    ws.append([None] * len(header))                     # blank row
+    ws.append(["tech"] * len(header))                   # tech-name row (unused by the loader)
+    ws.append(["desc"] * len(header))                   # description row
+    ws.append(header)                                   # MDRM header row
     for row in positions:
         ws.append(row)
     ito = wb.create_sheet("ITO")
@@ -61,7 +63,7 @@ def build_workbook(path: Path, positions: list[list], enrichment: list[list], pr
     wb.save(path)
 
 
-def make_config(tmp_path: Path, *, prepayment: bool = True) -> IngestionConfig:
+def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False) -> IngestionConfig:
     return IngestionConfig(
         base_dir=tmp_path,
         firm_data=FirmDataConfig(
@@ -75,6 +77,9 @@ def make_config(tmp_path: Path, *, prepayment: bool = True) -> IngestionConfig:
                 coupon_scale="percent",
                 book_yield_scale="percent",
                 floor_mode=FLOOR_MODE_SECURITY,
+                positions_maturity_years_column="Maturity (yr)" if tech else None,
+                positions_coupon_column="Coupon Rate (decimal)" if tech else None,
+                positions_floor_column="Coupon Rate Floor (decimal)" if tech else None,
                 prepayment_sheet="prepay" if prepayment else None,
                 enrichment=(
                     SecuritiesEnrichmentSheet(
@@ -252,3 +257,56 @@ def test_multi_lot_cusip_apportions_prepayment_and_step_variable_vocab(tmp_path,
     step = next(p for p in inputs.mbs if p.security_id.startswith("STP"))
     assert step.rate_type == "fixed"                                           # STEP CPN interim-fixed
     assert any("step-coupon" in w and "confirmed" in w for w in inputs.warnings)
+
+
+def test_positions_sheet_technical_columns_pid_sec9(tmp_path):
+    # Extra cells beyond the 9 MDRM columns: Maturity (yr), Coupon Rate (decimal), Floor (decimal).
+    positions = [
+        [REPORT, "MUN00009A", "Municipal Bond", 90e6, 100e6, 100e6, "AFS", 5.0, None, 4.5, None, None],
+        [REPORT, "FLT00009A", "CLO", 100e6, 100e6, 100e6, "AFS", 5.0, None, None, 0.052, 0.048],
+    ]
+    enrichment = [
+        ["MUN00009A", None, 3.0, "FIXED", None, None, "N"],        # maturity date missing → years fallback
+        ["FLT00009A", None, None, "FLOATING", 2.0, None, "Y"],     # blank coupon; ITO floor 2% (percent)
+    ]
+    build_workbook(tmp_path / "securities.xlsx", positions, enrichment, None,
+                   extra_headers=["Maturity (yr)", "Coupon Rate (decimal)", "Coupon Rate Floor (decimal)"])
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False, tech=True))
+
+    muni = next(p for p in inputs.other_sec if p.security_id == "MUN00009A")
+    assert muni.maturity_years == pytest.approx(4.5)               # positions-sheet years fallback
+    assert muni.maturity_quarters == 18                            # ceil(4 × 4.5)
+    assert muni.coupon_rate == pytest.approx(0.03)                 # enrichment coupon stays primary
+
+    floater = next(p for p in inputs.other_sec if p.security_id == "FLT00009A")
+    assert floater.coupon_rate == pytest.approx(0.052)             # blank ITO coupon → positions column
+    assert floater.coupon_floor == pytest.approx(0.048)            # positions floor PREFERRED over ITO 0.02
+    assert any("PID-SEC-9" in w and "maturity" in w for w in inputs.warnings)
+    assert any("PID-SEC-9" in w and "coupon column" in w for w in inputs.warnings)
+
+
+def test_technical_column_missing_from_header_is_hard_error(tmp_path):
+    positions = [[REPORT, "MUN00009A", "Municipal Bond", 90e6, 100e6, 100e6, "AFS", 5.0, None]]
+    enrichment = [["MUN00009A", serial(2030, 1, 1), 3.0, "FIXED", None, None, "N"]]
+    build_workbook(tmp_path / "securities.xlsx", positions, enrichment, None)   # no extra headers
+    with pytest.raises(ValidationFailure, match="PID-SEC-9"):
+        load_securities_inputs(make_config(tmp_path, prepayment=False, tech=True))
+
+
+def test_config_parses_pid_sec9_columns_and_new_floor_mode(tmp_path):
+    (tmp_path / "c.toml").write_text(
+        '[firm_data]\nfirm_id = "F"\n'
+        '[firm_data.spot]\npath = "s.csv"\n'
+        '[firm_data.quarterly]\npath = "q.csv"\n'
+        '[firm_data.securities]\nworkbook = "w.xlsx"\npositions_sheet = "P"\n'
+        'money_scale = "dollars"\ncoupon_scale = "percent"\nbook_yield_scale = "percent"\n'
+        'floor_mode = "security_floor_else_zero"\n'
+        'positions_maturity_years_column = "Maturity (yr)"\n'
+        'positions_coupon_column = "Coupon Rate (decimal)"\n'
+        'positions_floor_column = "Coupon Rate Floor (decimal)"\n'
+    )
+    sc = load_config(tmp_path / "c.toml").firm_data.securities
+    assert sc.floor_mode == "security_floor_else_zero"
+    assert sc.positions_maturity_years_column == "Maturity (yr)"
+    assert sc.positions_coupon_column == "Coupon Rate (decimal)"
+    assert sc.positions_floor_column == "Coupon Rate Floor (decimal)"
