@@ -325,6 +325,14 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 warnings.append(f"{security_id}: maturity {maturity_date} not after the report date {report_date} — treated as missing (PID-SEC-3 may proxy)")
             else:
                 maturity_quarters = max(1, math.ceil(days / _DAYS_PER_QUARTER))
+        # PID-SEC-7 (user-confirmed 2026-07-24): Agency MBS without a maturity date
+        # use WAL as the maturity in years; quarters = ceil(4 × WAL).
+        if maturity_quarters is None and agency_prepay and wal is not None:
+            maturity_quarters = max(1, math.ceil(4.0 * wal))
+            warnings.append(
+                f"{security_id}: Agency MBS without a maturity date — WAL {wal} years used as "
+                f"maturity ({maturity_quarters} quarters; company convention, PID-SEC-7)"
+            )
 
         face = apply_money_scale(sc.money_scale, to_float(record["current_face_value"], context=f"{context} current_face"), context=f"{context} current_face")
         ac_raw = None if _blank(record.get("amortized_cost")) else to_float(record["amortized_cost"], context=f"{context} amortized_cost")

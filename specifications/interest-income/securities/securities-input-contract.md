@@ -58,7 +58,7 @@ fields per security:
 
 | Field | Notes |
 |---|---|
-| `maturity_date` | **Excel serial number** (days since 1899-12-30) — normalized at ingestion |
+| `maturity_date` | **Excel serial number** (days since 1899-12-30) — normalized at ingestion. **PID-SEC-7 fallback (Agency MBS only, user-confirmed 2026-07-24):** when the maturity date is missing, WAL is used as the maturity in years — maturity_quarters = ceil(4 × WAL), min 1, logged per security |
 | `coupon_rate` | **percent scale** (e.g. 7.25) — normalized to annualized decimal; user-stated **never blank** |
 | `rate_type` | FIXED \| FLOATING \| ZERO COUPON (zero-coupon accrues at book yield [FACT, PPNR p. 196]) |
 | `coupon_floor` | may be blank (incl. literal "(blank)" — treated as missing); feeds PID-SEC-2 |

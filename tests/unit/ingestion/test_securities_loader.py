@@ -134,9 +134,12 @@ def test_loader_end_to_end(tmp_path, make_income_scenario):
     agency = next(p for p in inputs.mbs if p.security_id == "AGY00001A")
     assert agency.face_path is not None and agency.face_path[0] == pytest.approx(1000.0)
     assert agency.face_path[1] == pytest.approx(800.0)
+    assert agency.maturity_quarters == 10                         # PID-SEC-7: ceil(4 × WAL 2.5)
     multifam = next(p for p in inputs.mbs if p.security_id == "AGY00002B")
     assert multifam.face_path is None
+    assert multifam.maturity_quarters == 12                       # PID-SEC-7: ceil(4 × WAL 3.0)
     assert any("multi-family" in w for w in inputs.warnings)
+    assert sum("PID-SEC-7" in w for w in inputs.warnings) == 2    # WAL-as-maturity fallback logged
 
     unsettled = next(p for p in inputs.other_sec if p.security_id == "UNS00001A")
     assert unsettled.ac_proxied and unsettled.amortized_cost == pytest.approx(99.5)   # 99.5/100 × 100
