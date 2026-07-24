@@ -150,6 +150,15 @@ def test_loader_end_to_end(tmp_path, make_income_scenario):
     assert any("ZRO00001Z" in w for w in pq1_skips) and any("BLK00001B" in w for w in pq1_skips)
     assert not any("matches no in-scope" in w for w in inputs.warnings)               # skipped ≠ leftover
 
+    scenario = make_income_scenario()
+    ust_result = project_ust(inputs.ust, scenario, firm_id=inputs.firm_id)
+    assert ust_result.income_path()[1] == pytest.approx(20.0)     # 10 coupon + 10 accretion
+    assert ust_result.income_path()[5] == pytest.approx(10.0)     # reinvested at 4%
+    mbs_result = project_mbs(inputs.mbs, scenario, firm_id=inputs.firm_id, floor_mode="security_floor")
+    assert mbs_result.quarters[0].diagnostics.coupon_accrual == pytest.approx(12.5 + 6.25 + 10.0)
+    other_result = project_other_sec(inputs.other_sec, scenario, firm_id=inputs.firm_id, floor_mode="security_floor")
+    assert other_result.income_path()[1] == pytest.approx(25.0 + (0.05 * 100.0 / 4))  # clean + proxied coupon
+
 
 def test_prepayment_blank_cells_read_as_zero(tmp_path, make_income_scenario):
     positions = [[REPORT, "AGY00009X", "Agency MBS", 450e6, 500e6, 500e6, "AFS", 5.0, None]]
@@ -166,15 +175,6 @@ def test_prepayment_blank_cells_read_as_zero(tmp_path, make_income_scenario):
     result = project_mbs(inputs.mbs, make_income_scenario(), firm_id=inputs.firm_id, floor_mode="security_floor")
     assert result.quarters[2].diagnostics.coupon_accrual == pytest.approx(0.05 * 300.0 / 4)   # PQ3 on PQ2 EOP face
     assert result.quarters[3].diagnostics.coupon_accrual == 0.0                       # PQ3 EOP face is 0 → PQ4 accrues nothing
-
-    scenario = make_income_scenario()
-    ust_result = project_ust(inputs.ust, scenario, firm_id=inputs.firm_id)
-    assert ust_result.income_path()[1] == pytest.approx(20.0)     # 10 coupon + 10 accretion
-    assert ust_result.income_path()[5] == pytest.approx(10.0)     # reinvested at 4%
-    mbs_result = project_mbs(inputs.mbs, scenario, firm_id=inputs.firm_id, floor_mode="security_floor")
-    assert mbs_result.quarters[0].diagnostics.coupon_accrual == pytest.approx(12.5 + 6.25 + 10.0)
-    other_result = project_other_sec(inputs.other_sec, scenario, firm_id=inputs.firm_id, floor_mode="security_floor")
-    assert other_result.income_path()[1] == pytest.approx(25.0 + (0.05 * 100.0 / 4))  # clean + proxied coupon
 
 
 def test_unmapped_category_is_a_hard_error(tmp_path):
