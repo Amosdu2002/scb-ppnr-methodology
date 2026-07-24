@@ -47,17 +47,23 @@ def make_scenario():
 
 @pytest.fixture
 def make_income_scenario():
-    def _make(scenario_id: str = "sev_adverse", t3m=None, t10y=None, prime=None, mortgage=None) -> IncomeScenarioPaths:
+    def _make(scenario_id: str = "sev_adverse", t3m=None, t1y=None, t10y=None,
+              prime=None, mortgage=None) -> IncomeScenarioPaths:
         if t3m is None:
             t3m = {0: 0.0300, 1: 0.0400, 2: 0.0350, 3: 0.0350, 4: 0.0300,
                    5: 0.0250, 6: 0.0250, 7: 0.0300, 8: 0.0350, 9: 0.0400}
+        if t1y is None:
+            t1y = flat(0.0400)
         if t10y is None:
             t10y = flat(0.0500)
         if prime is None:
             prime = flat(0.0700)
         if mortgage is None:
             mortgage = flat(0.0650)
-        return IncomeScenarioPaths(scenario_id, t3m, t10y, prime, mortgage)
+        return IncomeScenarioPaths(
+            scenario_id=scenario_id, usd_3m_treasury=t3m, usd_1y_treasury=t1y,
+            usd_10y_treasury=t10y, prime_rate=prime, mortgage_rate=mortgage,
+        )
 
     return _make
 

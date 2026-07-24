@@ -96,7 +96,7 @@ None yet. Pending gate decisions and [CODE] items:
 |---|---|---|
 | Input granularity | **Security-level** positions contract; aggregation inside the model | **PID-SEC-1, user-confirmed 2026-07-23** (sheet layout pending the user's format upload) |
 | AC(t) path | Per-security effective-interest evolution (book yield constant), straight-line fallback where data are missing — exact treatment finalized with the positions format | [INT] §4 — finalize on format receipt |
-| Floater negative margin | Floor projected coupon at the security's coupon floor if available; else-branch TO_BE_CONFIRMED | **PID-SEC-2, user-confirmed 2026-07-23** (company convention, never Fed) |
+| Floater negative margin | **Three config-switchable modes** (`floor_mode`): `zero` \| `security_floor` \| `none` — scoped to negative-launch-margin floaters | **PID-SEC-2, finalized 2026-07-24** (company convention, never Fed) |
 | Unsettled transactions | AC proxy = purchase price/100 × notional | **PID-SEC-3, user-confirmed 2026-07-23** (company convention) |
 | Reinvestment | `usd_1y_treasury` = par-curve 1Y yield; fixed-coupon 4-quarter window; rolls again; in-component attribution — OQ-025(a)(b)(d) resolved, user-confirmed 2026-07-23 | CONFIRMED |
 

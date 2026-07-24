@@ -31,8 +31,16 @@ src/scb_ppnr/interest_income/
   common.py              quarterly_income = core.quarterly_flow; build_income_result
   ii_dep_banks_other.py  Eq A39 calculator (mirror of ie_fed_funds_repo)
   ii_other_ida.py        Eq A43 two-rate blend calculator
-  securities_engine.py   Increment 2 — ONLY the Fed-shared three-term template
-  ii_ust.py / ii_mbs.py / ii_other_sec.py     Increment 2 — thin models over the engine
+  securities_schemas.py  Increment 2 (landed 2026-07-24) — SecurityPosition, the PID-SEC-5
+                         category map (closed; unmapped = hard error), floor modes, diagnostics
+  securities_engine.py   Increment 2 (landed) — ONLY the Fed-shared machinery: the source-stated
+                         ÷4s, floating-margin imputation + PID-SEC-2 floor modes, straight-line /
+                         effective-interest steps, the user-confirmed 1Y-Treasury reinvestment
+                         ledger (fixed 4-quarter coupon, roll-again), aggregation plumbing.
+                         INTERIM_CHOICES names every choice awaiting company-reference
+                         confirmation (agency AC recursion; floater straight-line accretion;
+                         other-sec floating book-yield shift; no paydown reinvestment)
+  ii_ust.py / ii_mbs.py / ii_other_sec.py     Increment 2 (landed) — thin models over the engine
   loans/                 Increment 3 — subpackage: schemas, rate_machinery (A33–A38),
                          segmentation (six portfolio definitions as data), ii_loans
   nii_trading_al.py      Increment 4 — mirrors ie_other_borrowing's factoring

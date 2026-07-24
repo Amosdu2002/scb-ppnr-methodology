@@ -40,16 +40,19 @@ from ..core.schemas import (
 class IncomeScenarioPaths:
     """Income-side scenario MEV paths in canonical names (asset conventions §3).
 
-    All four family series are required from day one (mirrors the expense
+    All family series are required from day one (mirrors the expense
     precedent) even though Family A consumes only the two Treasury series.
     `usd_3m_treasury` includes PQ0 — required by the securities floating-margin
-    imputation, which uses the t = 0 **spot** 3-month Treasury (Increment 2);
-    the calculators read PQ1..PQ9 only. Pre-PQ0 history never enters this
-    container (the Eq A37 wholesale spread anchors are supplied launch-point
-    firm inputs — asset conventions §5)."""
+    imputation, which uses the t = 0 **spot** 3-month Treasury; the calculators
+    read PQ1..PQ9 only. `usd_1y_treasury` (added at Increment 2) is the
+    securities reinvestment coupon — the par-Treasury-curve 1-year yield
+    (OQ-025(d), user-confirmed). Pre-PQ0 history never enters this container
+    (the Eq A37 wholesale spread anchors are supplied launch-point firm inputs
+    — asset conventions §5)."""
 
     scenario_id: str
     usd_3m_treasury: Mapping[int, float]
+    usd_1y_treasury: Mapping[int, float]
     usd_10y_treasury: Mapping[int, float]
     prime_rate: Mapping[int, float]
     mortgage_rate: Mapping[int, float]
@@ -60,7 +63,7 @@ class IncomeScenarioPaths:
             self, "usd_3m_treasury",
             freeze_path("usd_3m_treasury", self.usd_3m_treasury, SCENARIO_QUARTERS_WITH_LAUNCH, check_rate),
         )
-        for name in ("usd_10y_treasury", "prime_rate", "mortgage_rate"):
+        for name in ("usd_1y_treasury", "usd_10y_treasury", "prime_rate", "mortgage_rate"):
             object.__setattr__(
                 self, name,
                 freeze_path(name, getattr(self, name), PROJECTION_QUARTERS, check_rate),

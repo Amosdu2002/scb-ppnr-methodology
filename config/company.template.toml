@@ -84,6 +84,30 @@ sheet = "<SPOT_TAB_NAME>"
 path = "<PATH_TO_WORKBOOK_WITH_CANONICAL_TABS>.xlsx"
 sheet = "<QUARTERLY_TAB_NAME>"
 
+# Securities workbook (PID-SEC-6; asset-side Increment 2). The loader reads your
+# native multi-sheet workbook: the Schedule B.1-layout positions sheet (located by
+# its MDRM header row), enrichment tabs (per-tab column names below), and the
+# prepayment pivot ("Row Labels" + month offsets 0,3,...,27; PID-MBS-1).
+# floor_mode (PID-SEC-2): "zero" | "security_floor" | "none".
+[firm_data.securities]
+workbook = "<PATH_TO_SECURITIES_WORKBOOK>.xlsx"
+positions_sheet = "<POSITIONS_SHEET_NAME>"
+prepayment_sheet = "<PREPAYMENT_SHEET_NAME>"    # delete this line if no prepayment sheet
+money_scale = "dollars"                 # confirmed 2026-07-24: whole USD -> canonical millions
+coupon_scale = "percent"                # enrichment coupon/floor scale
+book_yield_scale = "percent"            # positions-sheet book-yield scale — confirm
+floor_mode = "security_floor"           # PID-SEC-2 mode switch
+
+[[firm_data.securities.enrichment]]     # one block per enrichment tab (repeat as needed)
+sheet = "<ENRICHMENT_TAB_NAME>"
+header_row = 2                          # 1-based row carrying the column names below
+key_column = "<CUSIP_OR_ISIN_COLUMN>"
+maturity_column = "<MATURITY_DATE_COLUMN>"      # Excel serial dates
+coupon_column = "<COUPON_RATE_COLUMN>"
+rate_type_column = "<RATE_TYPE_COLUMN>"         # FIXED | FLOATING | ZERO COUPON
+floor_column = "<COUPON_FLOOR_COLUMN>"          # delete this line if the tab has none
+wal_column = "<WAL_COLUMN>"                     # years (decimal)
+
 # Scale rules (D-006) — the loaders refuse undeclared units, nothing is guessed:
 #   rate/spread/share rows : scale = "percent" | "decimal"
 #   balance/dollar rows    : scale = "millions" | "billions" (canonical unit is USD

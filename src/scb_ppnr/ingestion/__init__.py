@@ -10,6 +10,8 @@ from .config import (
     IngestionConfig,
     MevConfig,
     ScenarioSource,
+    SecuritiesConfig,
+    SecuritiesEnrichmentSheet,
     SeriesSpec,
     TableSource,
     load_config,
@@ -17,6 +19,7 @@ from .config import (
 from .firm_data_loader import load_family_inputs, load_income_inputs
 from .mev_loader import MevScenario, load_mev_scenario
 from .normalize import Quarter, parse_quarter
+from .securities_loader import load_securities_inputs
 from .tables import read_table
 
 __all__ = [
@@ -28,12 +31,15 @@ __all__ = [
     "ScenarioSource",
     "SERIES_KIND_LEVEL",
     "SERIES_KIND_RATE",
+    "SecuritiesConfig",
+    "SecuritiesEnrichmentSheet",
     "SeriesSpec",
     "TableSource",
     "load_config",
     "load_family_inputs",
     "load_income_inputs",
     "load_mev_scenario",
+    "load_securities_inputs",
     "parse_quarter",
     "read_table",
 ]

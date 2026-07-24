@@ -58,18 +58,59 @@ class MevConfig:
 
 
 @dataclass(frozen=True)
+class SecuritiesEnrichmentSheet:
+    """One enrichment tab of the securities workbook (PID-SEC-6): per-security
+    maturity/coupon/rate-type/floor/WAL keyed by CUSIP or ISIN. Column names are
+    per-tab (the physical tabs spell headers differently); `header_row` is the
+    1-based row carrying those names."""
+
+    sheet: str
+    key_column: str
+    maturity_column: str
+    coupon_column: str
+    rate_type_column: str
+    wal_column: str
+    floor_column: str | None = None
+    header_row: int = 1
+
+
+# PID-SEC-2 floor modes (mirrored from interest_income.securities_schemas —
+# config stays free of model imports; the loader re-validates against the model set).
+_FLOOR_MODES = ("zero", "security_floor", "none")
+
+
+@dataclass(frozen=True)
+class SecuritiesConfig:
+    """The securities workbook contract (PID-SEC-6): a Schedule B.1-layout
+    positions sheet, optional prepayment pivot sheet (PID-MBS-1), and enrichment
+    tabs. All scales are declared, never guessed (D-006); `floor_mode` selects
+    the PID-SEC-2 negative-margin treatment."""
+
+    workbook: Path
+    positions_sheet: str
+    money_scale: str
+    coupon_scale: str
+    book_yield_scale: str
+    floor_mode: str
+    prepayment_sheet: str | None = None
+    enrichment: tuple[SecuritiesEnrichmentSheet, ...] = ()
+
+
+@dataclass(frozen=True)
 class FirmDataConfig:
     """Two-sheet firm-input contract (D-007): `spot` holds one-time launch-point
     scalars (no quarter dimension), `quarterly` holds PQ1..PQ9 paths in wide layout
     (one row per series, columns PQ1..PQ9). CSV sources use two files; XLSX sources
     typically use two tabs of one workbook. `frb_expense_sign` (D-008) declares how
     the FRB total-interest-expense path is entered — "negative" makes the loader
-    negate it to the canonical positive-magnitude convention."""
+    negate it to the canonical positive-magnitude convention. `securities` adds the
+    PID-SEC-6 securities workbook (Increment 2, asset side)."""
 
     firm_id: str
     spot: TableSource
     quarterly: TableSource
     frb_expense_sign: str = EXPENSE_SIGN_POSITIVE
+    securities: SecuritiesConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -164,11 +205,48 @@ def load_config(path: Path | str) -> IngestionConfig:
                 f"config [firm_data]: frb_expense_sign must be '{EXPENSE_SIGN_POSITIVE}' or "
                 f"'{EXPENSE_SIGN_NEGATIVE}', got {section.get('frb_expense_sign')!r} (D-008)"
             )
+        securities: SecuritiesConfig | None = None
+        if "securities" in section:
+            sec = section["securities"]
+            floor_mode = str(_require(sec, "floor_mode", "[firm_data.securities]")).strip().lower()
+            if floor_mode not in _FLOOR_MODES:
+                raise ValidationFailure(
+                    f"config [firm_data.securities]: floor_mode must be one of {_FLOOR_MODES} "
+                    f"(PID-SEC-2), got {sec.get('floor_mode')!r}"
+                )
+            enrichment: list[SecuritiesEnrichmentSheet] = []
+            for index, entry in enumerate(sec.get("enrichment", [])):
+                context = f"[[firm_data.securities.enrichment]] #{index + 1}"
+                floor_column = entry.get("floor_column")
+                enrichment.append(
+                    SecuritiesEnrichmentSheet(
+                        sheet=str(_require(entry, "sheet", context)),
+                        key_column=str(_require(entry, "key_column", context)),
+                        maturity_column=str(_require(entry, "maturity_column", context)),
+                        coupon_column=str(_require(entry, "coupon_column", context)),
+                        rate_type_column=str(_require(entry, "rate_type_column", context)),
+                        wal_column=str(_require(entry, "wal_column", context)),
+                        floor_column=str(floor_column) if floor_column is not None else None,
+                        header_row=int(entry.get("header_row", 1)),
+                    )
+                )
+            prepayment_sheet = sec.get("prepayment_sheet")
+            securities = SecuritiesConfig(
+                workbook=Path(str(_require(sec, "workbook", "[firm_data.securities]"))),
+                positions_sheet=str(_require(sec, "positions_sheet", "[firm_data.securities]")),
+                money_scale=str(_require(sec, "money_scale", "[firm_data.securities]")),
+                coupon_scale=str(_require(sec, "coupon_scale", "[firm_data.securities]")),
+                book_yield_scale=str(_require(sec, "book_yield_scale", "[firm_data.securities]")),
+                floor_mode=floor_mode,
+                prepayment_sheet=str(prepayment_sheet) if prepayment_sheet is not None else None,
+                enrichment=tuple(enrichment),
+            )
         firm_data = FirmDataConfig(
             firm_id=str(_require(section, "firm_id", "[firm_data]")),
             spot=_table_source(section["spot"], "[firm_data.spot]"),
             quarterly=_table_source(section["quarterly"], "[firm_data.quarterly]"),
             frb_expense_sign=frb_expense_sign,
+            securities=securities,
         )
 
     return IngestionConfig(base_dir=path.parent.resolve(), mev=mev, firm_data=firm_data)

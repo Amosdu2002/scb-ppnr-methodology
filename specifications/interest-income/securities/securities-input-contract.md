@@ -112,15 +112,15 @@ listed above follow this convention only after being surfaced and confirmed.
 - Maturity date → `maturity_quarters` relative to `report_date` (rounding convention fixed at
   code time and logged); WAL years → the A41 4× factor applies as printed [FACT].
 
-## 7. TO_BE_CONFIRMED register (gates before first company run)
+## 7. Confirmation register (updated 2026-07-24)
 
-| Item | Working assumption | Gate |
-|---|---|---|
-| Positions-sheet money scale | whole USD (prepayment magnitudes suggest it) | declare in config; loader refuses undeclared (D-006) |
-| PID-SEC-3 price column | `price` (CQSCJH21), per-100 | confirm |
-| PID-SEC-3 notional column | `current_face_value` vs `original_face_value` | confirm |
-| PID-SEC-2 else-branch | floater with negative margin and **no** coupon floor on file | confirm (floor at zero vs raw negative margin) |
-| `book_yield` scale | percent | declare in config |
+| Item | Status |
+|---|---|
+| Positions-sheet money scale | **CONFIRMED: whole USD** (user, 2026-07-24); declared in config as `money_scale = "dollars"`, converted once to the canonical USD millions (D-006) |
+| PID-SEC-3 price column | **CONFIRMED: `price` (CQSCJH21), per-100** (user: "always around 100 ish") |
+| PID-SEC-3 notional column | working assumption `current_face_value` — **TO_BE_CONFIRMED** vs `original_face_value` |
+| PID-SEC-2 floor treatment | **CONFIRMED: three config-switchable modes** — `floor_mode` ∈ `zero` \| `security_floor` \| `none` (see PID-SEC-2) |
+| `book_yield` scale | declare in config (`percent` \| `decimal`) — refused if undeclared |
 
 ## 8. Out of scope for this contract
 

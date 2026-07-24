@@ -32,16 +32,19 @@ def _rows(income: float = 1.0) -> tuple[IncomeQuarterResult, ...]:
 def test_scenario_requires_pq0_on_3m_only(make_income_scenario):
     scenario = make_income_scenario()
     assert set(scenario.usd_3m_treasury) == {0, *PROJECTION_QUARTERS}
+    assert set(scenario.usd_1y_treasury) == set(PROJECTION_QUARTERS)
     assert set(scenario.usd_10y_treasury) == set(PROJECTION_QUARTERS)
     with pytest.raises(ValidationFailure, match="usd_3m_treasury.*missing \\[0\\]"):
-        IncomeScenarioPaths("s", flat(0.04), flat(0.045), flat(0.07), flat(0.065))
+        IncomeScenarioPaths("s", flat(0.04), flat(0.04), flat(0.045), flat(0.07), flat(0.065))
     with pytest.raises(ValidationFailure, match="usd_10y_treasury.*unexpected \\[0\\]"):
-        IncomeScenarioPaths("s", {0: 0.03, **flat(0.04)}, {0: 0.045, **flat(0.045)}, flat(0.07), flat(0.065))
+        IncomeScenarioPaths("s", {0: 0.03, **flat(0.04)}, flat(0.04),
+                            {0: 0.045, **flat(0.045)}, flat(0.07), flat(0.065))
 
 
 def test_scenario_rejects_percent_scale_leakage():
     with pytest.raises(ValidationFailure, match="looks percent-scaled"):
-        IncomeScenarioPaths("s", {0: 0.03, **flat(0.04)}, flat(4.5), flat(0.07), flat(0.065))
+        IncomeScenarioPaths("s", {0: 0.03, **flat(0.04)}, flat(0.04), flat(4.5),
+                            flat(0.07), flat(0.065))
 
 
 def test_input_validation():

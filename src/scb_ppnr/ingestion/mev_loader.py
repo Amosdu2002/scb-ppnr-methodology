@@ -70,10 +70,12 @@ class MevScenario:
 
     def interest_income_scenario_paths(self) -> IncomeScenarioPaths:
         # The 3M series carries PQ0 for the securities floating-margin imputation
-        # (t = 0 spot, Increment 2); the other income series are PQ1..PQ9 only.
+        # (t = 0 spot); the 1Y series is the securities reinvestment coupon
+        # (par-curve 1Y yield, OQ-025(d)); the other income series are PQ1..PQ9.
         return IncomeScenarioPaths(
             scenario_id=self.scenario_id,
             usd_3m_treasury=self.series_window("usd_3m_treasury", SCENARIO_QUARTERS_WITH_LAUNCH),
+            usd_1y_treasury=self.series_window("usd_1y_treasury", PROJECTION_QUARTERS),
             usd_10y_treasury=self.series_window("usd_10y_treasury", PROJECTION_QUARTERS),
             prime_rate=self.series_window("prime_rate", PROJECTION_QUARTERS),
             mortgage_rate=self.series_window("mortgage_rate", PROJECTION_QUARTERS),

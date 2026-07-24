@@ -106,7 +106,7 @@ None yet. Pending gate decisions and [CODE] items:
 |---|---|---|
 | Input granularity | **Security-level** positions contract; aggregation inside the model | **PID-SEC-1, user-confirmed 2026-07-23** (sheet layout pending the user's format upload) |
 | Agency RMBS vendor input | Per-security **projected current-face path** in USD (prepayment pivot; PQ0 reconciles vs positions sheet); A41 terms computed on it; absent-from-sheet ⇒ no prepayment | **PID-MBS-1, user-confirmed 2026-07-23; refined 2026-07-24** |
-| Floater negative margin | Floor projected coupon at the security's coupon floor if available; else-branch TO_BE_CONFIRMED | **PID-SEC-2, user-confirmed 2026-07-23** (company convention, never Fed) |
+| Floater negative margin | **Three config-switchable modes** (`floor_mode`): `zero` \| `security_floor` \| `none` — scoped to negative-launch-margin floaters | **PID-SEC-2, finalized 2026-07-24** (company convention, never Fed) |
 | Unsettled transactions | AC proxy = purchase price/100 × notional when maturity/book yield/AC missing or zero near the settle date | **PID-SEC-3, user-confirmed 2026-07-23** (company convention) |
 | Coupon-accrual face | Prior-quarter EOP current face (operationalizes "beginning-of-the-period") | **PID-SEC-4, user-confirmed 2026-07-23** |
 | Reinvestment coupon series | `usd_1y_treasury` = par-curve 1Y yield; coupon fixed for the 4-quarter window; rolls again at maturity; attribution stays in this component | **OQ-025(a)(b)(d) resolved, user-confirmed 2026-07-23** |

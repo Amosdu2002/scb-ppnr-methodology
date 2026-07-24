@@ -20,6 +20,7 @@ SCALE_PERCENT = "percent"
 SCALE_DECIMAL = "decimal"
 SCALE_MILLIONS = "millions"
 SCALE_BILLIONS = "billions"
+SCALE_DOLLARS = "dollars"   # securities workbook amounts (PID-SEC-6): whole USD → millions
 
 
 @dataclass(frozen=True, order=True)
@@ -108,4 +109,8 @@ def apply_money_scale(scale: object, value: float, *, context: str) -> float:
         return value
     if declared == SCALE_BILLIONS:
         return value * 1000.0
-    raise ValidationFailure(f"{context}: scale must be '{SCALE_MILLIONS}' or '{SCALE_BILLIONS}', got {scale!r}")
+    if declared == SCALE_DOLLARS:
+        return value / 1_000_000.0
+    raise ValidationFailure(
+        f"{context}: scale must be '{SCALE_MILLIONS}', '{SCALE_BILLIONS}', or '{SCALE_DOLLARS}', got {scale!r}"
+    )
