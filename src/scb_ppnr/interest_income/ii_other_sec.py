@@ -88,15 +88,25 @@ def project_other_sec(
     *,
     firm_id: str,
     floor_mode: str,
+    on_error: str = "stop",
 ) -> IncomeModelResult:
     warnings: list[str] = []
     flows = []
+    skipped = 0
     for position in positions:
         if position.model != MODEL_ID:
             raise ValidationFailure(f"{position.security_id}: model {position.model!r} passed to {MODEL_ID}")
-        if position.ac_proxied:
-            warnings.append(f"{position.security_id}: PID-SEC-3 proxied amortized cost — accretion held at 0")
-        flows.append(_flows(position, scenario, floor_mode, warnings))
+        try:
+            if position.ac_proxied:
+                warnings.append(f"{position.security_id}: PID-SEC-3 proxied amortized cost — accretion held at 0")
+            flows.append(_flows(position, scenario, floor_mode, warnings))
+        except ValidationFailure as exc:
+            if on_error != "skip":
+                raise
+            skipped += 1
+            warnings.append(f"HIGHLIGHT {position.security_id}: skipped (on_security_error='skip') — {exc}")
+    if skipped:
+        warnings.append(f"{skipped} other-securities position(s) skipped on error — HIGHLIGHTED above; income understated by their contribution")
     if not flows:
         warnings.append("no in-scope other-securities positions — income is identically zero (logged)")
     return aggregate_model_result(MODEL_ID, firm_id, scenario, flows, warnings)

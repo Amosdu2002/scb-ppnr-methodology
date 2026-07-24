@@ -122,15 +122,17 @@ def main() -> None:
 
     inputs = load_securities_inputs(config)
     floor_mode = config.firm_data.securities.floor_mode
+    on_error = config.firm_data.securities.on_security_error
 
-    print(f"firm: {inputs.firm_id}   scenario: {scenario.scenario_id}   floor_mode: {floor_mode}")
+    print(f"firm: {inputs.firm_id}   scenario: {scenario.scenario_id}   "
+          f"floor_mode: {floor_mode}   on_security_error: {on_error}")
     print("AMOUNTS: USD MILLIONS per quarter — canonical unit, D-006; pre-hedge")
     for warning in inputs.warnings:
         print(f"loader warning: {warning}")
 
-    _print_model(project_ust(inputs.ust, scenario, firm_id=inputs.firm_id))
-    _print_model(project_mbs(inputs.mbs, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode))
-    _print_model(project_other_sec(inputs.other_sec, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode))
+    _print_model(project_ust(inputs.ust, scenario, firm_id=inputs.firm_id, on_error=on_error))
+    _print_model(project_mbs(inputs.mbs, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error))
+    _print_model(project_other_sec(inputs.other_sec, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error))
 
 
 if __name__ == "__main__":

@@ -156,6 +156,12 @@ def main() -> None:
             details.append(f"  #{index} {_mask(sid)} [{category}]: rate type cell is {_state(fields.get('rate_type'))}")
             continue
 
+        from scb_ppnr.interest_income import RATE_FLOATING
+        if _RATE_TYPE_MAP.get(rate_raw) == RATE_FLOATING and _state(fields.get("coupon")) == "EMPTY":
+            codes["FLOATER-NO-COUPON"] += 1
+            details.append(f"  #{index} {_mask(sid)} [{category}]: FLOATING with an empty coupon cell — margin imputation impossible")
+            continue
+
         wal_state = _state(fields.get("wal"))
         wal_ok = wal_state == "NUMBER" and float(str(fields["wal"]).replace(",", "")) > 0
         if wal_state != "EMPTY" and not wal_ok:

@@ -97,6 +97,9 @@ class SecuritiesConfig:
     enrichment: tuple[SecuritiesEnrichmentSheet, ...] = ()
     price_mdrm: str = "CQSCJH21"        # PID-SEC-3 price column MDRM; override if the workbook differs.
                                         # Fallback: a header cell whose technical name is exactly "Price"
+    on_security_error: str = "stop"     # "stop" (strict default) | "skip" — skip mode isolates a
+                                        # failing security with a HIGHLIGHT warning instead of
+                                        # halting the run (debugging/company-reference phase)
 
 
 @dataclass(frozen=True)
@@ -246,7 +249,13 @@ def load_config(path: Path | str) -> IngestionConfig:
                 prepayment_sheet=str(prepayment_sheet) if prepayment_sheet is not None else None,
                 enrichment=tuple(enrichment),
                 price_mdrm=str(sec.get("price_mdrm", "CQSCJH21")),
+                on_security_error=str(sec.get("on_security_error", "stop")).strip().lower(),
             )
+            if securities.on_security_error not in ("stop", "skip"):
+                raise ValidationFailure(
+                    f"config [firm_data.securities]: on_security_error must be 'stop' or 'skip', "
+                    f"got {sec.get('on_security_error')!r}"
+                )
         firm_data = FirmDataConfig(
             firm_id=str(_require(section, "firm_id", "[firm_data]")),
             spot=_table_source(section["spot"], "[firm_data.spot]"),

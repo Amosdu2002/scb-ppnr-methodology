@@ -166,6 +166,21 @@ def test_other_sec_floater_book_yield_shift(make_income_scenario):
     assert result.quarters[0].quarterly_income == pytest.approx(18.0)
 
 
+def test_on_error_skip_isolates_a_failing_security(make_income_scenario):
+    scenario = make_income_scenario()
+    broken = _pos(MODEL_OTHER_SEC, "BAD000001", rate_type=RATE_FLOATING, coupon_rate=None,
+                  book_yield=0.06, amortized_cost=900.0)          # floater without a t0 coupon
+    clean = _pos(MODEL_OTHER_SEC, "OTH000009", current_face=2000.0, amortized_cost=2000.0,
+                 coupon_rate=0.05, book_yield=0.05)
+    with pytest.raises(ValidationFailure, match="no t=0 coupon"):
+        project_other_sec([broken, clean], scenario, firm_id="F", floor_mode=FLOOR_MODE_NONE)
+    result = project_other_sec([broken, clean], scenario, firm_id="F",
+                               floor_mode=FLOOR_MODE_NONE, on_error="skip")
+    assert result.income_path()[1] == pytest.approx(25.0)         # clean security only
+    assert any(w.startswith("HIGHLIGHT BAD000001") for w in result.warnings)
+    assert any("understated" in w for w in result.warnings)
+
+
 def test_other_sec_maturity_reinvests(make_income_scenario):
     scenario = make_income_scenario()
     pos = _pos(MODEL_OTHER_SEC, "OTH000003", coupon_rate=0.05, book_yield=0.05,

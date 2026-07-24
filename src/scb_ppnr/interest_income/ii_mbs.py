@@ -136,19 +136,29 @@ def project_mbs(
     *,
     firm_id: str,
     floor_mode: str,
+    on_error: str = "stop",
 ) -> IncomeModelResult:
     warnings: list[str] = []
     flows = []
+    skipped = 0
     for position in positions:
         if position.model != MODEL_ID:
             raise ValidationFailure(f"{position.security_id}: model {position.model!r} passed to {MODEL_ID}")
-        coupon = _coupon_path(position, scenario, floor_mode, warnings)
-        if position.ac_proxied:
-            warnings.append(f"{position.security_id}: PID-SEC-3 proxied amortized cost — accretion held at 0")
-        if position.face_path is not None:
-            flows.append(_agency_flows(position, coupon, warnings))
-        else:
-            flows.append(_other_mbs_flows(position, coupon, warnings))
+        try:
+            coupon = _coupon_path(position, scenario, floor_mode, warnings)
+            if position.ac_proxied:
+                warnings.append(f"{position.security_id}: PID-SEC-3 proxied amortized cost — accretion held at 0")
+            if position.face_path is not None:
+                flows.append(_agency_flows(position, coupon, warnings))
+            else:
+                flows.append(_other_mbs_flows(position, coupon, warnings))
+        except ValidationFailure as exc:
+            if on_error != "skip":
+                raise
+            skipped += 1
+            warnings.append(f"HIGHLIGHT {position.security_id}: skipped (on_security_error='skip') — {exc}")
+    if skipped:
+        warnings.append(f"{skipped} MBS position(s) skipped on error — HIGHLIGHTED above; income understated by their contribution")
     if not flows:
         warnings.append("no in-scope MBS positions — income is identically zero (logged)")
     return aggregate_model_result(MODEL_ID, firm_id, scenario, flows, warnings)
