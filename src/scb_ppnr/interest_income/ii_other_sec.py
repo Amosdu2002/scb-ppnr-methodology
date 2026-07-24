@@ -21,7 +21,7 @@ from .securities_engine import (
     aggregate_model_result,
     floating_coupon_path,
     quarterly,
-    straight_line_amount,
+    reference_accretion_step,
 )
 from .securities_schemas import (
     MODEL_OTHER_SEC,
@@ -48,36 +48,23 @@ def _flows(position: SecurityPosition, scenario: IncomeScenarioPaths,
             raise ValidationFailure(f"{position.security_id}: fixed-rate security without a coupon rate")
         coupon = {q: position.coupon_rate for q in PROJECTION_QUARTERS}
 
+    # PID-SEC-8 (user-verified 2026-07-24): income is ALWAYS cash coupon + AA
+    # (+ hedge + reinvestment) — the collapsed A42 book-yield form is not what
+    # the reference computes. AA = (prior face − prior AC)/(4 × maturity years);
+    # AC(q) = AC(q−1) + AA(q).
+    denominator = 4.0 * position.maturity_years if position.maturity_years is not None else None
+    if denominator is None and not position.ac_proxied and face != position.amortized_cost:
+        warnings.append(f"{position.security_id}: no maturity for the PID-SEC-8 accretion denominator — AA held at 0 (surfaced)")
+
     coupon_cash: dict[int, float] = {}
     accretion: dict[int, float] = {}
     ac = position.amortized_cost
-    sl_amount: float | None = None
     for quarter in range(1, last_quarter + 1):
-        cash = quarterly(face, coupon[quarter])
-        coupon_cash[quarter] = cash
-        if position.ac_proxied:
+        coupon_cash[quarter] = quarterly(face, coupon[quarter])
+        if position.ac_proxied or denominator is None:
             accretion[quarter] = 0.0
-        elif position.book_yield is not None:
-            if position.rate_type == RATE_FLOATING:
-                # [INTERIM] the book yield floats by the same 3M delta as the coupon;
-                # the PID-SEC-2 floor applies to the coupon leg only.
-                book_yield = position.book_yield + (
-                    scenario.usd_3m_treasury[quarter] - scenario.usd_3m_treasury[0]
-                )
-            else:
-                book_yield = position.book_yield
-            total = quarterly(ac, book_yield)              # A42: AC(t) × BookYield/4 — source-stated ÷4
-            accretion[quarter] = total - cash
-            ac = ac + accretion[quarter]
         else:
-            if sl_amount is None:
-                if maturity is None:
-                    raise ValidationFailure(
-                        f"{position.security_id}: book yield missing and no maturity for the straight-line fallback"
-                    )
-                sl_amount = straight_line_amount(face, position.amortized_cost, float(maturity))
-                warnings.append(f"{position.security_id}: book yield missing — straight-line fallback (Fed-stated)")
-            accretion[quarter] = sl_amount
+            accretion[quarter], ac = reference_accretion_step(face, ac, face, denominator)
     matured = {maturity: face} if maturity is not None and maturity <= PROJECTION_QUARTERS[-1] else {}
     return PerSecurityFlows(position.security_id, coupon_cash, accretion, matured, alive_through=last_quarter)
 

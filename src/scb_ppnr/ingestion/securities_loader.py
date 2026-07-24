@@ -36,8 +36,6 @@ from .config import IngestionConfig, SecuritiesConfig, SecuritiesEnrichmentSheet
 from .normalize import apply_money_scale, apply_rate_scale, to_float
 
 _EXCEL_EPOCH = _dt.date(1899, 12, 30)
-_DAYS_PER_QUARTER = 91.3125          # 365.25 / 4 — quarters rounded up ([CODE], logged in contract §6)
-
 # Positions-sheet columns located via the MDRM header row (contract §2).
 _POSITIONS_MDRM = {
     "D_DT": "report_date",
@@ -241,30 +239,24 @@ def _prepayment_map(worksheet, path: Path, money_scale: str, warnings: list[str]
         if _blank(label) or str(label).strip().lower() == "grand total":
             continue
         cusip = str(label).strip()
-        # Pivot semantics: blank cells mean "no balance" and are read as 0 (logged per row).
+        # Pivot semantics (user-directed 2026-07-24): blank cells ARE 0 — no warning,
+        # matching the reference workbook's own treatment.
         path_values: dict[int, float] = {}
-        blank_quarters: list[int] = []
         for quarter, column in month_columns.items():
             raw = row[column] if column < len(row) else None
             if _blank(raw):
                 path_values[quarter] = 0.0
-                blank_quarters.append(quarter)
             else:
                 value = to_float(raw, context=f"{path} prepayment {cusip} PQ{quarter}")
                 path_values[quarter] = apply_money_scale(money_scale, value, context=f"{path} prepayment {cusip} PQ{quarter}")
         # User-directed rule (2026-07-24): a row whose PQ1 face is 0 (or blank) is skipped at load.
         if path_values[1] == 0.0:
             warnings.append(
-                f"prepayment row {cusip}: PQ1 face is 0 — row skipped (user-directed 2026-07-24; "
-                f"blank cells read as 0); if the security is still an in-scope Agency MBS position "
-                f"it falls back to the flat-face (no-prepayment) treatment"
+                f"prepayment row {cusip}: PQ1 face is 0 — row skipped (user-directed 2026-07-24); "
+                f"if the security is still an in-scope Agency MBS position it falls back to the "
+                f"flat-face (no-prepayment) treatment"
             )
             continue
-        if blank_quarters:
-            warnings.append(
-                f"prepayment row {cusip}: blank cell(s) at PQ{blank_quarters} read as 0 "
-                f"(pivot semantics — logged, never guessed differently)"
-            )
         faces[cusip] = path_values
     return faces
 
@@ -298,21 +290,12 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
     unmatched: list[str] = []
     grouped: dict[str, list[SecurityPosition]] = {MODEL_UST: [], MODEL_MBS: [], MODEL_OTHER_SEC: []}
 
-    # Multi-row CUSIPs (lots): pre-total launch faces per Agency MBS CUSIP so the
-    # CUSIP-level prepayment path can be apportioned by launch-face share
-    # [INTERIM — pending user confirmation].
-    agency_face_totals: dict[str, float] = {}
+    # Multi-row CUSIPs (lots): the prepayment path is applied PER ROW as a survival
+    # factor scaled by each lot's own launch face (user point 6, 2026-07-24).
     total_rows_per_cusip: dict[str, int] = {}
     for record in records:
         cusip = str(record["identifier_value"]).strip()
         total_rows_per_cusip[cusip] = total_rows_per_cusip.get(cusip, 0) + 1
-        category = "" if _blank(record.get("security_description_1")) else str(record["security_description_1"]).strip()
-        if category == "Agency MBS" and not _blank(record.get("current_face_value")):
-            try:
-                raw_face = to_float(record["current_face_value"], context="agency face pre-total")
-            except ValidationFailure:
-                continue
-            agency_face_totals[cusip] = agency_face_totals.get(cusip, 0.0) + raw_face
     row_counter_per_cusip: dict[str, int] = {}
     used_prepayment: set[str] = set()
     apportioned_cusips: set[str] = set()
@@ -394,16 +377,21 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 continue
 
         maturity_quarters = None
+        maturity_years = None
         if not _blank(fields.get("maturity")) and report_date is not None:
             maturity_date = _parse_date(fields["maturity"], context=f"{context} maturity")
             days = (maturity_date - report_date).days
             if days <= 0:
                 warnings.append(f"{security_id}: maturity {maturity_date} not after the report date {report_date} — treated as missing (PID-SEC-3 may proxy)")
             else:
-                maturity_quarters = max(1, math.ceil(days / _DAYS_PER_QUARTER))
+                # PID-SEC-8 (user-verified): maturity years = day difference / 365 (decimal,
+                # used in accretion denominators); whole quarters only time the maturity event.
+                maturity_years = days / 365.0
+                maturity_quarters = max(1, math.ceil(4.0 * maturity_years))
         # PID-SEC-7 (user-confirmed 2026-07-24): Agency MBS without a maturity date
         # use WAL as the maturity in years; quarters = ceil(4 × WAL).
-        if maturity_quarters is None and agency_prepay and wal is not None:
+        if maturity_years is None and agency_prepay and wal is not None:
+            maturity_years = wal
             maturity_quarters = max(1, math.ceil(4.0 * wal))
             warnings.append(
                 f"{security_id}: Agency MBS without a maturity date — WAL {wal} years used as "
@@ -452,15 +440,15 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         if agency_prepay and cusip in prepayment:
             used_prepayment.add(cusip)
             cusip_path = prepayment[cusip]
-            total_raw = agency_face_totals.get(cusip, 0.0)
-            if total_rows_per_cusip.get(cusip, 1) == 1 or total_raw <= 0.0:
-                face_path = dict(cusip_path)
+            base = cusip_path[0]
+            if base <= 0.0:
+                warnings.append(f"{security_id}: prepayment PQ0 face is 0 — face held flat (surfaced)")
             else:
-                # Multi-lot CUSIP: apportion the CUSIP-level face path by this row's
-                # launch-face share [INTERIM — pending user confirmation].
-                share = to_float(record["current_face_value"], context=f"{context} share") / total_raw
-                face_path = {q: value * share for q, value in cusip_path.items()}
-                apportioned_cusips.add(cusip)
+                # PID-SEC-8 / user point 6 (2026-07-24): computed per row — the CUSIP path is
+                # applied as a survival FACTOR scaled by this row's own launch face.
+                face_path = {q: face * (value / base) for q, value in cusip_path.items()}
+                if total_rows_per_cusip.get(cusip, 1) > 1:
+                    apportioned_cusips.add(cusip)
         elif agency_prepay:
             warnings.append(f"{security_id}: Agency MBS absent from the prepayment sheet — no prepayment, face held flat (multi-family, PID-SEC-5)")
 
@@ -477,6 +465,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 book_yield=book_yield,
                 coupon_floor=floor,
                 maturity_quarters=maturity_quarters,
+                maturity_years=maturity_years,
                 wal_years=wal,
                 face_path=face_path,
                 ac_proxied=ac_proxied,
@@ -491,8 +480,8 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         )
     if apportioned_cusips:
         warnings.append(
-            f"{len(apportioned_cusips)} multi-lot Agency CUSIP(s): prepayment face paths apportioned "
-            f"across lots by launch-face share [INTERIM — pending user confirmation]"
+            f"{len(apportioned_cusips)} multi-lot Agency CUSIP(s): prepayment applied per row as a "
+            f"survival factor on each lot's own launch face (user point 6, 2026-07-24)"
         )
     for leftover in sorted(set(prepayment) - used_prepayment):
         warnings.append(f"prepayment sheet row {leftover} matches no in-scope Agency MBS position (ignored, logged)")

@@ -80,18 +80,18 @@ monotone non-increasing. Rules [PID-MBS-1 / PID-SEC-5]:
   for the same CUSIP (tolerance-checked; mismatch surfaces).
 - An Agency MBS **absent** from this sheet carries **no prepayment** — face held flat
   (user-stated: such positions are multi-family).
-- **Pivot blanks read as 0** — an empty cell means "no balance" in a pivot; blanks are
-  converted to 0 with a logged per-row warning listing the affected quarters (never guessed
-  differently).
+- **Pivot blanks ARE 0** — silently (user-directed 2026-07-24: the reference workbook treats
+  them the same way; no warning).
 - A row whose **PQ1 face is 0 — including blank — is skipped at load** (user-directed
   2026-07-24), with a logged warning per row. Consequence: if the skipped CUSIP is still an
   in-scope Agency MBS position, it falls back to the flat-face (no-prepayment) treatment above.
 - Non-Agency securities never appear here (no prepayments modeled [FACT, PPNR pp. 197, 202]).
-- **Multi-lot CUSIPs (2026-07-24):** the positions sheet carries multiple rows (lots) per
-  CUSIP; each row becomes its own position keyed by `unique_id` (CQSCS383; fallback
-  `CUSIP#rN` when absent, plain CUSIP for single rows). A CUSIP's prepayment face path is
-  **apportioned across its lots by launch-face share** [INTERIM — pending user confirmation],
-  with a logged summary count.
+- **Multi-lot CUSIPs (2026-07-24; per-row computation user-verified — PID-SEC-8):** the
+  positions sheet carries multiple rows (lots) per CUSIP; each row becomes its own position
+  keyed by `unique_id` (CQSCS383; fallback `CUSIP#rN` when absent, plain CUSIP for single
+  rows). The CUSIP's prepayment path is applied **per row as a survival factor scaled by the
+  lot's own launch face** — face(row, q) = row face × path(q)/path(PQ0) — with a logged
+  summary count.
 - **Missing enrichment (2026-07-24):** a position with no enrichment match is **skipped with a
   HIGHLIGHT warning** (previously a hard stop) — pending user confirmation of skip vs data fix.
 - **Paydown reinvestment (2026-07-24, OQ-025(c) resolution):** quarterly face declines

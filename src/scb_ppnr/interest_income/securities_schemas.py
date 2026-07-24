@@ -96,7 +96,8 @@ class SecurityPosition:
     coupon_rate: float | None = None
     book_yield: float | None = None
     coupon_floor: float | None = None
-    maturity_quarters: int | None = None
+    maturity_quarters: int | None = None   # event timing (maturity → reinvestment): ceil(4 × years)
+    maturity_years: float | None = None    # PID-SEC-8 accretion denominators: day difference / 365
     wal_years: float | None = None
     face_path: Mapping[int, float] | None = None
     ac_proxied: bool = False
@@ -124,6 +125,11 @@ class SecurityPosition:
             if m < 1 or m != int(m):
                 raise ValidationFailure(f"{self.security_id}: maturity_quarters must be a whole number >= 1, got {m}")
             object.__setattr__(self, "maturity_quarters", int(m))
+        if self.maturity_years is not None:
+            years = check_finite(f"{self.security_id}.maturity_years", self.maturity_years)
+            if years <= 0.0:
+                raise ValidationFailure(f"{self.security_id}: maturity_years must be > 0, got {years}")
+            object.__setattr__(self, "maturity_years", years)
         if self.wal_years is not None:
             w = check_finite(f"{self.security_id}.wal_years", self.wal_years)
             if w <= 0.0:

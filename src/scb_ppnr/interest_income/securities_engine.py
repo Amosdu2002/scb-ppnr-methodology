@@ -31,13 +31,16 @@ from .securities_schemas import (
     SecurityPosition,
 )
 
-# Interim implementation choices awaiting company-reference confirmation.
-# Each maps to exactly one function below; swapping one never touches the rest.
+# Remaining interim choices. The accretion/AC machinery is no longer interim:
+# PID-SEC-8 (user-verified against the reference workbook, 2026-07-24) fixes
+# income = coupon accrual + AA + hedge + reinvestment for every security, with
+# AA = 0 if the quarter's face is 0 else (prior face − prior AC)/denominator
+# (denominator = 4 × maturity years; 4 × WAL(t=0) for Agency MBS; PQ0 numerator
+# and denominator for U.S. Treasuries) and AC(q) = AC(q−1) + AA(q) − paydown(q).
 INTERIM_CHOICES = {
-    "agency_ac_recursion": "agency_accretion_step — AC scales with the survival ratio, then adds the A41 straight-line amount",
-    "floating_accretion_straight_line": "other-MBS floaters use straight-line accretion (the constant-coupon effective-interest assumption does not hold)",
-    "other_sec_floating_book_yield_shift": "ii_other_sec floaters shift book yield by the same 3M-Treasury delta as the coupon (chapter §6 step 3 [INT])",
-    "paydown_reinvestment_on": "Agency paydown proceeds reinvest like maturities (MRM p. 72 covers 'decreasing in balance due to partial paydowns' [FACT]; purchase timing mirrors the maturity rule [INT]; config toggle reinvest_paydowns — resolves OQ-025(c) for implementation, 2026-07-24)",
+    "paydown_reinvestment_on": "paydown proceeds reinvest like maturities (MRM p. 72 [FACT]; user-verified 'Reinvestment Interest income' section 2026-07-24; toggle reinvest_paydowns)",
+    "floor_semantics_vs_reference": "PID-SEC-2 floor_mode zeroes ~792 negative-margin floaters under mode 'zero' — what the reference does with them is under verification",
+    "step_coupon_fixed_at_launch": "STEP CPN treated as fixed at the launch coupon (pending confirmation)",
 }
 
 
@@ -94,26 +97,22 @@ def straight_line_amount(face_launch: float, ac_launch: float, denominator_quart
     return (face_launch - ac_launch) / denominator_quarters
 
 
-def agency_accretion_step(face_prior: float, ac_prior: float, face_now: float, wal_quarters: float) -> tuple[float, float]:
-    """[INTERIM: agency_ac_recursion] One quarter of A41 Agency accretion.
+def reference_accretion_step(
+    face_prior: float,
+    ac_prior: float,
+    face_now: float,
+    denominator_quarters: float,
+    paydown: float = 0.0,
+) -> tuple[float, float]:
+    """[PID-SEC-8, user-verified 2026-07-24] One quarter of the reference AA/AC step.
 
-    accretion = (face_prior − AC_prior) ÷ (4 × WAL(t=0)) — the printed A41 form
-    on prior-quarter values; AC then scales with the survival ratio (paydowns
-    reduce amortized cost proportionally) and absorbs the accretion. Returns
-    (accretion, ac_now)."""
-    accretion = (face_prior - ac_prior) / wal_quarters
-    survival = (face_now / face_prior) if face_prior > 0.0 else 0.0
-    ac_now = ac_prior * survival + accretion
-    return accretion, ac_now
-
-
-def effective_interest_step(ac_prior: float, book_yield: float, cash_coupon: float) -> tuple[float, float, float]:
-    """One quarter of the effective-interest method (FACT: constant coupon and
-    book yield): total = AC_prior × BY/4; accretion = total − cash coupon;
-    AC accrues the accretion. Returns (total_income, accretion, ac_now)."""
-    total = quarterly(ac_prior, book_yield)
-    accretion = total - cash_coupon
-    return total, accretion, ac_prior + accretion
+    AA = 0 if this quarter's face is 0, else (prior face − prior AC) ÷ denominator
+    (denominator in quarters: 4 × maturity years; 4 × WAL(t=0) for Agency MBS).
+    New AC = prior AC + AA − principal paydown. Returns (accretion, ac_now)."""
+    if denominator_quarters <= 0:
+        raise ValidationFailure(f"accretion denominator must be > 0 quarters, got {denominator_quarters}")
+    accretion = 0.0 if face_now == 0.0 else (face_prior - ac_prior) / denominator_quarters
+    return accretion, ac_prior + accretion - paydown
 
 
 def reinvestment_income(

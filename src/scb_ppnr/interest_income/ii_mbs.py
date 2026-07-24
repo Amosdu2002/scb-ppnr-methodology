@@ -26,12 +26,10 @@ from ..core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from .schemas import IncomeModelResult, IncomeScenarioPaths
 from .securities_engine import (
     PerSecurityFlows,
-    agency_accretion_step,
     aggregate_model_result,
-    effective_interest_step,
     floating_coupon_path,
     quarterly,
-    straight_line_amount,
+    reference_accretion_step,
 )
 from .securities_schemas import (
     MODEL_MBS,
@@ -42,14 +40,6 @@ from .securities_schemas import (
 )
 
 MODEL_ID = MODEL_MBS
-
-
-def _straight_line_denominator(position: SecurityPosition) -> float:
-    if position.wal_years is not None:
-        return 4.0 * position.wal_years          # A41's printed 4 × WAL(t=0)
-    if position.maturity_quarters is not None:
-        return float(position.maturity_quarters)
-    raise ValidationFailure(f"{position.security_id}: neither WAL nor maturity available for straight-line accretion")
 
 
 def _coupon_path(position: SecurityPosition, scenario: IncomeScenarioPaths,
@@ -90,12 +80,14 @@ def _agency_flows(position: SecurityPosition, coupon: dict[int, float], warnings
         paydown = face_prior - face_path[quarter]
         if paydown < 0.0:
             warnings.append(f"{position.security_id}: face path INCREASES at PQ{quarter} — no paydown booked (surfaced, monotone expected)")
+            paydown = 0.0
         elif paydown > 0.0:
             paydowns[quarter] = paydown                    # reinvests per MRM p. 72 (toggleable)
         if position.ac_proxied:
             accretion[quarter] = 0.0
         else:
-            accretion[quarter], ac = agency_accretion_step(face_prior, ac, face_path[quarter], wal_quarters)
+            # PID-SEC-8: AA on prior-quarter values over 4×WAL(t=0); AC absorbs AA minus the paydown.
+            accretion[quarter], ac = reference_accretion_step(face_prior, ac, face_path[quarter], wal_quarters, paydown)
     matured = {}
     if maturity is not None and maturity <= PROJECTION_QUARTERS[-1]:
         matured = {maturity: face_path[maturity]}
@@ -104,35 +96,26 @@ def _agency_flows(position: SecurityPosition, coupon: dict[int, float], warnings
 
 
 def _other_mbs_flows(position: SecurityPosition, coupon: dict[int, float], warnings: list[str]) -> PerSecurityFlows:
+    """Flat-face securities under the PID-SEC-8 reference scheme: cash coupon on
+    the prior-EOP face plus AA = (prior face − prior AC)/(4 × maturity years),
+    AC(q) = AC(q−1) + AA(q)."""
     face = position.current_face
     maturity = position.maturity_quarters
     last_quarter = min(maturity, PROJECTION_QUARTERS[-1]) if maturity is not None else PROJECTION_QUARTERS[-1]
 
-    use_effective_interest = (
-        position.rate_type in (RATE_FIXED, RATE_ZERO_COUPON)
-        and position.book_yield is not None
-        and not position.ac_proxied
-    )
-    if position.rate_type == RATE_FLOATING and not position.ac_proxied:
-        warnings.append(f"{position.security_id}: floater accretion uses the straight-line form [INTERIM — reference-check]")
+    denominator = 4.0 * position.maturity_years if position.maturity_years is not None else None
+    if denominator is None and not position.ac_proxied and position.current_face != position.amortized_cost:
+        warnings.append(f"{position.security_id}: no maturity for the PID-SEC-8 accretion denominator — AA held at 0 (surfaced)")
 
     coupon_cash: dict[int, float] = {}
     accretion: dict[int, float] = {}
     ac = position.amortized_cost
-    sl_amount: float | None = None
     for quarter in range(1, last_quarter + 1):
-        cash = quarterly(face, coupon[quarter])
-        coupon_cash[quarter] = cash
-        if position.ac_proxied:
+        coupon_cash[quarter] = quarterly(face, coupon[quarter])
+        if position.ac_proxied or denominator is None:
             accretion[quarter] = 0.0
-        elif use_effective_interest:
-            _, accretion[quarter], ac = effective_interest_step(ac, position.book_yield, cash)
         else:
-            if sl_amount is None:
-                sl_amount = straight_line_amount(face, position.amortized_cost, _straight_line_denominator(position))
-                if position.rate_type in (RATE_FIXED, RATE_ZERO_COUPON):
-                    warnings.append(f"{position.security_id}: effective-interest inputs missing — straight-line fallback (Fed-stated)")
-            accretion[quarter] = sl_amount
+            accretion[quarter], ac = reference_accretion_step(face, ac, face, denominator)
     matured = {maturity: face} if maturity is not None and maturity <= PROJECTION_QUARTERS[-1] else {}
     return PerSecurityFlows(position.security_id, coupon_cash, accretion, matured, alive_through=last_quarter)
 

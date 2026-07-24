@@ -130,6 +130,7 @@ def test_loader_end_to_end(tmp_path, make_income_scenario):
     assert ust.current_face == pytest.approx(1000.0)              # dollars → millions
     assert ust.coupon_rate == pytest.approx(0.04)                 # percent → decimal
     assert ust.maturity_quarters == 4                             # 365 days → 4 quarters
+    assert ust.maturity_years == pytest.approx(1.0)               # PID-SEC-8: day difference / 365
 
     agency = next(p for p in inputs.mbs if p.security_id == "AGY00001A")
     assert agency.face_path is not None and agency.face_path[0] == pytest.approx(1000.0)
@@ -174,7 +175,7 @@ def test_prepayment_blank_cells_read_as_zero(tmp_path, make_income_scenario):
     assert agency.face_path[1] == pytest.approx(400.0)
     assert agency.face_path[2] == pytest.approx(300.0)
     assert all(agency.face_path[q] == 0.0 for q in range(3, 10))                      # blanks → 0
-    assert any("read as 0" in w and "AGY00009X" in w for w in inputs.warnings)
+    assert not any("read as 0" in w for w in inputs.warnings)                         # silent per user 2026-07-24
     result = project_mbs(inputs.mbs, make_income_scenario(), firm_id=inputs.firm_id, floor_mode="security_floor")
     assert result.quarters[2].diagnostics.coupon_accrual == pytest.approx(0.05 * 300.0 / 4)   # PQ3 on PQ2 EOP face
     assert result.quarters[3].diagnostics.coupon_accrual == 0.0                       # PQ3 EOP face is 0 → PQ4 accrues nothing
@@ -241,9 +242,10 @@ def test_multi_lot_cusip_apportions_prepayment_and_step_variable_vocab(tmp_path,
     assert len(lots) == 2 and lots[0].security_id != lots[1].security_id       # fallback ids unique
     big = next(p for p in lots if p.current_face == pytest.approx(600.0))
     small = next(p for p in lots if p.current_face == pytest.approx(400.0))
-    assert big.face_path[1] == pytest.approx(540.0)                            # 900 × 60%
-    assert small.face_path[1] == pytest.approx(360.0)                          # 900 × 40%
-    assert any("apportioned" in w for w in inputs.warnings)
+    assert big.face_path[0] == pytest.approx(600.0)                            # factor form: row face × path/path0
+    assert big.face_path[1] == pytest.approx(540.0)                            # 600 × 900/1000
+    assert small.face_path[1] == pytest.approx(360.0)                          # 400 × 900/1000
+    assert any("survival factor" in w for w in inputs.warnings)
 
     variable = next(p for p in inputs.mbs if p.security_id.startswith("VAR"))
     assert variable.rate_type == "floating"                                    # VARIABLE mapped

@@ -38,8 +38,8 @@ def _flows(position: SecurityPosition, warnings: list[str]) -> PerSecurityFlows:
             f"{position.security_id}: coupon rate missing — no fallback is stated for U.S. "
             f"Treasuries (OQ-027); surfaced, never defaulted"
         )
-    if position.maturity_quarters is None:
-        raise ValidationFailure(f"{position.security_id}: maturity_quarters required for the A40 straight-line accretion")
+    if position.maturity_quarters is None or position.maturity_years is None:
+        raise ValidationFailure(f"{position.security_id}: maturity required for the A40 straight-line accretion")
 
     maturity = position.maturity_quarters
     last_quarter = min(maturity, PROJECTION_QUARTERS[-1])
@@ -47,7 +47,9 @@ def _flows(position: SecurityPosition, warnings: list[str]) -> PerSecurityFlows:
         accretion_amount = 0.0
         warnings.append(f"{position.security_id}: PID-SEC-3 proxied amortized cost — accretion held at 0")
     else:
-        accretion_amount = straight_line_amount(position.current_face, position.amortized_cost, maturity)
+        # PID-SEC-8 / A40: PQ0 numerator AND denominator — a constant quarterly amount.
+        accretion_amount = straight_line_amount(position.current_face, position.amortized_cost,
+                                                4.0 * position.maturity_years)
 
     coupon_cash = {q: quarterly(position.current_face, position.coupon_rate) for q in range(1, last_quarter + 1)}
     accretion = {q: accretion_amount for q in range(1, last_quarter + 1)}
