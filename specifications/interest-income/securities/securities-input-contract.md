@@ -63,7 +63,7 @@ fields per security:
 | `rate_type` | FIXED \| FLOATING \| ZERO COUPON (zero-coupon accrues at book yield [FACT, PPNR p. 196]) |
 | `coupon_floor` | may be blank (incl. literal "(blank)" — treated as missing); feeds PID-SEC-2 |
 | `wal_years` | decimal years; A41 uses 4 × WAL(t=0) [FACT]; **negative/zero WAL is highlighted as a warning, treatment deferred (user-parked 2026-07-24)** |
-| `floater_indicator` | Y/N (redundant with `rate_type`; cross-checked) |
+| `floater_indicator` | Y/N — optional per-tab cross-check column (`floater_indicator_column`); redundant with `rate_type`, which is what makes disagreement informative: mismatches are logged as data-quality monitors (rate type governs; never blocked) |
 | `currency` | informational |
 
 ## 4. Prepayment pivot sheet (PID-MBS-1)

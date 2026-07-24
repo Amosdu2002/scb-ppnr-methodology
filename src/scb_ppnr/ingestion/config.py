@@ -71,6 +71,7 @@ class SecuritiesEnrichmentSheet:
     rate_type_column: str
     wal_column: str
     floor_column: str | None = None
+    floater_indicator_column: str | None = None   # optional Y/N cross-check vs rate_type (monitor)
     header_row: int = 1
 
 
@@ -218,6 +219,7 @@ def load_config(path: Path | str) -> IngestionConfig:
             for index, entry in enumerate(sec.get("enrichment", [])):
                 context = f"[[firm_data.securities.enrichment]] #{index + 1}"
                 floor_column = entry.get("floor_column")
+                floater_column = entry.get("floater_indicator_column")
                 enrichment.append(
                     SecuritiesEnrichmentSheet(
                         sheet=str(_require(entry, "sheet", context)),
@@ -227,6 +229,7 @@ def load_config(path: Path | str) -> IngestionConfig:
                         rate_type_column=str(_require(entry, "rate_type_column", context)),
                         wal_column=str(_require(entry, "wal_column", context)),
                         floor_column=str(floor_column) if floor_column is not None else None,
+                        floater_indicator_column=str(floater_column) if floater_column is not None else None,
                         header_row=int(entry.get("header_row", 1)),
                     )
                 )

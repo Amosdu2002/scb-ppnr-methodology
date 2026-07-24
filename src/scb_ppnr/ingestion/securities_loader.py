@@ -151,6 +151,8 @@ def _enrichment_map(workbook, spec: SecuritiesEnrichmentSheet, path: Path) -> di
               "rate_type": spec.rate_type_column, "wal": spec.wal_column}
     if spec.floor_column is not None:
         needed["floor"] = spec.floor_column
+    if spec.floater_indicator_column is not None:
+        needed["floater_indicator"] = spec.floater_indicator_column
     columns: dict[str, int] = {}
     for role, name in needed.items():
         if name not in header:
@@ -260,6 +262,23 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         if rate_type_raw not in _RATE_TYPE_MAP:
             raise ValidationFailure(f"{context}: unknown rate type {fields.get('rate_type')!r} (known: {sorted(_RATE_TYPE_MAP)})")
         rate_type = _RATE_TYPE_MAP[rate_type_raw]
+
+        # Optional isFloaterIndicator cross-check (consistency monitor — logs, never blocks):
+        # the flag is redundant with rate_type, which is what disagreement makes it useful for.
+        if not _blank(fields.get("floater_indicator")):
+            flag_raw = str(fields["floater_indicator"]).strip().upper()
+            if flag_raw in ("Y", "YES", "TRUE", "1"):
+                flag = True
+            elif flag_raw in ("N", "NO", "FALSE", "0"):
+                flag = False
+            else:
+                flag = None
+                warnings.append(f"{security_id}: floater-indicator value {fields['floater_indicator']!r} not recognized (monitor only)")
+            if flag is not None and flag != (rate_type == RATE_FLOATING):
+                warnings.append(
+                    f"{security_id}: floater-indicator {flag_raw!r} disagrees with rate type "
+                    f"{rate_type_raw!r} — data-quality monitor, rate type governs (surfaced, not blocked)"
+                )
 
         coupon = None
         if not _blank(fields.get("coupon")):

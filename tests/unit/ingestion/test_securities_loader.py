@@ -49,7 +49,7 @@ def build_workbook(path: Path, positions: list[list], enrichment: list[list], pr
     for row in positions:
         ws.append(row)
     ito = wb.create_sheet("ITO")
-    ito.append(["CUSIP", "Maturity Date", "Coupon Rate", "CPN_TYP", "CPN_Floor", "WAL"])
+    ito.append(["CUSIP", "Maturity Date", "Coupon Rate", "CPN_TYP", "CPN_Floor", "WAL", "Formula"])
     for row in enrichment:
         ito.append(row)
     if prepay is not None:
@@ -80,7 +80,8 @@ def make_config(tmp_path: Path, *, prepayment: bool = True) -> IngestionConfig:
                     SecuritiesEnrichmentSheet(
                         sheet="ITO", key_column="CUSIP", maturity_column="Maturity Date",
                         coupon_column="Coupon Rate", rate_type_column="CPN_TYP",
-                        wal_column="WAL", floor_column="CPN_Floor", header_row=1,
+                        wal_column="WAL", floor_column="CPN_Floor",
+                        floater_indicator_column="Formula", header_row=1,
                     ),
                 ),
             ),
@@ -101,13 +102,13 @@ def standard_workbook(tmp_path: Path) -> None:
         [REPORT, "WAL00001A", "Municipal Bond", 90e6, 100e6, 100e6, "AFS", 5.0, None],
     ]
     enrichment = [
-        ["UST00001A", serial(2025, 12, 31), 4.0, "FIXED", None, None],
-        ["AGY00001A", None, 5.0, "FIXED", None, 2.5],
-        ["AGY00002B", None, 5.0, "FIXED", None, 3.0],
-        ["CMB00001A", serial(2035, 12, 31), 4.0, "FIXED", None, None],
-        ["OTH00001A", serial(2035, 6, 30), 5.0, "FIXED", None, None],
-        ["UNS00001A", None, 5.0, "FIXED", None, None],
-        ["WAL00001A", serial(2030, 12, 31), 3.0, "FIXED", None, -0.1],
+        ["UST00001A", serial(2025, 12, 31), 4.0, "FIXED", None, None, "N"],
+        ["AGY00001A", None, 5.0, "FIXED", None, 2.5, "N"],
+        ["AGY00002B", None, 5.0, "FIXED", None, 3.0, "N"],
+        ["CMB00001A", serial(2035, 12, 31), 4.0, "FIXED", None, None, "N"],
+        ["OTH00001A", serial(2035, 6, 30), 5.0, "FIXED", None, None, "N"],
+        ["UNS00001A", None, 5.0, "FIXED", None, None, "Y"],       # deliberate flag mismatch
+        ["WAL00001A", serial(2030, 12, 31), 3.0, "FIXED", None, -0.1, "N"],
     ]
     prepay = [["AGY00001A", 1000e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 7200e6]]
     build_workbook(tmp_path / "securities.xlsx", positions, enrichment, prepay)
@@ -138,6 +139,8 @@ def test_loader_end_to_end(tmp_path, make_income_scenario):
     assert any("PID-SEC-3" in w for w in inputs.warnings)
     assert any(w.startswith("HIGHLIGHT WAL00001A") for w in inputs.warnings)          # parked skip
     assert any("out-of-scope" in w for w in inputs.warnings)
+    mismatches = [w for w in inputs.warnings if "floater-indicator" in w]
+    assert len(mismatches) == 1 and "UNS00001A" in mismatches[0]                      # monitor, not fatal
 
     scenario = make_income_scenario()
     ust_result = project_ust(inputs.ust, scenario, firm_id=inputs.firm_id)

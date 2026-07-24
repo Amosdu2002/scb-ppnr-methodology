@@ -106,6 +106,8 @@ maturity_column = "<MATURITY_DATE_COLUMN>"      # Excel serial dates
 coupon_column = "<COUPON_RATE_COLUMN>"
 rate_type_column = "<RATE_TYPE_COLUMN>"         # FIXED | FLOATING | ZERO COUPON
 floor_column = "<COUPON_FLOOR_COLUMN>"          # delete this line if the tab has none
+floater_indicator_column = "<IS_FLOATER_COLUMN>"    # optional Y/N cross-check vs rate type
+                                                    # (mismatches logged, never blocked); delete if absent
 wal_column = "<WAL_COLUMN>"                     # years (decimal)
 
 # Scale rules (D-006) — the loaders refuse undeclared units, nothing is guessed:
