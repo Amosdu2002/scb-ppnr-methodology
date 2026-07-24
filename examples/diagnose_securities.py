@@ -33,6 +33,7 @@ from scb_ppnr.ingestion.securities_loader import (
     _POSITIONS_MDRM,
     _RATE_TYPE_MAP,
     _REQUIRED_MDRM,
+    _STEP_LABELS,
     _blank,
     _enrichment_map,
     _load_workbook,
@@ -41,7 +42,7 @@ from scb_ppnr.ingestion.securities_loader import (
     _prepayment_map,
     _sheet,
 )
-from scb_ppnr.interest_income import OUT_OF_SCOPE, ValidationFailure, assign_model
+from scb_ppnr.interest_income import OUT_OF_SCOPE, RATE_FLOATING, ValidationFailure, assign_model
 from scb_ppnr.interest_income.securities_schemas import CATEGORY_MODEL_MAP
 
 
@@ -150,13 +151,14 @@ def main() -> None:
             continue
 
         rate_raw = "" if _blank(fields.get("rate_type")) else str(fields["rate_type"]).strip().upper()
-        if rate_raw not in _RATE_TYPE_MAP:
+        if rate_raw in _STEP_LABELS:
+            codes["STEP-CPN-INTERIM"] += 1                 # handled by the loader (fixed at launch coupon)
+        elif rate_raw not in _RATE_TYPE_MAP:
             codes["RATE-TYPE-UNKNOWN"] += 1
             unknown_rate_types[rate_raw or "(blank)"] += 1
             details.append(f"  #{index} {_mask(sid)} [{category}]: rate type cell is {_state(fields.get('rate_type'))}")
             continue
 
-        from scb_ppnr.interest_income import RATE_FLOATING
         if _RATE_TYPE_MAP.get(rate_raw) == RATE_FLOATING and _state(fields.get("coupon")) == "EMPTY":
             codes["FLOATER-NO-COUPON"] += 1
             details.append(f"  #{index} {_mask(sid)} [{category}]: FLOATING with an empty coupon cell — margin imputation impossible")

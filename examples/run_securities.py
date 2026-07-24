@@ -35,17 +35,47 @@ from scb_ppnr.interest_income import (
 from scb_ppnr.interest_income.schemas import PROJECTION_QUARTERS
 
 
-def _print_model(result: IncomeModelResult) -> None:
-    print(f"\n{result.model_id}  [{result.validation_status}]")
-    print("  quarter        " + "  ".join(f"   PQ{q}" for q in PROJECTION_QUARTERS))
-    print("  income         " + "  ".join(f"{result.income_path()[q]:7.2f}" for q in PROJECTION_QUARTERS))
+_WARNING_BUCKETS = (
+    "floored at", "negative imputed margin", "straight-line form", "step-coupon",
+    "PID-SEC-3", "PID-SEC-7", "multi-family", "no enrichment match",
+    "skipped (on_security_error", "apportioned", "read as 0", "PQ1 face is 0",
+    "floater-indicator", "skipped on error",
+)
+
+
+def _render_model(result: IncomeModelResult) -> str:
+    lines = [f"\n{result.model_id}  [{result.validation_status}]"]
+    lines.append("  quarter        " + "  ".join(f"   PQ{q}" for q in PROJECTION_QUARTERS))
+    lines.append("  income         " + "  ".join(f"{result.income_path()[q]:7.2f}" for q in PROJECTION_QUARTERS))
     diag = [result.quarters[q - 1].diagnostics for q in PROJECTION_QUARTERS]
-    print("  coupon leg     " + "  ".join(f"{d.coupon_accrual:7.2f}" for d in diag))
-    print("  accretion leg  " + "  ".join(f"{d.accretion:7.2f}" for d in diag))
-    print("  reinvested     " + "  ".join(f"{d.reinvested_income:7.2f}" for d in diag))
-    print(f"  9-quarter cumulative income: {result.cumulative_income:.2f}")
-    for warning in result.warnings:
-        print(f"  warning: {warning}")
+    lines.append("  coupon leg     " + "  ".join(f"{d.coupon_accrual:7.2f}" for d in diag))
+    lines.append("  accretion leg  " + "  ".join(f"{d.accretion:7.2f}" for d in diag))
+    lines.append("  reinvested     " + "  ".join(f"{d.reinvested_income:7.2f}" for d in diag))
+    lines.append(f"  9-quarter cumulative income: {result.cumulative_income:.2f}")
+    return "\n".join(lines)
+
+
+def _warning_summary(all_warnings: list[str], show: int) -> str:
+    from collections import Counter, defaultdict
+    buckets: Counter[str] = Counter()
+    examples: dict[str, list[str]] = defaultdict(list)
+    for warning in all_warnings:
+        key = next((b for b in _WARNING_BUCKETS if b in warning), "other")
+        buckets[key] += 1
+        if len(examples[key]) < show:
+            examples[key].append(warning)
+    lines = [f"\nWARNING SUMMARY ({len(all_warnings)} total — use --warnings full or --report FILE for every line):"]
+    for key, count in buckets.most_common():
+        lines.append(f"  [{count:>6}] {key}")
+        for example in examples[key][: 2 if count > show else show]:
+            lines.append(f"           e.g. {example}")
+    highlights = [w for w in all_warnings if w.startswith("HIGHLIGHT")]
+    if highlights:
+        lines.append(f"\nHIGHLIGHTS ({len(highlights)}):")
+        lines.extend(f"  {w}" for w in highlights[:30])
+        if len(highlights) > 30:
+            lines.append(f"  … {len(highlights) - 30} more (see --report FILE)")
+    return "\n".join(lines)
 
 
 def _synthetic_demo() -> tuple[IngestionConfig, IncomeScenarioPaths]:
@@ -108,6 +138,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default=None, help="company-local config with [firm_data.securities]")
     parser.add_argument("--scenario", default=None, help="scenario id (company runs)")
+    parser.add_argument("--warnings", choices=("summary", "full"), default="summary",
+                        help="terminal warning verbosity (tables always print first)")
+    parser.add_argument("--report", default=None,
+                        help="write the FULL report (tables + every warning) to this file")
     args = parser.parse_args()
 
     if args.config is None:
@@ -124,15 +158,35 @@ def main() -> None:
     floor_mode = config.firm_data.securities.floor_mode
     on_error = config.firm_data.securities.on_security_error
 
-    print(f"firm: {inputs.firm_id}   scenario: {scenario.scenario_id}   "
-          f"floor_mode: {floor_mode}   on_security_error: {on_error}")
-    print("AMOUNTS: USD MILLIONS per quarter — canonical unit, D-006; pre-hedge")
-    for warning in inputs.warnings:
-        print(f"loader warning: {warning}")
+    header = (f"firm: {inputs.firm_id}   scenario: {scenario.scenario_id}   "
+              f"floor_mode: {floor_mode}   on_security_error: {on_error}\n"
+              f"AMOUNTS: USD MILLIONS per quarter — canonical unit, D-006; pre-hedge")
 
-    _print_model(project_ust(inputs.ust, scenario, firm_id=inputs.firm_id, on_error=on_error))
-    _print_model(project_mbs(inputs.mbs, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error))
-    _print_model(project_other_sec(inputs.other_sec, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error))
+    results = [
+        project_ust(inputs.ust, scenario, firm_id=inputs.firm_id, on_error=on_error),
+        project_mbs(inputs.mbs, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error),
+        project_other_sec(inputs.other_sec, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error),
+    ]
+    tables = "\n".join(_render_model(result) for result in results)
+    all_warnings = [f"loader: {w}" for w in inputs.warnings]
+    for result in results:
+        all_warnings.extend(f"{result.model_id}: {w}" for w in result.warnings)
+
+    # Income tables FIRST (so they survive terminal scrollback), warnings after.
+    print(header)
+    print(tables)
+    if args.warnings == "full":
+        print(f"\nALL WARNINGS ({len(all_warnings)}):")
+        for warning in all_warnings:
+            print(f"  {warning}")
+    else:
+        print(_warning_summary(all_warnings, show=5))
+
+    if args.report:
+        with open(args.report, "w", encoding="utf-8") as handle:
+            handle.write(header + "\n" + tables + f"\n\nALL WARNINGS ({len(all_warnings)}):\n")
+            handle.writelines(f"  {w}\n" for w in all_warnings)
+        print(f"\nfull report written to {args.report}")
 
 
 if __name__ == "__main__":
