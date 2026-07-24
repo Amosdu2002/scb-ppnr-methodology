@@ -211,8 +211,42 @@ def test_unmapped_category_is_a_hard_error(tmp_path):
         load_securities_inputs(make_config(tmp_path, prepayment=False))
 
 
-def test_unmatched_enrichment_is_a_hard_error(tmp_path):
+def test_unmatched_enrichment_skips_with_highlight(tmp_path):
     positions = [[REPORT, "NOE00001A", "Corporate Bond", 100e6, 100e6, 100e6, "AFS", 5.0, None]]
     build_workbook(tmp_path / "securities.xlsx", positions, [], None)
-    with pytest.raises(ValidationFailure, match="no enrichment match"):
-        load_securities_inputs(make_config(tmp_path, prepayment=False))
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False))
+    assert inputs.other_sec == ()
+    assert any(w.startswith("HIGHLIGHT NOE00001A") and "no enrichment match" in w for w in inputs.warnings)
+    assert any("skipped for missing enrichment" in w for w in inputs.warnings)
+
+
+def test_multi_lot_cusip_apportions_prepayment_and_step_variable_vocab(tmp_path, make_income_scenario):
+    # Two lots of one Agency CUSIP (600/400) + one VARIABLE and one STEP CPN security.
+    positions = [
+        [REPORT, "AGY00005X", "Agency MBS", 570e6, 600e6, 600e6, "AFS", 5.0, None],
+        [REPORT, "AGY00005X", "Agency MBS", 380e6, 400e6, 400e6, "HTM", 5.0, None],
+        [REPORT, "VAR00001X", "Agency MBS", 200e6, 200e6, 200e6, "AFS", 5.0, None],
+        [REPORT, "STP00001X", "Agency MBS", 100e6, 100e6, 100e6, "AFS", 5.0, None],
+    ]
+    enrichment = [
+        ["AGY00005X", None, 5.0, "FIXED", None, 2.5, "N"],
+        ["VAR00001X", None, 4.0, "VARIABLE", None, 2.0, "Y"],
+        ["STP00001X", None, 3.0, "STEP CPN", None, 2.0, "N"],
+    ]
+    prepay = [["AGY00005X", 1000e6, 900e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 0]]
+    build_workbook(tmp_path / "securities.xlsx", positions, enrichment, prepay)
+    inputs = load_securities_inputs(make_config(tmp_path))
+
+    lots = [p for p in inputs.mbs if p.security_id.startswith("AGY00005X")]
+    assert len(lots) == 2 and lots[0].security_id != lots[1].security_id       # fallback ids unique
+    big = next(p for p in lots if p.current_face == pytest.approx(600.0))
+    small = next(p for p in lots if p.current_face == pytest.approx(400.0))
+    assert big.face_path[1] == pytest.approx(540.0)                            # 900 × 60%
+    assert small.face_path[1] == pytest.approx(360.0)                          # 900 × 40%
+    assert any("apportioned" in w for w in inputs.warnings)
+
+    variable = next(p for p in inputs.mbs if p.security_id.startswith("VAR"))
+    assert variable.rate_type == "floating"                                    # VARIABLE mapped
+    step = next(p for p in inputs.mbs if p.security_id.startswith("STP"))
+    assert step.rate_type == "fixed"                                           # STEP CPN interim-fixed
+    assert any("step-coupon" in w and "INTERIM" in w for w in inputs.warnings)

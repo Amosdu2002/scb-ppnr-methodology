@@ -60,7 +60,7 @@ fields per security:
 |---|---|
 | `maturity_date` | **Excel serial number** (days since 1899-12-30) — normalized at ingestion. **PID-SEC-7 fallback (Agency MBS only, user-confirmed 2026-07-24):** when the maturity date is missing, WAL is used as the maturity in years — maturity_quarters = ceil(4 × WAL), min 1, logged per security |
 | `coupon_rate` | **percent scale** (e.g. 7.25) — normalized to annualized decimal; user-stated **never blank** |
-| `rate_type` | FIXED \| FLOATING \| ZERO COUPON (zero-coupon accrues at book yield [FACT, PPNR p. 196]) |
+| `rate_type` | FIXED \| FLOATING \| VARIABLE (≙ floating; company vocabulary, 2026-07-24) \| ZERO COUPON (accrues at book yield [FACT, PPNR p. 196]) \| STEP CPN / STEP labels — treated as **fixed at the launch coupon**, logged per security [INTERIM — the Fed model has no step machinery; pending user confirmation] |
 | `coupon_floor` | may be blank (incl. literal "(blank)" — treated as missing); feeds PID-SEC-2 |
 | `wal_years` | decimal years; A41 uses 4 × WAL(t=0) [FACT]; **negative/zero WAL is highlighted as a warning, treatment deferred (user-parked 2026-07-24)** |
 | `floater_indicator` | Y/N — optional per-tab cross-check column (`floater_indicator_column`); redundant with `rate_type`, which is what makes disagreement informative: mismatches are logged as data-quality monitors (rate type governs; never blocked) |
@@ -87,6 +87,13 @@ monotone non-increasing. Rules [PID-MBS-1 / PID-SEC-5]:
   2026-07-24), with a logged warning per row. Consequence: if the skipped CUSIP is still an
   in-scope Agency MBS position, it falls back to the flat-face (no-prepayment) treatment above.
 - Non-Agency securities never appear here (no prepayments modeled [FACT, PPNR pp. 197, 202]).
+- **Multi-lot CUSIPs (2026-07-24):** the positions sheet carries multiple rows (lots) per
+  CUSIP; each row becomes its own position keyed by `unique_id` (CQSCS383; fallback
+  `CUSIP#rN` when absent, plain CUSIP for single rows). A CUSIP's prepayment face path is
+  **apportioned across its lots by launch-face share** [INTERIM — pending user confirmation],
+  with a logged summary count.
+- **Missing enrichment (2026-07-24):** a position with no enrichment match is **skipped with a
+  HIGHLIGHT warning** (previously a hard stop) — pending user confirmation of skip vs data fix.
 
 ## 5. Category → model assignment (PID-SEC-5)
 

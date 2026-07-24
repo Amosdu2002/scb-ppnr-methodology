@@ -48,6 +48,8 @@ _POSITIONS_MDRM = {
     "CQSCP090": "original_face_value",
     "CQSCP092": "accounting_intent",
     "CQSCP094": "book_yield",
+    "CQSCS383": "unique_id",             # per-row transaction id — positions sheets carry
+                                         # multiple rows (lots) per CUSIP
 }
 # The price column is handled separately: configurable MDRM ([firm_data.securities].price_mdrm,
 # default CQSCJH21) with a technical-name fallback ("Price") — see _positions_rows.
@@ -57,10 +59,14 @@ _RATE_TYPE_MAP = {
     "FIXED": RATE_FIXED,
     "FLOATING": RATE_FLOATING,
     "FLOAT": RATE_FLOATING,
+    "VARIABLE": RATE_FLOATING,           # company vocabulary (2026-07-24 diagnostics): ARM pools
     "ZERO COUPON": RATE_ZERO_COUPON,
     "ZERO_COUPON": RATE_ZERO_COUPON,
     "ZERO-COUPON": RATE_ZERO_COUPON,
 }
+# Step-coupon labels: the Fed model has no step machinery [FACT absence]. INTERIM
+# treatment (pending user confirmation): fixed at the launch coupon, logged per security.
+_STEP_LABELS = {"STEP CPN", "STEP", "STEP COUPON", "STEP-UP"}
 
 _MISSING_STRINGS = {"", "(BLANK)", "N/A", "NA", "-"}
 
@@ -285,9 +291,36 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
     unmatched: list[str] = []
     grouped: dict[str, list[SecurityPosition]] = {MODEL_UST: [], MODEL_MBS: [], MODEL_OTHER_SEC: []}
 
+    # Multi-row CUSIPs (lots): pre-total launch faces per Agency MBS CUSIP so the
+    # CUSIP-level prepayment path can be apportioned by launch-face share
+    # [INTERIM — pending user confirmation].
+    agency_face_totals: dict[str, float] = {}
+    total_rows_per_cusip: dict[str, int] = {}
     for record in records:
-        security_id = str(record["identifier_value"]).strip()
-        context = f"{path} security {security_id}"
+        cusip = str(record["identifier_value"]).strip()
+        total_rows_per_cusip[cusip] = total_rows_per_cusip.get(cusip, 0) + 1
+        category = "" if _blank(record.get("security_description_1")) else str(record["security_description_1"]).strip()
+        if category == "Agency MBS" and not _blank(record.get("current_face_value")):
+            try:
+                raw_face = to_float(record["current_face_value"], context="agency face pre-total")
+            except ValidationFailure:
+                continue
+            agency_face_totals[cusip] = agency_face_totals.get(cusip, 0.0) + raw_face
+    row_counter_per_cusip: dict[str, int] = {}
+    used_prepayment: set[str] = set()
+    apportioned_cusips: set[str] = set()
+
+    for record in records:
+        cusip = str(record["identifier_value"]).strip()
+        row_counter_per_cusip[cusip] = row_counter_per_cusip.get(cusip, 0) + 1
+        unique = "" if _blank(record.get("unique_id")) else str(record["unique_id"]).strip()
+        if unique:
+            security_id = unique
+        elif total_rows_per_cusip.get(cusip, 1) == 1:
+            security_id = cusip                              # single lot — keep the plain CUSIP
+        else:
+            security_id = f"{cusip}#r{row_counter_per_cusip[cusip]}"
+        context = f"{path} security {cusip} ({security_id})"
         intent = "" if _blank(record.get("accounting_intent")) else str(record["accounting_intent"]).strip()
         category = str(record["security_description_1"]).strip() if not _blank(record.get("security_description_1")) else ""
         if not category:
@@ -297,15 +330,24 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
             skipped_out_of_scope += 1
             continue
 
-        fields = enrichment.get(security_id)
+        fields = enrichment.get(cusip)
         if fields is None:
-            unmatched.append(security_id)
+            # User-visible skip (2026-07-24, pending confirmation): previously a hard stop.
+            unmatched.append(cusip)
+            warnings.append(f"HIGHLIGHT {cusip}: no enrichment match — position skipped (surfaced; confirm skip vs data fix)")
             continue
 
         rate_type_raw = "" if _blank(fields.get("rate_type")) else str(fields["rate_type"]).strip().upper()
-        if rate_type_raw not in _RATE_TYPE_MAP:
-            raise ValidationFailure(f"{context}: unknown rate type {fields.get('rate_type')!r} (known: {sorted(_RATE_TYPE_MAP)})")
-        rate_type = _RATE_TYPE_MAP[rate_type_raw]
+        if rate_type_raw in _STEP_LABELS:
+            rate_type = RATE_FIXED
+            warnings.append(
+                f"{security_id}: step-coupon rate type {rate_type_raw!r} treated as FIXED at the "
+                f"launch coupon [INTERIM — the Fed model has no step machinery; confirm treatment]"
+            )
+        elif rate_type_raw in _RATE_TYPE_MAP:
+            rate_type = _RATE_TYPE_MAP[rate_type_raw]
+        else:
+            raise ValidationFailure(f"{context}: unknown rate type {fields.get('rate_type')!r} (known: {sorted(_RATE_TYPE_MAP)} + step labels {sorted(_STEP_LABELS)})")
 
         # Optional isFloaterIndicator cross-check (consistency monitor — logs, never blocks):
         # the flag is redundant with rate_type, which is what disagreement makes it useful for.
@@ -386,8 +428,18 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
             book_yield = None
 
         face_path = None
-        if agency_prepay and security_id in prepayment:
-            face_path = prepayment.pop(security_id)
+        if agency_prepay and cusip in prepayment:
+            used_prepayment.add(cusip)
+            cusip_path = prepayment[cusip]
+            total_raw = agency_face_totals.get(cusip, 0.0)
+            if total_rows_per_cusip.get(cusip, 1) == 1 or total_raw <= 0.0:
+                face_path = dict(cusip_path)
+            else:
+                # Multi-lot CUSIP: apportion the CUSIP-level face path by this row's
+                # launch-face share [INTERIM — pending user confirmation].
+                share = to_float(record["current_face_value"], context=f"{context} share") / total_raw
+                face_path = {q: value * share for q, value in cusip_path.items()}
+                apportioned_cusips.add(cusip)
         elif agency_prepay:
             warnings.append(f"{security_id}: Agency MBS absent from the prepayment sheet — no prepayment, face held flat (multi-family, PID-SEC-5)")
 
@@ -411,11 +463,16 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         )
 
     if unmatched:
-        raise ValidationFailure(
-            f"{path}: {len(unmatched)} position(s) have no enrichment match (maturity/coupon/rate-type "
-            f"unavailable) — surfaced for clarification, never defaulted: {sorted(unmatched)[:20]}"
+        warnings.append(
+            f"{len(unmatched)} position(s) skipped for missing enrichment (maturity/coupon/rate-type "
+            f"unavailable) — HIGHLIGHTED above; confirm skip vs data fix"
         )
-    for leftover in sorted(prepayment):
+    if apportioned_cusips:
+        warnings.append(
+            f"{len(apportioned_cusips)} multi-lot Agency CUSIP(s): prepayment face paths apportioned "
+            f"across lots by launch-face share [INTERIM — pending user confirmation]"
+        )
+    for leftover in sorted(set(prepayment) - used_prepayment):
         warnings.append(f"prepayment sheet row {leftover} matches no in-scope Agency MBS position (ignored, logged)")
     if skipped_out_of_scope:
         warnings.append(f"{skipped_out_of_scope} equity-intent/out-of-scope position(s) excluded (PID-SEC-5)")
