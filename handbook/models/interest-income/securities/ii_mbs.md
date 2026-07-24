@@ -33,7 +33,7 @@ Maturities incorporated; constant balance via the shared reinvestment assumption
 | Book yield (`book_yield`) | FR Y-14Q Schedule B.1 | i | Annualized rate | t=0 (constant for the security's life) | [FACT] (PDF pp. 196–197; md sec-182) |
 | Amortized cost (`amortized_cost`) | FR Y-14Q Schedule B.1 | i, t | USD | A41 numerator is **t-dated** | [FACT] (PDF p. 196; md sec-182) |
 | Weighted Average Life at t=0 (`wal_launchpoint`) | Vendor data | i | Years [INT — A41's 4×WAL denominator converts years→quarters; unit not stated, flagged] | Launch point | [FACT] formula role (PDF p. 196); unit [INT] |
-| **Agency RMBS survival factor** (`agency_rmbs_survival_factor`) | Third-party vendor model output — company "prepayment" sheet: per-security remaining-balance factor, factor(PQ0) ≡ 1 | i, q (PQ0..PQ9) | Ratio (dimensionless) | Face(i,q) = factor(i,q) × Face(i,0) | [FACT] vendor role (PDF p. 196); semantics **[PID-MBS-1, user-confirmed 2026-07-23]** — resolves OQ-026 for project implementation |
+| **Agency RMBS projected face path** (`agency_rmbs_face_path`) | Third-party vendor output — company prepayment pivot sheet (Row Labels = CUSIP; month-offset columns 0,3,…,27 ≙ PQ0..PQ9) | i, q (PQ0..PQ9) | USD (already converted) | Face(i,PQ0) reconciles with the positions sheet's current face; equivalent survival factor = Face(i,q)/Face(i,PQ0) | [FACT] vendor role (PDF p. 196); semantics **[PID-MBS-1, user-confirmed 2026-07-23; refined 2026-07-24 to the dollar-face form]** — resolves OQ-026; contract §4 (`securities-input-contract.md`) |
 | Hedge legs | Proposed Schedule B.2/B.3 — not currently collected | d, t | — | Future data state | [FACT] (PDF p. 197); conventions §12 |
 
 ### 3.2 Scenario inputs
@@ -74,7 +74,7 @@ Where-list [FACT, verbatim]:
 ## 6. Calculation workflow
 
 1. **Categorize** each security: Agency residential MBS vs. all other MBS [FACT].
-2. **Agency RMBS income** [PID-MBS-1, user-confirmed 2026-07-23]: the vendor supplies a per-security **survival factor** path (§3.1); Face(i,q) = factor(i,q) × Face(i,0); income is then computed by the A41 terms on that factor-driven face — coupon accrual = coupon(q) × **prior-quarter EOP face** [PID-SEC-4], accretion per the printed straight-line/WAL form. The vendor model itself stays a black box behind the factor path (the Fed-side composition absence is preserved as [FACT] — OQ-026 resolution note).
+2. **Agency RMBS income** [PID-MBS-1, user-confirmed 2026-07-23; refined 2026-07-24]: the vendor supplies a per-security **projected current-face path** in USD (§3.1); income is computed by the A41 terms on that face path — coupon accrual = coupon(q) × **prior-quarter EOP face** [PID-SEC-4], accretion per the printed straight-line/WAL form. Agency MBS **absent from the prepayment sheet carry no prepayment** (face flat — multi-family, PID-SEC-5). The vendor model itself stays a black box behind the face path (the Fed-side composition absence is preserved as [FACT] — OQ-026 resolution note).
 3. **Other MBS coupon accrual**: beginning-of-period face × coupon/4; vendor coupon, book-yield fallback; zero-coupon at book yield; floating-rate coupon = imputed margin + 3M(q) (conventions §12).
 4. **Other MBS accretion**: effective-interest with constant coupon and book yield [FACT prose; formula unstated — implementation per the standard effective-interest schedule flagged INT]; straight-line fallback when coupon or book yield is missing [FACT].
 5. **Reinvestment income** on maturing/paying-down balances (non-Agency; Agency per OQ-026): as in `ii_ust` §6 step 4 (conventions §12).
@@ -105,7 +105,7 @@ None yet. Pending gate decisions and [CODE] items:
 | Item | Decision / working assumption | Status |
 |---|---|---|
 | Input granularity | **Security-level** positions contract; aggregation inside the model | **PID-SEC-1, user-confirmed 2026-07-23** (sheet layout pending the user's format upload) |
-| Agency RMBS vendor input | Per-security **survival factor** path (PQ0..PQ9, PQ0 ≡ 1); Face(i,q) = factor × Face(i,0); A41 terms computed on it | **PID-MBS-1, user-confirmed 2026-07-23** |
+| Agency RMBS vendor input | Per-security **projected current-face path** in USD (prepayment pivot; PQ0 reconciles vs positions sheet); A41 terms computed on it; absent-from-sheet ⇒ no prepayment | **PID-MBS-1, user-confirmed 2026-07-23; refined 2026-07-24** |
 | Floater negative margin | Floor projected coupon at the security's coupon floor if available; else-branch TO_BE_CONFIRMED | **PID-SEC-2, user-confirmed 2026-07-23** (company convention, never Fed) |
 | Unsettled transactions | AC proxy = purchase price/100 × notional when maturity/book yield/AC missing or zero near the settle date | **PID-SEC-3, user-confirmed 2026-07-23** (company convention) |
 | Coupon-accrual face | Prior-quarter EOP current face (operationalizes "beginning-of-the-period") | **PID-SEC-4, user-confirmed 2026-07-23** |

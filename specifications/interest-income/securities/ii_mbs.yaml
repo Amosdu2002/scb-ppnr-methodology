@@ -57,17 +57,22 @@ inputs:
       fed_item: "vendor data; t=0 Weighted Average Life in A41's 4xWAL denominator (FACT role)"
       dims: [security]
       units: years                      # INT — the printed 4x factor implies years; unit not stated
-    - name: agency_rmbs_survival_factor
+    - name: agency_rmbs_face_path
       fed_item: "vendor model 'used to calculate the income to better reflect the impacts of
         prepayments' for Agency residential MBS (FACT, PDF p. 196; fn 65 -> MRM pp. 18-20)"
-      project_mapping:                  # PID-MBS-1, user-confirmed 2026-07-23 — resolves OQ-026
-        treatment: "per-security remaining-balance (survival) factor from the company
-          'prepayment' sheet: factor(i,PQ0) = 1; Face(i,q) = factor(i,q) * Face(i,0); the A41
-          terms are computed on the factor-driven face (coupon accrual per PID-SEC-4). The Fed's
-          Monte Carlo vendor model is NOT reimplemented — it stays a black box behind this path"
+      project_mapping:                  # PID-MBS-1, confirmed 2026-07-23; refined 2026-07-24 — resolves OQ-026
+        treatment: "per-security PROJECTED CURRENT-FACE PATH in USD from the company prepayment
+          pivot sheet (Row Labels = CUSIP joining IDENTIFIER_VAL; month-offset columns
+          0,3,..,27 = PQ0..PQ9; Grand Total column ignored); monotone non-increasing; the A41
+          terms are computed on this face path (coupon accrual per PID-SEC-4). Equivalent
+          survival factor = Face(q)/Face(PQ0). Validation: Face(PQ0) reconciles with the
+          positions sheet's CURRENT_FACE_VALUE. Agency MBS absent from the sheet carry no
+          prepayment (face flat; multi-family — PID-SEC-5). The Fed's Monte Carlo vendor model
+          is NOT reimplemented — it stays a black box behind this path.
+          Contract: specifications/interest-income/securities/securities-input-contract.md"
         status: CONFIRMED (PID-MBS-1)
-      dims: [security, quarter]         # PQ0..PQ9, PQ0 = 1
-      units: ratio_dimensionless
+      dims: [security, quarter]         # PQ0..PQ9 via month offsets
+      units: USD_already_converted
     - name: hedge_legs
       fed_item: "proposed Schedule B.2/B.3 — future data state (FACT, PDF p. 197)"
       status: future_data_state
