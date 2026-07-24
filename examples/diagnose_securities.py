@@ -78,16 +78,27 @@ def main() -> None:
     relay: list[str] = []
     try:
         # ---- 1. Column map --------------------------------------------------
-        records, columns = _positions_rows(_sheet(workbook, sc.positions_sheet, path), path)
+        records, columns, header_notes = _positions_rows(_sheet(workbook, sc.positions_sheet, path), path, sc.price_mdrm)
         print(f"positions sheet {sc.positions_sheet!r}: {len(records)} data rows")
+        for note in header_notes:
+            print(f"header note: {note}")
         print("column map (field <- MDRM -> found?):")
-        for mdrm, field in _POSITIONS_MDRM.items():
+        checks = {**_POSITIONS_MDRM, sc.price_mdrm: "price"}
+        for mdrm, field in checks.items():
             found = field in columns
             marker = "" if found else "   <-- MISSING"
             print(f"  {field:24s} <- {mdrm:10s} {'found' if found else 'NOT FOUND'}{marker}")
             if not found:
                 required = " (REQUIRED)" if mdrm in _REQUIRED_MDRM else ""
                 relay.append(f"COLMAP-MISSING:{mdrm}{required}")
+        # MDRM codes are regulatory identifiers — safe to relay. This shows what the
+        # header row actually carries (e.g., which code the price column really has).
+        worksheet = _sheet(workbook, sc.positions_sheet, path)
+        for row in worksheet.iter_rows(values_only=True):
+            cells = [str(c).strip() for c in row if c is not None and str(c).strip()]
+            if "CQSCP084" in cells:
+                relay.append("HEADER-CODES: " + " | ".join(cells))
+                break
 
         # ---- 2. Enrichment + prepayment ------------------------------------
         enrichment: dict[str, dict[str, object]] = {}
@@ -113,10 +124,14 @@ def main() -> None:
     # ---- 3. Per-security classification ------------------------------------
     codes: Counter[str] = Counter()
     details: list[str] = []
+    unknown_rate_types: Counter[str] = Counter()      # distinct labels — safe to relay
+    identifier_rows: Counter[str] = Counter()
+    intent_counts: Counter[str] = Counter()
     for index, record in enumerate(records, start=1):
         sid = str(record.get("identifier_value", "")).strip()
+        identifier_rows[sid] += 1
+        intent_counts["" if _blank(record.get("accounting_intent")) else str(record["accounting_intent"]).strip().upper()] += 1
         category = "" if _blank(record.get("security_description_1")) else str(record["security_description_1"]).strip()
-        issue: list[str] = []
 
         try:
             model, agency = assign_model(category) if category else (None, False)
@@ -137,6 +152,7 @@ def main() -> None:
         rate_raw = "" if _blank(fields.get("rate_type")) else str(fields["rate_type"]).strip().upper()
         if rate_raw not in _RATE_TYPE_MAP:
             codes["RATE-TYPE-UNKNOWN"] += 1
+            unknown_rate_types[rate_raw or "(blank)"] += 1
             details.append(f"  #{index} {_mask(sid)} [{category}]: rate type cell is {_state(fields.get('rate_type'))}")
             continue
 
@@ -183,11 +199,17 @@ def main() -> None:
     for line in details[: args.detail]:
         print(line)
 
+    duplicates = {sid: n for sid, n in identifier_rows.items() if n > 1}
     print("\n================ SUMMARY TO RELAY (codes and counts only — safe to copy) ================")
     for line in relay:
         print(line)
     for code, count in sorted(codes.items()):
         print(f"{code}: {count}")
+    if unknown_rate_types:
+        print("UNKNOWN-RATE-TYPE-LABELS:", "; ".join(f"{label} x{n}" for label, n in unknown_rate_types.most_common(15)))
+    print(f"IDENTIFIERS: distinct={len(identifier_rows)} with-multiple-rows={len(duplicates)} "
+          f"max-rows-per-identifier={max(identifier_rows.values(), default=0)}")
+    print("INTENT-COUNTS:", "; ".join(f"{k or '(blank)'}={n}" for k, n in intent_counts.most_common()))
     print("known categories in the PID-SEC-5 map:", len(CATEGORY_MODEL_MAP))
     print("==========================================================================================")
 

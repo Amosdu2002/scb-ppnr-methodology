@@ -95,6 +95,8 @@ class SecuritiesConfig:
     floor_mode: str
     prepayment_sheet: str | None = None
     enrichment: tuple[SecuritiesEnrichmentSheet, ...] = ()
+    price_mdrm: str = "CQSCJH21"        # PID-SEC-3 price column MDRM; override if the workbook differs.
+                                        # Fallback: a header cell whose technical name is exactly "Price"
 
 
 @dataclass(frozen=True)
@@ -243,6 +245,7 @@ def load_config(path: Path | str) -> IngestionConfig:
                 floor_mode=floor_mode,
                 prepayment_sheet=str(prepayment_sheet) if prepayment_sheet is not None else None,
                 enrichment=tuple(enrichment),
+                price_mdrm=str(sec.get("price_mdrm", "CQSCJH21")),
             )
         firm_data = FirmDataConfig(
             firm_id=str(_require(section, "firm_id", "[firm_data]")),

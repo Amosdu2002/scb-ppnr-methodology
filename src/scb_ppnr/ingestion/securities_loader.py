@@ -48,8 +48,9 @@ _POSITIONS_MDRM = {
     "CQSCP090": "original_face_value",
     "CQSCP092": "accounting_intent",
     "CQSCP094": "book_yield",
-    "CQSCJH21": "price",
 }
+# The price column is handled separately: configurable MDRM ([firm_data.securities].price_mdrm,
+# default CQSCJH21) with a technical-name fallback ("Price") — see _positions_rows.
 _REQUIRED_MDRM = ("CQSCP083", "CQSCP084", "CQSCP087", "CQSCP089", "CQSCP092")
 
 _RATE_TYPE_MAP = {
@@ -114,8 +115,11 @@ def _parse_date(value: object, *, context: str) -> _dt.date:
     raise ValidationFailure(f"{context}: cannot interpret {value!r} as a date (yyyymmdd, Excel serial, or mm/dd/yyyy)")
 
 
-def _positions_rows(worksheet, path: Path) -> tuple[list[dict[str, object]], dict[str, int]]:
+def _positions_rows(
+    worksheet, path: Path, price_mdrm: str = "CQSCJH21"
+) -> tuple[list[dict[str, object]], dict[str, int], list[str]]:
     rows = list(worksheet.iter_rows(values_only=True))
+    notes: list[str] = []
     header_index: int | None = None
     columns: dict[str, int] = {}
     for index, row in enumerate(rows):
@@ -125,9 +129,31 @@ def _positions_rows(worksheet, path: Path) -> tuple[list[dict[str, object]], dic
             for mdrm, field in _POSITIONS_MDRM.items():
                 if mdrm in cells:
                     columns[field] = cells[mdrm]
+            if price_mdrm in cells:
+                columns["price"] = cells[price_mdrm]
             break
     if header_index is None:
         raise ValidationFailure(f"{path}: positions sheet has no MDRM header row (looked for CQSCP084)")
+    if "price" not in columns:
+        # Fallback: locate a header cell (any of the header rows above the data) whose
+        # technical name is exactly "Price" (case-insensitive).
+        for row in rows[: header_index + 1]:
+            for i, cell in enumerate(row):
+                if isinstance(cell, str) and cell.strip().lower() == "price":
+                    columns["price"] = i
+                    notes.append(
+                        f"price column located by technical name 'Price' (column {i + 1}) — the "
+                        f"configured MDRM {price_mdrm!r} was not found; set "
+                        f"[firm_data.securities].price_mdrm if the workbook uses a different code"
+                    )
+                    break
+            if "price" in columns:
+                break
+    if "price" not in columns:
+        notes.append(
+            f"NO price column found (MDRM {price_mdrm!r} absent and no 'Price' technical name) — "
+            f"PID-SEC-3 proxies are impossible; securities with missing/zero amortized cost will stop the run"
+        )
     missing = [m for m in _REQUIRED_MDRM if _POSITIONS_MDRM[m] not in columns]
     if missing:
         raise ValidationFailure(f"{path}: positions MDRM header lacks required columns {missing}")
@@ -138,7 +164,7 @@ def _positions_rows(worksheet, path: Path) -> tuple[list[dict[str, object]], dic
         if _blank(record.get("identifier_value")):
             continue
         parsed.append(record)
-    return parsed, columns
+    return parsed, columns, notes
 
 
 def _enrichment_map(workbook, spec: SecuritiesEnrichmentSheet, path: Path) -> dict[str, dict[str, object]]:
@@ -238,7 +264,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
     workbook = _load_workbook(path)
     warnings: list[str] = []
     try:
-        records, _ = _positions_rows(_sheet(workbook, sc.positions_sheet, path), path)
+        records, _, header_notes = _positions_rows(_sheet(workbook, sc.positions_sheet, path), path, sc.price_mdrm)
         if not records:
             raise ValidationFailure(f"{path}: positions sheet has no data rows")
         enrichment: dict[str, dict[str, object]] = {}
@@ -250,6 +276,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
             prepayment = _prepayment_map(_sheet(workbook, sc.prepayment_sheet, path), path, sc.money_scale, warnings)
     finally:
         workbook.close()
+    warnings.extend(header_notes)
 
     report_date = _parse_date(records[0]["report_date"], context=f"{path} D_DT") if "report_date" in records[0] and not _blank(records[0].get("report_date")) else None
 

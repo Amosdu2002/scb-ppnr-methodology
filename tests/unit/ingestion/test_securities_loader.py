@@ -180,6 +180,29 @@ def test_prepayment_blank_cells_read_as_zero(tmp_path, make_income_scenario):
     assert result.quarters[3].diagnostics.coupon_accrual == 0.0                       # PQ3 EOP face is 0 → PQ4 accrues nothing
 
 
+def test_price_column_fallback_by_technical_name(tmp_path):
+    # MDRM row lacks CQSCJH21; the technical-name row carries "Price" in that slot.
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Positions"
+    mdrm_row = ["D_DT", "CQSCP083", "CQSCP084", "CQSCP087", "CQSCP089", "CQSCP090", "CQSCP092", "CQSCP094", "XXNOCODE"]
+    tech_row = ["D_DT", "ID", "DESC1", "AC", "FACE", "OFACE", "INTENT", "BY", "Price"]
+    ws.append([None] * 9)
+    ws.append(tech_row)
+    ws.append(["desc"] * 9)
+    ws.append(mdrm_row)
+    ws.append([REPORT, "PRX00001A", "Sovereign Bond", 0, 100e6, 100e6, "AFS", None, 99.5])
+    ito = wb.create_sheet("ITO")
+    ito.append(["CUSIP", "Maturity Date", "Coupon Rate", "CPN_TYP", "CPN_Floor", "WAL", "Formula"])
+    ito.append(["PRX00001A", None, 5.0, "FIXED", None, None, "N"])
+    wb.save(tmp_path / "securities.xlsx")
+
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False))
+    position = inputs.other_sec[0]
+    assert position.ac_proxied and position.amortized_cost == pytest.approx(99.5)
+    assert any("located by technical name 'Price'" in w for w in inputs.warnings)
+
+
 def test_unmapped_category_is_a_hard_error(tmp_path):
     positions = [[REPORT, "COV00001A", "Covered Bond", 100e6, 100e6, 100e6, "AFS", 5.0, None]]
     enrichment = [["COV00001A", serial(2030, 1, 1), 4.0, "FIXED", None, None]]
