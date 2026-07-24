@@ -172,7 +172,7 @@ def _enrichment_map(workbook, spec: SecuritiesEnrichmentSheet, path: Path) -> di
     return result
 
 
-def _prepayment_map(worksheet, path: Path, money_scale: str) -> dict[str, dict[int, float]]:
+def _prepayment_map(worksheet, path: Path, money_scale: str, warnings: list[str]) -> dict[str, dict[int, float]]:
     rows = list(worksheet.iter_rows(values_only=True))
     header_index = None
     for index, row in enumerate(rows):
@@ -202,6 +202,16 @@ def _prepayment_map(worksheet, path: Path, money_scale: str) -> dict[str, dict[i
         if _blank(label) or str(label).strip().lower() == "grand total":
             continue
         cusip = str(label).strip()
+        # User-directed rule (2026-07-24): a row whose PQ1 face is 0 is skipped at load.
+        pq1_column = month_columns[1]
+        pq1_raw = row[pq1_column] if pq1_column < len(row) else None
+        if not _blank(pq1_raw) and to_float(pq1_raw, context=f"{path} prepayment {cusip} PQ1") == 0.0:
+            warnings.append(
+                f"prepayment row {cusip}: PQ1 face is 0 — row skipped (user-directed 2026-07-24); "
+                f"if the security is still an in-scope Agency MBS position it falls back to the "
+                f"flat-face (no-prepayment) treatment"
+            )
+            continue
         path_values: dict[int, float] = {}
         for quarter, column in month_columns.items():
             raw = row[column] if column < len(row) else None
@@ -219,6 +229,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
     sc: SecuritiesConfig = config.firm_data.securities
     path = config.resolve(sc.workbook)
     workbook = _load_workbook(path)
+    warnings: list[str] = []
     try:
         records, _ = _positions_rows(_sheet(workbook, sc.positions_sheet, path), path)
         if not records:
@@ -229,13 +240,12 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 enrichment.setdefault(key, fields)      # first tab wins on duplicates
         prepayment: dict[str, dict[int, float]] = {}
         if sc.prepayment_sheet is not None:
-            prepayment = _prepayment_map(_sheet(workbook, sc.prepayment_sheet, path), path, sc.money_scale)
+            prepayment = _prepayment_map(_sheet(workbook, sc.prepayment_sheet, path), path, sc.money_scale, warnings)
     finally:
         workbook.close()
 
     report_date = _parse_date(records[0]["report_date"], context=f"{path} D_DT") if "report_date" in records[0] and not _blank(records[0].get("report_date")) else None
 
-    warnings: list[str] = []
     skipped_out_of_scope = 0
     skipped_wal = 0
     unmatched: list[str] = []

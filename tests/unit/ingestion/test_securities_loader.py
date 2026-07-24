@@ -110,7 +110,10 @@ def standard_workbook(tmp_path: Path) -> None:
         ["UNS00001A", None, 5.0, "FIXED", None, None, "Y"],       # deliberate flag mismatch
         ["WAL00001A", serial(2030, 12, 31), 3.0, "FIXED", None, -0.1, "N"],
     ]
-    prepay = [["AGY00001A", 1000e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 7200e6]]
+    prepay = [
+        ["AGY00001A", 1000e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 800e6, 7200e6],
+        ["ZRO00001Z", 500e6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],       # PQ1 = 0 → skipped at load
+    ]
     build_workbook(tmp_path / "securities.xlsx", positions, enrichment, prepay)
 
 
@@ -141,6 +144,9 @@ def test_loader_end_to_end(tmp_path, make_income_scenario):
     assert any("out-of-scope" in w for w in inputs.warnings)
     mismatches = [w for w in inputs.warnings if "floater-indicator" in w]
     assert len(mismatches) == 1 and "UNS00001A" in mismatches[0]                      # monitor, not fatal
+    pq1_skips = [w for w in inputs.warnings if "PQ1 face is 0" in w]
+    assert len(pq1_skips) == 1 and "ZRO00001Z" in pq1_skips[0]                        # user-directed skip
+    assert not any("matches no in-scope" in w for w in inputs.warnings)               # skipped ≠ leftover
 
     scenario = make_income_scenario()
     ust_result = project_ust(inputs.ust, scenario, firm_id=inputs.firm_id)
