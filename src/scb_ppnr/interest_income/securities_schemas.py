@@ -113,6 +113,10 @@ class SecurityPosition:
     excel_rate_label: str | None = None                   # verification only — the workbook's own
                                                           # float/fixed indicator (PID-SEC-9); never
                                                           # drives model assignment until a PID adopts it
+    excel_coupon_rate: float | None = None                # verification only — the workbook's own
+                                                          # coupon column (PID-SEC-9, decimal), carried
+                                                          # even when the ITO coupon drives the model
+                                                          # (source-difference diagnostics)
 
     def __post_init__(self) -> None:
         require_id("security_id", self.security_id)
@@ -125,7 +129,7 @@ class SecurityPosition:
             raise ValidationFailure(f"{self.security_id}: equity-intent positions are out of scope (PID-SEC-5) — exclude at the loader")
         object.__setattr__(self, "current_face", check_balance(f"{self.security_id}.current_face", self.current_face))
         object.__setattr__(self, "amortized_cost", check_balance(f"{self.security_id}.amortized_cost", self.amortized_cost))
-        for name in ("coupon_rate", "book_yield", "coupon_floor"):
+        for name in ("coupon_rate", "book_yield", "coupon_floor", "excel_coupon_rate"):
             value = getattr(self, name)
             if value is not None:
                 object.__setattr__(self, name, check_rate(f"{self.security_id}.{name}", value))

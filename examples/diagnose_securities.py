@@ -286,6 +286,15 @@ def run_compare(config, args) -> None:
     #               else lag3m_f0 (needs positions_rate_type_column; missing → lag3m_f0)
     #   freeze1_f0 = c0 in PQ1, then max(margin + 3M(PQ1), 0) FROZEN for PQ2..9 — one
     #               reset at PQ1, constant thereafter (per-row-constant accrual)
+    #   blend13   = monthly-reset PQ1: ⅓·c0 + ⅔·(margin + 3M(PQ1)), then the spot rule
+    #               max(margin + 3M(q), 0) — round-3 identified PQ1 index ≈ 2.4–2.7 %
+    #   neg_hold  = negative-margin floaters HOLD the launch coupon flat (never
+    #               projected); positive margins follow the spot rule — round-3
+    #               identified Non-Agency RMBS implied ≈ 0.99 flat at c0
+    # CPN-SOURCE: per category, the sheet's own coupon column ÷ the ITO coupon
+    # (face-weighted mean, median, share differing >1 %) — a constant multiplier
+    # (e.g. municipal ≈ 1.13–1.27) means the reference uses a different COUPON
+    # INPUT (tax-equivalent), not a different formula.
     # IMPLIED-CPN (round 3): the reference's own implied coupon path — per category
     # and rate-type subset, [Σ(ref(q) − our AA(q))] / [Σ face(q−1)/4 × c0], i.e. the
     # face-weighted implied coupon as a RATIO to the launch coupon (relay-safe).
@@ -293,6 +302,7 @@ def run_compare(config, args) -> None:
     float_rules: dict[str, dict[str, float]] = {}
     ratio_rows: dict[str, list[float]] = {}
     implied: dict[tuple[str, str], dict[int, list[float]]] = {}   # (category, subset) -> q -> [num, c0-weight]
+    cpn_source: dict[str, list[tuple[float, float]]] = {}         # category -> [(face, sheet/ito coupon ratio)]
     t3m = scenario.usd_3m_treasury
 
     def flows_for(position, sink):
@@ -352,6 +362,12 @@ def run_compare(config, args) -> None:
             if ref_total > 0.0:
                 ratio_rows.setdefault(position.category, []).append(ours_xr_total / ref_total)
 
+            if (position.coupon_rate not in (None, 0.0) and position.excel_coupon_rate is not None
+                    and position.rate_type in ("floating", "fixed")):
+                cpn_source.setdefault(position.category, []).append(
+                    (position.current_face, position.excel_coupon_rate / position.coupon_rate)
+                )
+
             if position.coupon_rate is not None and position.rate_type in ("floating", "fixed") and ref_total > 0.0:
                 bucket = implied.setdefault((position.category, position.rate_type), {q: [0.0, 0.0] for q in quarters})
                 for quarter in quarters:
@@ -367,6 +383,7 @@ def run_compare(config, args) -> None:
                                                                 "flat_c0": 0.0, "lag3m_f0": 0.0,
                                                                 "lag1_3m": 0.0, "by_flat": 0.0,
                                                                 "excel_ind": 0.0, "freeze1_f0": 0.0,
+                                                                "blend13": 0.0, "neg_hold": 0.0,
                                                                 "ind_fixed": 0, "ind_float": 0, "ind_na": 0})
                 fr["n"] += 1
                 fr["ref"] += ref_total
@@ -396,7 +413,12 @@ def run_compare(config, args) -> None:
                     fr["by_flat"] += weight * by
                     fr["excel_ind"] += weight * (c0 if ind_fixed else lag_coupon)
                     fr["freeze1_f0"] += weight * (c0 if quarter == 1 else max(margin + t3m[1], 0.0))
-                for rule in ("flat_c0", "lag3m_f0", "lag1_3m", "by_flat", "excel_ind", "freeze1_f0"):
+                    spot_coupon = max(margin + t3m[quarter], 0.0)
+                    blend_pq1 = max(c0 / 3.0 + 2.0 * (margin + t3m[1]) / 3.0, 0.0)
+                    fr["blend13"] += weight * (blend_pq1 if quarter == 1 else spot_coupon)
+                    fr["neg_hold"] += weight * (c0 if margin < 0.0 else spot_coupon)
+                for rule in ("flat_c0", "lag3m_f0", "lag1_3m", "by_flat", "excel_ind", "freeze1_f0",
+                             "blend13", "neg_hold"):
                     fr[rule] += aa_total
 
     print("\nCOMPARE — LOCAL DETAIL (USD millions; masked ids):")
@@ -421,6 +443,7 @@ def run_compare(config, args) -> None:
         print("  current=configured mode | flat_c0=launch coupon flat | lag3m_f0=max(margin+3M(q-1),0) prior-quarter reset")
         print("  lag1_3m=c0+(3M(q)-3M(PQ1)) | by_flat=book yield flat | excel_ind=flat_c0 if sheet says Fixed else lag3m_f0")
         print("  freeze1_f0=c0 in PQ1 then max(margin+3M(PQ1),0) frozen PQ2..9")
+        print("  blend13=PQ1 1/3*c0+2/3*(margin+3M(PQ1)) then spot | neg_hold=margin<0 holds c0 flat, else spot")
         for category, fr in sorted(float_rules.items()):
             if not fr["ref"]:
                 print(f"FLOAT-RULES {category}: n={fr['n']} ref-total-zero — ratios n/a")
@@ -429,7 +452,16 @@ def run_compare(config, args) -> None:
                   f"flat_c0={fr['flat_c0'] / fr['ref']:.4f} lag3m_f0={fr['lag3m_f0'] / fr['ref']:.4f} "
                   f"lag1_3m={fr['lag1_3m'] / fr['ref']:.4f} by_flat={fr['by_flat'] / fr['ref']:.4f} "
                   f"excel_ind={fr['excel_ind'] / fr['ref']:.4f} freeze1_f0={fr['freeze1_f0'] / fr['ref']:.4f} "
+                  f"blend13={fr['blend13'] / fr['ref']:.4f} neg_hold={fr['neg_hold'] / fr['ref']:.4f} "
                   f"ind(F/x/na)={fr['ind_fixed']}/{fr['ind_float']}/{fr['ind_na']}")
+    if cpn_source:
+        print("CPN-SOURCE (positions-sheet coupon ÷ ITO coupon; face-weighted mean / median / share >1% apart):")
+        for category, pairs in sorted(cpn_source.items()):
+            faces = sum(f for f, _ in pairs)
+            wmean = sum(f * r for f, r in pairs) / faces if faces else float("nan")
+            med = sorted(r for _, r in pairs)[len(pairs) // 2]
+            share = sum(1 for _, r in pairs if abs(r - 1.0) > 0.01) / len(pairs)
+            print(f"CPN-SOURCE {category}: n={len(pairs)} wmean={wmean:.4f} p50={med:.4f} diff>1%:{share:.1%}")
     print("SCENARIO-3M (supervisory scenario path, annualized decimals — public FRB data):",
           " ".join(f"PQ{q}={t3m[q]:.4f}" for q in range(0, 10)))
     if implied:

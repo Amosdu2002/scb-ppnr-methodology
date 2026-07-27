@@ -416,12 +416,16 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                     f"{rate_type_raw!r} — data-quality monitor, rate type governs (surfaced, not blocked)"
                 )
 
+        # PID-SEC-9: the positions-sheet coupon (decimal) is always carried for
+        # source-difference diagnostics; it drives the model only as a blank-fill.
+        excel_coupon = None
+        if "tech_coupon" in record and not _blank(record.get("tech_coupon")):
+            excel_coupon = to_float(record["tech_coupon"], context=f"{context} coupon (positions sheet, decimal)")
         coupon = None
         if not _blank(fields.get("coupon")):
             coupon = apply_rate_scale(sc.coupon_scale, to_float(fields["coupon"], context=f"{context} coupon"), context=f"{context} coupon")
-        elif "tech_coupon" in record and not _blank(record.get("tech_coupon")):
-            # PID-SEC-9: enrichment coupon blank — positions-sheet coupon column (decimal).
-            coupon = to_float(record["tech_coupon"], context=f"{context} coupon (positions sheet, decimal)")
+        elif excel_coupon is not None:
+            coupon = excel_coupon
             tech_coupon_rows += 1
             warnings.append(f"{security_id}: enrichment coupon blank — positions-sheet coupon column used (decimal; PID-SEC-9)")
         if rate_type == RATE_ZERO_COUPON:
@@ -568,6 +572,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 ac_proxied=ac_proxied,
                 reference_income=reference_income,
                 excel_rate_label=excel_rate_label,
+                excel_coupon_rate=excel_coupon,
             )
         )
 
