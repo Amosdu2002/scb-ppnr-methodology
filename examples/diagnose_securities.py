@@ -74,6 +74,12 @@ def main() -> None:
     parser.add_argument("--compare", action="store_true",
                         help="diff our per-security income against the workbook's own II_PQ1..II_PQ9 columns")
     parser.add_argument("--scenario", default=None, help="scenario id for --compare (defaults to the first configured)")
+    parser.add_argument("--gaps", default=None, metavar="FILE.csv",
+                        help="write the largest per-security gaps to a CSV — LOCAL ONLY (unmasked ids, "
+                             "exact ours/ref amounts per quarter, and the inputs used) so rows can be "
+                             "found in the workbook; never relay or commit this file")
+    parser.add_argument("--gaps-top", type=int, default=25,
+                        help="how many securities per category in the --gaps file (by absolute gap; default 25)")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -312,7 +318,20 @@ def run_compare(config, args) -> None:
     # SOVEREIGN-ZCB decomposition (OQ-028): which reference behavior carries the gap.
     zcb_buckets: dict[str, list[float]] = {"ref_zero": [0, 0.0, 0.0], "pq1_only": [0, 0.0, 0.0],
                                            "full": [0, 0.0, 0.0]}    # [n, ours_xr, ref]
+    gap_records: list[dict] = []                                     # --gaps CSV rows (LOCAL ONLY)
     t3m = scenario.usd_3m_treasury
+
+    def treatment_for(position) -> str:
+        """The treatment actually applied to this row (for the --gaps file)."""
+        if position.category in sc.book_yield_categories and position.book_yield is not None \
+                and position.rate_type != "zero_coupon":
+            return "book_yield_flat"
+        if position.rate_type == "zero_coupon":
+            return ("zcb_no_accretion" if position.category in sc.zcb_no_accretion_categories
+                    else "zero_coupon")
+        if position.rate_type == "floating":
+            return sc.floating_projection_overrides.get(position.category, sc.floating_projection)
+        return position.rate_type
 
     def flows_for(position, sink):
         if position.model == "ii_ust":
@@ -373,6 +392,32 @@ def run_compare(config, args) -> None:
 
             if ref_total > 0.0:
                 ratio_rows.setdefault(position.category, []).append(ours_xr_total / ref_total)
+
+            if args.gaps:
+                record = {
+                    "category": position.category,
+                    "security_id": position.security_id,
+                    "rate_type": position.rate_type,
+                    "treatment": treatment_for(position),
+                    "ours_9q_xr": round(ours_xr_total, 6),
+                    "ref_9q": round(ref_total, 6),
+                    "gap": round(ours_xr_total - ref_total, 6),
+                    "rel_gap": round((ours_xr_total - ref_total) / ref_total, 4) if ref_total else "",
+                    "current_face": round(position.current_face, 6),
+                    "amortized_cost": round(position.amortized_cost, 6),
+                    "coupon_rate": position.coupon_rate,
+                    "book_yield": position.book_yield,
+                    "coupon_floor": position.coupon_floor,
+                    "maturity_years": position.maturity_years,
+                    "maturity_quarters": position.maturity_quarters,
+                    "wal_years": position.wal_years,
+                    "ac_proxied": position.ac_proxied,
+                }
+                for q in quarters:
+                    record[f"ours_q{q}"] = round(flows.total.get(q, 0.0), 6)
+                for q in quarters:
+                    record[f"ref_q{q}"] = round(ref[q], 6)
+                gap_records.append(record)
 
             if (position.coupon_rate not in (None, 0.0) and position.excel_coupon_rate is not None
                     and position.rate_type in ("floating", "fixed")):
@@ -556,6 +601,25 @@ def run_compare(config, args) -> None:
           " ".join(f"PQ{q}={ours_q[q] / ref_q[q]:.3f}" if ref_q[q] else f"PQ{q}=n/a" for q in quarters))
     floor_suspect = sum("suspect source-cell units" in w for w in inputs.warnings)
     print(f"COMPARE-NO-REFERENCE: {no_reference}   COMPARE-SKIPPED: {compare_skipped}   FLOOR-SUSPECT: {floor_suspect}")
+
+    if args.gaps and gap_records:
+        import csv
+        by_category: dict[str, list[dict]] = {}
+        for record in gap_records:
+            by_category.setdefault(record["category"], []).append(record)
+        selected: list[dict] = []
+        for category in sorted(by_category):
+            rows = by_category[category]
+            rows.sort(key=lambda r: abs(r["gap"]), reverse=True)
+            selected.extend(rows[: args.gaps_top])
+        with open(args.gaps, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(selected[0].keys()))
+            writer.writeheader()
+            writer.writerows(selected)
+        print(f"\nGAP DETAIL: {len(selected)} rows written to {args.gaps} — top {args.gaps_top} per "
+              f"category by absolute gap (USD millions; ours excludes reinvestment = the II_PQ basis).")
+        print("  LOCAL ONLY: the file carries unmasked ids and exact amounts — find rows in the workbook")
+        print("  via the CQSCS383 unique-id column; do NOT relay, screenshot, or commit this file.")
     print("======================================================================================")
 
 

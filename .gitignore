@@ -7,3 +7,7 @@ __pycache__/
 config/local/
 *.xlsx
 *.xlsm
+
+# Local run outputs — carry security identifiers and firm amounts; never commit.
+securities_report*.txt
+*gaps*.csv
