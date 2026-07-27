@@ -325,7 +325,7 @@ def run_compare(config, args) -> None:
             return m_mbs._other_mbs_flows(position, coupon, sink)
         return m_osec._flows(position, scenario, sc.floor_mode, sink,
                              sc.floating_projection, sc.book_yield_categories,
-                             sc.floating_projection_overrides)
+                             sc.floating_projection_overrides, sc.zcb_no_accretion_categories)
 
     for group in (inputs.ust, inputs.mbs, inputs.other_sec):
         for position in group:

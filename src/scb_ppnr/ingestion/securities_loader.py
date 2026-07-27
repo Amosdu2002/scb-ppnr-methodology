@@ -467,28 +467,36 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 )
                 continue
 
-        maturity_quarters = None
-        maturity_years = None
+        # Two maturity-year candidates (PID-SEC-8 denominator + event timing): the
+        # ITO maturity date ÷ 365 [PID-SEC-8, user-verified], and the sheet's own
+        # years column [PID-SEC-9]. `maturity_source` (OQ-030) picks which is
+        # primary — "positions_first" replicates the reference's actual divisor
+        # (for callable munis the sheet column can be the call-adjusted maturity,
+        # shorter than the ITO final-maturity date).
+        enrich_years = None
         if not _blank(fields.get("maturity")) and report_date is not None:
             maturity_date = _parse_date(fields["maturity"], context=f"{context} maturity")
             days = (maturity_date - report_date).days
             if days <= 0:
                 warnings.append(f"{security_id}: maturity {maturity_date} not after the report date {report_date} — treated as missing (PID-SEC-3 may proxy)")
             else:
-                # PID-SEC-8 (user-verified): maturity years = day difference / 365 (decimal,
-                # used in accretion denominators); whole quarters only time the maturity event.
-                maturity_years = days / 365.0
-                maturity_quarters = max(1, math.ceil(4.0 * maturity_years))
-        # PID-SEC-9 (2026-07-24): maturity date missing — the positions sheet's own
-        # maturity-years column is the fallback (decimal years; the reference's input).
-        if maturity_years is None and "tech_maturity_years" in record and not _blank(record.get("tech_maturity_years")):
-            years = to_float(record["tech_maturity_years"], context=f"{context} maturity years (positions sheet)")
-            if years > 0.0:
-                maturity_years = years
-                maturity_quarters = max(1, math.ceil(4.0 * years))
-                tech_maturity_rows += 1
+                enrich_years = days / 365.0
+        tech_years = None
+        if "tech_maturity_years" in record and not _blank(record.get("tech_maturity_years")):
+            candidate = to_float(record["tech_maturity_years"], context=f"{context} maturity years (positions sheet)")
+            if candidate > 0.0:
+                tech_years = candidate
             else:
-                warnings.append(f"{security_id}: positions-sheet maturity years {years} not positive — left missing (surfaced)")
+                warnings.append(f"{security_id}: positions-sheet maturity years {candidate} not positive — ignored (surfaced)")
+        if sc.maturity_source == "positions_first":
+            maturity_years = tech_years if tech_years is not None else enrich_years
+            used_tech = tech_years is not None
+        else:
+            maturity_years = enrich_years if enrich_years is not None else tech_years
+            used_tech = enrich_years is None and tech_years is not None
+        maturity_quarters = max(1, math.ceil(4.0 * maturity_years)) if maturity_years is not None else None
+        if used_tech:
+            tech_maturity_rows += 1
         # PID-SEC-7 (user-confirmed 2026-07-24): Agency MBS without a maturity date
         # use WAL as the maturity in years; quarters = ceil(4 × WAL).
         if maturity_years is None and agency_prepay and wal is not None:
@@ -594,8 +602,9 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         warnings.append(f"{skipped_wal} position(s) skipped for non-positive WAL — HIGHLIGHTED for later decision")
     if tech_maturity_rows:
         warnings.append(
-            f"{tech_maturity_rows} position(s): maturity date missing — positions-sheet maturity-years "
-            f"column used for the PID-SEC-8 denominator and event timing (PID-SEC-9)"
+            f"{tech_maturity_rows} position(s): maturity years taken from the positions-sheet column "
+            f"(maturity_source={sc.maturity_source!r}; PID-SEC-9/OQ-030) for the PID-SEC-8 denominator "
+            f"and event timing"
         )
     if tech_floor_rows:
         warnings.append(f"{tech_floor_rows} position(s): floor taken from the positions-sheet floor column (decimal; PID-SEC-9)")

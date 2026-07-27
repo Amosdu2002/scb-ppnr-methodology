@@ -37,7 +37,8 @@ def _flows(position: SecurityPosition, scenario: IncomeScenarioPaths,
            floor_mode: str, warnings: list[str],
            floating_projection: str = "spot",
            book_yield_categories: tuple[str, ...] = (),
-           projection_overrides: Mapping[str, str] | None = None) -> PerSecurityFlows:
+           projection_overrides: Mapping[str, str] | None = None,
+           zcb_no_accretion_categories: tuple[str, ...] = ()) -> PerSecurityFlows:
     face = position.current_face
     maturity = position.maturity_quarters
     last_quarter = min(maturity, PROJECTION_QUARTERS[-1]) if maturity is not None else PROJECTION_QUARTERS[-1]
@@ -70,13 +71,18 @@ def _flows(position: SecurityPosition, scenario: IncomeScenarioPaths,
     denominator = 4.0 * position.maturity_years if position.maturity_years is not None else None
     if denominator is None and not position.ac_proxied and face != position.amortized_cost:
         warnings.append(f"{position.security_id}: no maturity for the PID-SEC-8 accretion denominator — AA held at 0 (surfaced)")
+    # PID-SEC-12 (user-directed 2026-07-27, matches the reference): configured
+    # categories book NO accretion on zero-coupon rows (reference GII blank for
+    # sovereign ZCBs). The Fed-stated A42 accretion is a recorded divergence.
+    suppress_accretion = (position.rate_type == RATE_ZERO_COUPON
+                          and position.category in zcb_no_accretion_categories)
 
     coupon_cash: dict[int, float] = {}
     accretion: dict[int, float] = {}
     ac = position.amortized_cost
     for quarter in range(1, last_quarter + 1):
         coupon_cash[quarter] = quarterly(face, coupon[quarter])
-        if position.ac_proxied or denominator is None:
+        if position.ac_proxied or denominator is None or suppress_accretion:
             accretion[quarter] = 0.0
         else:
             accretion[quarter], ac = reference_accretion_step(face, ac, face, denominator)
@@ -94,11 +100,13 @@ def project_other_sec(
     floating_projection: str = "spot",
     book_yield_categories: tuple[str, ...] = (),
     projection_overrides: Mapping[str, str] | None = None,
+    zcb_no_accretion_categories: tuple[str, ...] = (),
 ) -> IncomeModelResult:
     warnings: list[str] = []
     flows = []
     skipped = 0
     by_override = 0
+    zcb_suppressed = 0
     for position in positions:
         if position.model != MODEL_ID:
             raise ValidationFailure(f"{position.security_id}: model {position.model!r} passed to {MODEL_ID}")
@@ -108,8 +116,11 @@ def project_other_sec(
             if (position.category in book_yield_categories and position.book_yield is not None
                     and position.rate_type != "zero_coupon"):
                 by_override += 1
+            if position.rate_type == "zero_coupon" and position.category in zcb_no_accretion_categories:
+                zcb_suppressed += 1
             flows.append(_flows(position, scenario, floor_mode, warnings,
-                                floating_projection, book_yield_categories, projection_overrides))
+                                floating_projection, book_yield_categories, projection_overrides,
+                                zcb_no_accretion_categories))
         except ValidationFailure as exc:
             if on_error != "skip":
                 raise
@@ -121,6 +132,12 @@ def project_other_sec(
         warnings.append(
             f"{by_override} position(s) in {sorted(set(book_yield_categories))} accrued at BOOK YIELD "
             f"held flat (PID-SEC-11, reference-identified — pending confirmation)"
+        )
+    if zcb_suppressed:
+        warnings.append(
+            f"{zcb_suppressed} zero-coupon position(s) in {sorted(set(zcb_no_accretion_categories))} "
+            f"book NO accretion (PID-SEC-12, user-directed to match the reference; the Fed-stated "
+            f"A42 accretion is a recorded divergence)"
         )
     if not flows:
         warnings.append("no in-scope other-securities positions — income is identically zero (logged)")

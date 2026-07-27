@@ -63,7 +63,8 @@ def build_workbook(path: Path, positions: list[list], enrichment: list[list], pr
     wb.save(path)
 
 
-def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False) -> IngestionConfig:
+def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False,
+                maturity_source: str = "enrichment_first") -> IngestionConfig:
     return IngestionConfig(
         base_dir=tmp_path,
         firm_data=FirmDataConfig(
@@ -81,6 +82,7 @@ def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False) 
                 positions_coupon_column="Coupon Rate (decimal)" if tech else None,
                 positions_floor_column="Coupon Rate Floor (decimal)" if tech else None,
                 positions_rate_type_column="Float or fixed indicator" if tech else None,
+                maturity_source=maturity_source,
                 prepayment_sheet="prepay" if prepayment else None,
                 enrichment=(
                     SecuritiesEnrichmentSheet(
@@ -333,6 +335,38 @@ def test_excel_error_literals_treated_as_missing(tmp_path):
     assert len(census) == 1 and "4 " in census[0]                           # 3 positions + 1 enrichment
 
 
+def test_maturity_source_positions_first(tmp_path):
+    # OQ-030: with both sources present, positions_first uses the sheet's Maturity (yr)
+    # (call-adjusted for munis) over the ITO date; enrichment_first keeps the date.
+    positions = [[REPORT, "MUN00011A", "Municipal Bond", 90e6, 100e6, 100e6, "AFS", 5.0, None,
+                  2.0, None, None, "Fixed"]]
+    enrichment = [["MUN00011A", serial(2029, 12, 31), 3.0, "FIXED", None, None, "N"]]   # ~5 years
+    build_workbook(tmp_path / "securities.xlsx", positions, enrichment, None,
+                   extra_headers=["Maturity (yr)", "Coupon Rate (decimal)", "Coupon Rate Floor (decimal)",
+                                  "Float or fixed indicator"])
+    first = load_securities_inputs(make_config(tmp_path, prepayment=False, tech=True,
+                                               maturity_source="positions_first")).other_sec[0]
+    assert first.maturity_years == pytest.approx(2.0) and first.maturity_quarters == 8
+    second = load_securities_inputs(make_config(tmp_path, prepayment=False, tech=True)).other_sec[0]
+    assert second.maturity_years == pytest.approx(5.0, abs=0.02)     # 1826 days/365 (leap year)
+    assert second.maturity_quarters == 21                            # ceil(4 × 5.0027)
+
+
+def test_zcb_no_accretion_category(make_income_scenario):
+    from scb_ppnr.interest_income import MODEL_OTHER_SEC, RATE_ZERO_COUPON, SecurityPosition, project_other_sec
+    scenario = make_income_scenario()
+    zcb = SecurityPosition(security_id="SOV0000Z1", model=MODEL_OTHER_SEC, category="Sovereign Bond",
+                           rate_type=RATE_ZERO_COUPON, accounting_intent="AFS",
+                           current_face=100.0, amortized_cost=90.0,
+                           maturity_quarters=20, maturity_years=5.0)
+    accruing = project_other_sec([zcb], scenario, firm_id="F", floor_mode="zero")
+    assert accruing.income_path()[1] == pytest.approx((100.0 - 90.0) / 20.0)     # AA = 0.5/qtr
+    suppressed = project_other_sec([zcb], scenario, firm_id="F", floor_mode="zero",
+                                   zcb_no_accretion_categories=("Sovereign Bond",))
+    assert all(v == 0.0 for v in suppressed.income_path().values())
+    assert any("PID-SEC-12" in w for w in suppressed.warnings)
+
+
 def test_config_parses_pid_sec9_columns_and_new_floor_mode(tmp_path):
     (tmp_path / "c.toml").write_text(
         '[firm_data]\nfirm_id = "F"\n'
@@ -347,6 +381,8 @@ def test_config_parses_pid_sec9_columns_and_new_floor_mode(tmp_path):
         'positions_rate_type_column = "Float or fixed indicator"\n'
         'floating_projection = "neg_hold_blend13"\n'
         'book_yield_categories = ["Municipal Bond"]\n'
+        'maturity_source = "positions_first"\n'
+        'zcb_no_accretion_categories = ["Sovereign Bond"]\n'
         '[firm_data.securities.floating_projection_overrides]\n'
         '"CLO" = "blend13"\n'
         '"Domestic Non-Agency RMBS (incl HEL ABS)" = "flat_c0"\n'
@@ -358,6 +394,8 @@ def test_config_parses_pid_sec9_columns_and_new_floor_mode(tmp_path):
     assert dict(sc.floating_projection_overrides) == {
         "CLO": "blend13", "Domestic Non-Agency RMBS (incl HEL ABS)": "flat_c0",
     }
+    assert sc.maturity_source == "positions_first"
+    assert sc.zcb_no_accretion_categories == ("Sovereign Bond",)
     assert sc.positions_maturity_years_column == "Maturity (yr)"
     assert sc.positions_coupon_column == "Coupon Rate (decimal)"
     assert sc.positions_floor_column == "Coupon Rate Floor (decimal)"

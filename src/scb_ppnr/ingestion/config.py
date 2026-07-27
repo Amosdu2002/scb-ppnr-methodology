@@ -134,6 +134,17 @@ class SecuritiesConfig:
     # book-yield-flat exactly; fixed implied multiplier constant at BY/coupon).
     # Zero-coupon rows are never affected; missing book yield falls back to coupon.
     book_yield_categories: tuple[str, ...] = ()
+    # OQ-030 (2026-07-27): which maturity feeds the PID-SEC-8 AA denominator —
+    # "enrichment_first" (ITO maturity date ÷ 365, positions years column as
+    # fallback; the original order) | "positions_first" (the sheet's own
+    # "Maturity (yr)" column primary — the reference's actual divisor, which for
+    # callable munis can be the call-adjusted maturity — ITO date as fallback).
+    maturity_source: str = "enrichment_first"
+    # PID-SEC-12 (2026-07-27, user-directed to match the reference): categories
+    # whose ZERO-COUPON rows book NO accretion (reference GII blank for sovereign
+    # ZCBs). The Fed-stated A42 accretion is preserved as [FACT]; this switch
+    # records the reference divergence. Coupon rows are never affected.
+    zcb_no_accretion_categories: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -303,7 +314,14 @@ def load_config(path: Path | str) -> IngestionConfig:
                     for category, mode in sec.get("floating_projection_overrides", {}).items()
                 }),
                 book_yield_categories=tuple(str(c) for c in sec.get("book_yield_categories", [])),
+                maturity_source=str(sec.get("maturity_source", "enrichment_first")).strip().lower(),
+                zcb_no_accretion_categories=tuple(str(c) for c in sec.get("zcb_no_accretion_categories", [])),
             )
+            if securities.maturity_source not in ("enrichment_first", "positions_first"):
+                raise ValidationFailure(
+                    f"config [firm_data.securities]: maturity_source must be 'enrichment_first' or "
+                    f"'positions_first' (OQ-030), got {sec.get('maturity_source')!r}"
+                )
             if securities.floating_projection not in _FLOAT_PROJECTION_MODES:
                 raise ValidationFailure(
                     f"config [firm_data.securities]: floating_projection must be one of "

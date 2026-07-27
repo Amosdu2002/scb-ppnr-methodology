@@ -107,6 +107,13 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
 # book_yield_categories = []            # PID-SEC-11: categories accruing at BOOK YIELD held
                                         # flat (REFUTED for Municipal Bond as a mechanism
                                         # 2026-07-27 — keep empty unless re-evidenced)
+# maturity_source = "positions_first"   # OQ-030: AA-denominator maturity — "enrichment_first"
+                                        # (ITO date / 365; default) | "positions_first" (the
+                                        # sheet's own Maturity (yr) column primary — the
+                                        # reference's divisor; call-adjusted for callable munis)
+# zcb_no_accretion_categories = ["Sovereign Bond"]   # PID-SEC-12: zero-coupon rows in these
+                                        # categories book NO accretion (reference GII blank);
+                                        # Fed-stated A42 accretion recorded as a divergence
 # [firm_data.securities.floating_projection_overrides]   # PID-SEC-10 per-category modes —
 # "Domestic Non-Agency RMBS (incl HEL ABS)" = "flat_c0"  # the reference treats categories
 # "CLO" = "blend13"                                      # differently (2026-07-27 bake-off)
