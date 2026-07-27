@@ -19,7 +19,7 @@ form over 4 × maturity years. Maturities AND Agency paydowns feed the shared
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from ..core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from .schemas import IncomeModelResult, IncomeScenarioPaths
@@ -43,9 +43,11 @@ MODEL_ID = MODEL_MBS
 
 def _coupon_path(position: SecurityPosition, scenario: IncomeScenarioPaths,
                  floor_mode: str, warnings: list[str],
-                 floating_projection: str = "spot") -> dict[int, float]:
+                 floating_projection: str = "spot",
+                 projection_overrides: Mapping[str, str] | None = None) -> dict[int, float]:
     if position.rate_type == RATE_FLOATING:
-        return floating_coupon_path(position, scenario, floor_mode, warnings, floating_projection)
+        mode = (projection_overrides or {}).get(position.category, floating_projection)
+        return floating_coupon_path(position, scenario, floor_mode, warnings, mode)
     if position.rate_type == RATE_ZERO_COUPON:
         return {q: 0.0 for q in PROJECTION_QUARTERS}
     if position.coupon_rate is None:
@@ -129,6 +131,7 @@ def project_mbs(
     on_error: str = "stop",
     reinvest_paydowns: bool = True,
     floating_projection: str = "spot",
+    projection_overrides: Mapping[str, str] | None = None,
 ) -> IncomeModelResult:
     warnings: list[str] = []
     flows = []
@@ -137,7 +140,7 @@ def project_mbs(
         if position.model != MODEL_ID:
             raise ValidationFailure(f"{position.security_id}: model {position.model!r} passed to {MODEL_ID}")
         try:
-            coupon = _coupon_path(position, scenario, floor_mode, warnings, floating_projection)
+            coupon = _coupon_path(position, scenario, floor_mode, warnings, floating_projection, projection_overrides)
             if position.ac_proxied:
                 warnings.append(f"{position.security_id}: PID-SEC-3 proxied amortized cost — accretion held at 0")
             if position.face_path is not None:

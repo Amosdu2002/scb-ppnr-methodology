@@ -12,7 +12,7 @@ sum equals the A42 total."""
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from ..core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from .schemas import IncomeModelResult, IncomeScenarioPaths
@@ -36,7 +36,8 @@ MODEL_ID = MODEL_OTHER_SEC
 def _flows(position: SecurityPosition, scenario: IncomeScenarioPaths,
            floor_mode: str, warnings: list[str],
            floating_projection: str = "spot",
-           book_yield_categories: tuple[str, ...] = ()) -> PerSecurityFlows:
+           book_yield_categories: tuple[str, ...] = (),
+           projection_overrides: Mapping[str, str] | None = None) -> PerSecurityFlows:
     face = position.current_face
     maturity = position.maturity_quarters
     last_quarter = min(maturity, PROJECTION_QUARTERS[-1]) if maturity is not None else PROJECTION_QUARTERS[-1]
@@ -51,7 +52,8 @@ def _flows(position: SecurityPosition, scenario: IncomeScenarioPaths,
     elif position.rate_type == RATE_FLOATING:
         if position.category in book_yield_categories:
             warnings.append(f"{position.security_id}: book-yield category but no book yield on file — floating margin machinery used (surfaced)")
-        coupon = floating_coupon_path(position, scenario, floor_mode, warnings, floating_projection)
+        mode = (projection_overrides or {}).get(position.category, floating_projection)
+        coupon = floating_coupon_path(position, scenario, floor_mode, warnings, mode)
     elif position.rate_type == RATE_ZERO_COUPON:
         coupon = {q: 0.0 for q in PROJECTION_QUARTERS}
     else:
@@ -91,6 +93,7 @@ def project_other_sec(
     on_error: str = "stop",
     floating_projection: str = "spot",
     book_yield_categories: tuple[str, ...] = (),
+    projection_overrides: Mapping[str, str] | None = None,
 ) -> IncomeModelResult:
     warnings: list[str] = []
     flows = []
@@ -106,7 +109,7 @@ def project_other_sec(
                     and position.rate_type != "zero_coupon"):
                 by_override += 1
             flows.append(_flows(position, scenario, floor_mode, warnings,
-                                floating_projection, book_yield_categories))
+                                floating_projection, book_yield_categories, projection_overrides))
         except ValidationFailure as exc:
             if on_error != "skip":
                 raise

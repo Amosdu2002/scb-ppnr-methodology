@@ -81,8 +81,9 @@ class SecuritiesEnrichmentSheet:
 # floater floored at its security floor when on file, else at 0.
 _FLOOR_MODES = ("zero", "security_floor", "none", "security_floor_else_zero")
 # PID-SEC-10 floating projection modes (mirrored): "neg_hold" holds negative-margin
-# floaters at the launch coupon; "neg_hold_blend13" adds the monthly-reset PQ1 blend.
-_FLOAT_PROJECTION_MODES = ("spot", "neg_hold", "neg_hold_blend13")
+# floaters at the launch coupon; "neg_hold_blend13" adds the monthly-reset PQ1 blend;
+# "blend13" = the PQ1 blend WITHOUT the hold; "flat_c0" holds every floater flat.
+_FLOAT_PROJECTION_MODES = ("spot", "neg_hold", "neg_hold_blend13", "blend13", "flat_c0")
 
 
 @dataclass(frozen=True)
@@ -122,8 +123,12 @@ class SecuritiesConfig:
                                                     # ITO rate type still drives the models
     # PID-SEC-10 (2026-07-27): floating-coupon projection mode — "spot" (original) |
     # "neg_hold" (negative margin → launch coupon held flat) | "neg_hold_blend13"
-    # (neg_hold + monthly-reset PQ1 blend for positive margins).
+    # (neg_hold + monthly-reset PQ1 blend) | "blend13" (PQ1 blend, no hold) |
+    # "flat_c0" (every floater held at the launch coupon). The reference treats
+    # categories differently (2026-07-27 bake-off) — `floating_projection_overrides`
+    # maps SECURITY_DESCRIPTION_1 categories to modes, overriding the default.
     floating_projection: str = "spot"
+    floating_projection_overrides: Mapping[str, str] = field(default_factory=dict)
     # PID-SEC-11 (2026-07-27): categories whose securities accrue at BOOK YIELD
     # instead of the coupon (reference-identified for Municipal Bond: floaters match
     # book-yield-flat exactly; fixed implied multiplier constant at BY/coupon).
@@ -293,6 +298,10 @@ def load_config(path: Path | str) -> IngestionConfig:
                     str(sec["positions_rate_type_column"]) if "positions_rate_type_column" in sec else None
                 ),
                 floating_projection=str(sec.get("floating_projection", "spot")).strip().lower(),
+                floating_projection_overrides=MappingProxyType({
+                    str(category): str(mode).strip().lower()
+                    for category, mode in sec.get("floating_projection_overrides", {}).items()
+                }),
                 book_yield_categories=tuple(str(c) for c in sec.get("book_yield_categories", [])),
             )
             if securities.floating_projection not in _FLOAT_PROJECTION_MODES:
@@ -300,6 +309,12 @@ def load_config(path: Path | str) -> IngestionConfig:
                     f"config [firm_data.securities]: floating_projection must be one of "
                     f"{_FLOAT_PROJECTION_MODES} (PID-SEC-10), got {sec.get('floating_projection')!r}"
                 )
+            for category, mode in securities.floating_projection_overrides.items():
+                if mode not in _FLOAT_PROJECTION_MODES:
+                    raise ValidationFailure(
+                        f"config [firm_data.securities.floating_projection_overrides]: mode for "
+                        f"{category!r} must be one of {_FLOAT_PROJECTION_MODES} (PID-SEC-10), got {mode!r}"
+                    )
             if securities.on_security_error not in ("stop", "skip"):
                 raise ValidationFailure(
                     f"config [firm_data.securities]: on_security_error must be 'stop' or 'skip', "

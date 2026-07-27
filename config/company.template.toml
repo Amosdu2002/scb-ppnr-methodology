@@ -100,12 +100,20 @@ money_scale = "dollars"                 # confirmed 2026-07-24: whole USD -> can
 coupon_scale = "percent"                # enrichment coupon/floor scale
 book_yield_scale = "percent"            # positions-sheet book-yield scale — confirm
 floor_mode = "security_floor"           # PID-SEC-2 mode switch
-# floating_projection = "neg_hold_blend13"   # PID-SEC-10: "spot" (default) | "neg_hold"
-                                        # (negative margin -> launch coupon held flat) |
-                                        # "neg_hold_blend13" (+ monthly-reset PQ1 blend)
-# book_yield_categories = ["Municipal Bond"] # PID-SEC-11: categories accruing at BOOK
-                                        # YIELD held flat (fixed AND floating; zero-coupon
-                                        # untouched; missing BY falls back to the coupon)
+# floating_projection = "spot"          # PID-SEC-10 default mode: "spot" | "neg_hold" |
+                                        # "neg_hold_blend13" | "blend13" (monthly-reset PQ1,
+                                        # no negative-margin hold) | "flat_c0" (every floater
+                                        # held at the launch coupon)
+# book_yield_categories = []            # PID-SEC-11: categories accruing at BOOK YIELD held
+                                        # flat (REFUTED for Municipal Bond as a mechanism
+                                        # 2026-07-27 — keep empty unless re-evidenced)
+# [firm_data.securities.floating_projection_overrides]   # PID-SEC-10 per-category modes —
+# "Domestic Non-Agency RMBS (incl HEL ABS)" = "flat_c0"  # the reference treats categories
+# "CLO" = "blend13"                                      # differently (2026-07-27 bake-off)
+# "Auto ABS" = "blend13"
+# "Foreign RMBS" = "blend13"
+# "Student Loan ABS" = "blend13"
+# "CMBS" = "neg_hold_blend13"
 # price_mdrm = "CQSCJH21"               # uncomment/override if the Price column carries a
                                         # different MDRM code; fallback: a header cell whose
                                         # technical name is exactly "Price"

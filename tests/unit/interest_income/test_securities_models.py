@@ -11,6 +11,8 @@ from __future__ import annotations
 import pytest
 
 from scb_ppnr.interest_income import (
+    FLOAT_PROJECTION_BLEND13,
+    FLOAT_PROJECTION_FLAT_C0,
     FLOAT_PROJECTION_NEG_HOLD,
     FLOAT_PROJECTION_NEG_HOLD_BLEND,
     FLOOR_MODE_NONE,
@@ -110,6 +112,22 @@ def test_floating_projection_modes(make_income_scenario):
     blended = floating_coupon_path(positive, scenario, FLOOR_MODE_ZERO, [], FLOAT_PROJECTION_NEG_HOLD_BLEND)
     assert blended[1] == pytest.approx(0.0500 / 3 + 2 * 0.0460 / 3)          # ⅓·c0 + ⅔·(margin+3M(1))
     assert blended[2] == pytest.approx(0.0460)                               # spot thereafter
+
+    flat_all = floating_coupon_path(positive, scenario, FLOOR_MODE_ZERO, [], FLOAT_PROJECTION_FLAT_C0)
+    assert all(flat_all[q] == pytest.approx(0.0500) for q in range(1, 10))   # every floater held
+    blend_no_hold = floating_coupon_path(negative, scenario, FLOOR_MODE_ZERO, [], FLOAT_PROJECTION_BLEND13)
+    assert blend_no_hold[1] == 0.0 and blend_no_hold[2] == 0.0               # negative margin NOT held —
+                                                                             # blended/spot path floors at 0
+
+
+def test_other_sec_projection_override_per_category(make_income_scenario):
+    scenario = make_income_scenario(t3m={0: 0.0100, **flat(0.0060)})
+    clo = _pos(MODEL_OTHER_SEC, "CLO0000X1", category="CLO", rate_type=RATE_FLOATING, coupon_rate=0.0500)
+    result = project_other_sec([clo], scenario, firm_id="F", floor_mode=FLOOR_MODE_ZERO,
+                               floating_projection="spot",
+                               projection_overrides={"CLO": FLOAT_PROJECTION_FLAT_C0})
+    assert result.quarters[0].diagnostics.coupon_accrual == pytest.approx(12.5)   # held flat, not 11.5 spot
+    assert result.quarters[8].diagnostics.coupon_accrual == pytest.approx(12.5)
 
 
 def test_other_sec_book_yield_category_override(make_income_scenario):

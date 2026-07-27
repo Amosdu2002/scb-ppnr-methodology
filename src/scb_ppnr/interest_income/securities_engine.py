@@ -25,6 +25,8 @@ from ..core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from .common import build_income_result
 from .schemas import IncomeModelResult, IncomeQuarterResult, IncomeScenarioPaths
 from .securities_schemas import (
+    FLOAT_PROJECTION_BLEND13,
+    FLOAT_PROJECTION_FLAT_C0,
     FLOAT_PROJECTION_MODES,
     FLOAT_PROJECTION_NEG_HOLD_BLEND,
     FLOAT_PROJECTION_SPOT,
@@ -72,12 +74,13 @@ def floating_coupon_path(
     'zero' / 'security_floor' / 'none' scoped to negative-launch-margin floaters
     (the original PID-SEC-2 statement); 'security_floor_else_zero' floors EVERY
     floater at max(coupon(q), security floor if on file else 0). Projection
-    modes (PID-SEC-10, reference-identified 2026-07-27): 'neg_hold' holds a
-    negative-margin floater's launch coupon flat (never re-projected — the
-    reference's observed behavior; equivalently floored at its own coupon);
-    'neg_hold_blend13' additionally accrues PQ1 at ⅓·launch + ⅔·(margin +
-    3M(PQ1)) for positive margins (monthly-reset blend). Every hold/bind is
-    logged, never silent."""
+    modes (PID-SEC-10, reference-identified 2026-07-27; per-category via config
+    overrides): 'neg_hold' holds a negative-margin floater's launch coupon flat
+    (never re-projected); 'neg_hold_blend13' additionally accrues PQ1 at
+    ⅓·launch + ⅔·(margin + 3M(PQ1)) for positive margins (monthly-reset blend);
+    'blend13' applies the PQ1 blend WITHOUT the negative-margin hold (CLO/Auto/
+    Foreign-RMBS-identified); 'flat_c0' holds EVERY floater at the launch coupon
+    (Non-Agency-RMBS-identified). Every hold/bind is logged, never silent."""
     if floor_mode not in FLOOR_MODES:
         raise ValidationFailure(f"floor_mode must be one of {FLOOR_MODES}, got {floor_mode!r}")
     if projection_mode not in FLOAT_PROJECTION_MODES:
@@ -92,7 +95,13 @@ def floating_coupon_path(
             f"(t0 coupon {position.coupon_rate} < t0 spot 3M {scenario.usd_3m_treasury[0]}) — "
             f"PID-SEC-2 floor_mode={floor_mode!r} governs"
         )
-    if negative_margin and projection_mode != FLOAT_PROJECTION_SPOT:
+    if projection_mode == FLOAT_PROJECTION_FLAT_C0:
+        warnings.append(
+            f"{position.security_id}: launch coupon {position.coupon_rate} held flat PQ1–9 "
+            f"(PID-SEC-10 mode 'flat_c0'; floater never re-projected)"
+        )
+        return {quarter: position.coupon_rate for quarter in PROJECTION_QUARTERS}
+    if negative_margin and projection_mode in ("neg_hold", FLOAT_PROJECTION_NEG_HOLD_BLEND):
         warnings.append(
             f"{position.security_id}: negative margin — launch coupon {position.coupon_rate} held "
             f"flat PQ1–9 (PID-SEC-10 mode {projection_mode!r}; never re-projected)"
@@ -105,7 +114,7 @@ def floating_coupon_path(
     floored_quarters: list[int] = []
     for quarter in PROJECTION_QUARTERS:
         coupon = margin + scenario.usd_3m_treasury[quarter]
-        if quarter == 1 and projection_mode == FLOAT_PROJECTION_NEG_HOLD_BLEND:
+        if quarter == 1 and projection_mode in (FLOAT_PROJECTION_NEG_HOLD_BLEND, FLOAT_PROJECTION_BLEND13):
             # Monthly-reset PQ1 (PID-SEC-10): the first month still accrues at the
             # launch coupon; the remaining two at the newly reset rate.
             coupon = position.coupon_rate / 3.0 + 2.0 * (margin + scenario.usd_3m_treasury[1]) / 3.0

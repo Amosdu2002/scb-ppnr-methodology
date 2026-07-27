@@ -23,6 +23,8 @@ from .schemas import (
 )
 from .securities_engine import INTERIM_CHOICES, reinvestment_income
 from .securities_schemas import (
+    FLOAT_PROJECTION_BLEND13,
+    FLOAT_PROJECTION_FLAT_C0,
     FLOAT_PROJECTION_MODES,
     FLOAT_PROJECTION_NEG_HOLD,
     FLOAT_PROJECTION_NEG_HOLD_BLEND,
@@ -50,6 +52,8 @@ __all__ = [
     "CATEGORY_MODEL_MAP",
     "DepBanksOtherInputs",
     "DepBanksOtherQuarterDiagnostics",
+    "FLOAT_PROJECTION_BLEND13",
+    "FLOAT_PROJECTION_FLAT_C0",
     "FLOAT_PROJECTION_MODES",
     "FLOAT_PROJECTION_NEG_HOLD",
     "FLOAT_PROJECTION_NEG_HOLD_BLEND",

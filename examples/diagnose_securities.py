@@ -309,12 +309,14 @@ def run_compare(config, args) -> None:
         if position.model == "ii_ust":
             return m_ust._flows(position, sink)
         if position.model == "ii_mbs":
-            coupon = m_mbs._coupon_path(position, scenario, sc.floor_mode, sink, sc.floating_projection)
+            coupon = m_mbs._coupon_path(position, scenario, sc.floor_mode, sink,
+                                        sc.floating_projection, sc.floating_projection_overrides)
             if position.face_path is not None:
                 return m_mbs._agency_flows(position, coupon, sink)
             return m_mbs._other_mbs_flows(position, coupon, sink)
         return m_osec._flows(position, scenario, sc.floor_mode, sink,
-                             sc.floating_projection, sc.book_yield_categories)
+                             sc.floating_projection, sc.book_yield_categories,
+                             sc.floating_projection_overrides)
 
     for group in (inputs.ust, inputs.mbs, inputs.other_sec):
         for position in group:
