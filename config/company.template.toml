@@ -116,6 +116,9 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
 # positions_maturity_years_column = "Maturity (yr)"
 # positions_coupon_column = "Coupon Rate (decimal)"
 # positions_floor_column = "Coupon Rate Floor (decimal)"
+# positions_rate_type_column = "Float or fixed indicator"   # verification-only: the sheet's own
+                                        # float/fixed flag feeds the compare bake-off and a
+                                        # disagreement monitor; the ITO rate type drives the models
 
 [[firm_data.securities.enrichment]]     # one block per enrichment tab (repeat as needed)
 sheet = "<ENRICHMENT_TAB_NAME>"

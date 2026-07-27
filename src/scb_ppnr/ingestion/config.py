@@ -114,6 +114,9 @@ class SecuritiesConfig:
     positions_maturity_years_column: str | None = None
     positions_coupon_column: str | None = None
     positions_floor_column: str | None = None
+    positions_rate_type_column: str | None = None   # the sheet's own float/fixed indicator —
+                                                    # verification-only (bake-off + monitor);
+                                                    # ITO rate type still drives the models
 
 
 @dataclass(frozen=True)
@@ -273,6 +276,9 @@ def load_config(path: Path | str) -> IngestionConfig:
                 ),
                 positions_floor_column=(
                     str(sec["positions_floor_column"]) if "positions_floor_column" in sec else None
+                ),
+                positions_rate_type_column=(
+                    str(sec["positions_rate_type_column"]) if "positions_rate_type_column" in sec else None
                 ),
             )
             if securities.on_security_error not in ("stop", "skip"):

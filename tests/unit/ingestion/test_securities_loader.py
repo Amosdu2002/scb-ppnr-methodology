@@ -80,6 +80,7 @@ def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False) 
                 positions_maturity_years_column="Maturity (yr)" if tech else None,
                 positions_coupon_column="Coupon Rate (decimal)" if tech else None,
                 positions_floor_column="Coupon Rate Floor (decimal)" if tech else None,
+                positions_rate_type_column="Float or fixed indicator" if tech else None,
                 prepayment_sheet="prepay" if prepayment else None,
                 enrichment=(
                     SecuritiesEnrichmentSheet(
@@ -260,29 +261,35 @@ def test_multi_lot_cusip_apportions_prepayment_and_step_variable_vocab(tmp_path,
 
 
 def test_positions_sheet_technical_columns_pid_sec9(tmp_path):
-    # Extra cells beyond the 9 MDRM columns: Maturity (yr), Coupon Rate (decimal), Floor (decimal).
+    # Extra cells beyond the 9 MDRM columns: Maturity (yr), Coupon Rate (decimal),
+    # Floor (decimal), Float or fixed indicator.
     positions = [
-        [REPORT, "MUN00009A", "Municipal Bond", 90e6, 100e6, 100e6, "AFS", 5.0, None, 4.5, None, None],
-        [REPORT, "FLT00009A", "CLO", 100e6, 100e6, 100e6, "AFS", 5.0, None, None, 0.052, 0.048],
+        [REPORT, "MUN00009A", "Municipal Bond", 90e6, 100e6, 100e6, "AFS", 5.0, None, 4.5, None, None, "Fixed"],
+        [REPORT, "FLT00009A", "CLO", 100e6, 100e6, 100e6, "AFS", 5.0, None, None, 0.052, 0.048, "Fixed"],
     ]
     enrichment = [
         ["MUN00009A", None, 3.0, "FIXED", None, None, "N"],        # maturity date missing → years fallback
         ["FLT00009A", None, None, "FLOATING", 2.0, None, "Y"],     # blank coupon; ITO floor 2% (percent)
     ]
     build_workbook(tmp_path / "securities.xlsx", positions, enrichment, None,
-                   extra_headers=["Maturity (yr)", "Coupon Rate (decimal)", "Coupon Rate Floor (decimal)"])
+                   extra_headers=["Maturity (yr)", "Coupon Rate (decimal)", "Coupon Rate Floor (decimal)",
+                                  "Float or fixed indicator"])
     inputs = load_securities_inputs(make_config(tmp_path, prepayment=False, tech=True))
 
     muni = next(p for p in inputs.other_sec if p.security_id == "MUN00009A")
     assert muni.maturity_years == pytest.approx(4.5)               # positions-sheet years fallback
     assert muni.maturity_quarters == 18                            # ceil(4 × 4.5)
     assert muni.coupon_rate == pytest.approx(0.03)                 # enrichment coupon stays primary
+    assert muni.excel_rate_label == "Fixed"                        # carried verification-only
 
     floater = next(p for p in inputs.other_sec if p.security_id == "FLT00009A")
     assert floater.coupon_rate == pytest.approx(0.052)             # blank ITO coupon → positions column
     assert floater.coupon_floor == pytest.approx(0.048)            # positions floor PREFERRED over ITO 0.02
+    assert floater.rate_type == "floating"                         # ITO still governs the model
+    assert floater.excel_rate_label == "Fixed"                     # sheet disagrees — monitor fires
     assert any("PID-SEC-9" in w and "maturity" in w for w in inputs.warnings)
     assert any("PID-SEC-9" in w and "coupon column" in w for w in inputs.warnings)
+    assert any("indicator disagrees" in w for w in inputs.warnings)
 
 
 def test_technical_column_missing_from_header_is_hard_error(tmp_path):
@@ -314,7 +321,8 @@ def test_excel_error_literals_treated_as_missing(tmp_path):
     ]
     enrichment = [["ERR00001A", None, 3.0, "FIXED", None, "#N/A", "N"]]   # WAL error cell too
     build_workbook(tmp_path / "securities.xlsx", positions, enrichment, None,
-                   extra_headers=["Maturity (yr)", "Coupon Rate (decimal)", "Coupon Rate Floor (decimal)"])
+                   extra_headers=["Maturity (yr)", "Coupon Rate (decimal)", "Coupon Rate Floor (decimal)",
+                                  "Float or fixed indicator"])
     inputs = load_securities_inputs(make_config(tmp_path, prepayment=False, tech=True))
 
     muni = inputs.other_sec[0]
@@ -336,9 +344,11 @@ def test_config_parses_pid_sec9_columns_and_new_floor_mode(tmp_path):
         'positions_maturity_years_column = "Maturity (yr)"\n'
         'positions_coupon_column = "Coupon Rate (decimal)"\n'
         'positions_floor_column = "Coupon Rate Floor (decimal)"\n'
+        'positions_rate_type_column = "Float or fixed indicator"\n'
     )
     sc = load_config(tmp_path / "c.toml").firm_data.securities
     assert sc.floor_mode == "security_floor_else_zero"
     assert sc.positions_maturity_years_column == "Maturity (yr)"
     assert sc.positions_coupon_column == "Coupon Rate (decimal)"
     assert sc.positions_floor_column == "Coupon Rate Floor (decimal)"
+    assert sc.positions_rate_type_column == "Float or fixed indicator"

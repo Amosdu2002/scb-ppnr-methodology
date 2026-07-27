@@ -110,6 +110,9 @@ class SecurityPosition:
     reference_income: Mapping[int, float] | None = None   # verification only — the workbook's own
                                                           # per-security II_PQ1..PQ9 (USD millions);
                                                           # never consumed by the models
+    excel_rate_label: str | None = None                   # verification only — the workbook's own
+                                                          # float/fixed indicator (PID-SEC-9); never
+                                                          # drives model assignment until a PID adopts it
 
     def __post_init__(self) -> None:
         require_id("security_id", self.security_id)

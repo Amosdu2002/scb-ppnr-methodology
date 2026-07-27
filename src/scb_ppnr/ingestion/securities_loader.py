@@ -113,6 +113,7 @@ def _technical_columns(sc: SecuritiesConfig) -> dict[str, str]:
         "tech_maturity_years": sc.positions_maturity_years_column,
         "tech_coupon": sc.positions_coupon_column,
         "tech_floor": sc.positions_floor_column,
+        "tech_rate_type": sc.positions_rate_type_column,
     }
     return {field: name for field, name in declared.items() if name is not None}
 
@@ -345,6 +346,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
     tech_maturity_rows = 0
     tech_coupon_rows = 0
     tech_floor_rows = 0
+    indicator_disagree = 0
     unmatched: list[str] = []
     grouped: dict[str, list[SecurityPosition]] = {MODEL_UST: [], MODEL_MBS: [], MODEL_OTHER_SEC: []}
 
@@ -432,6 +434,14 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
             tech_floor_rows += 1
         elif "floor" in (fields or {}) and not _blank(fields.get("floor")):
             floor = apply_rate_scale(sc.coupon_scale, to_float(fields["floor"], context=f"{context} floor"), context=f"{context} floor")
+        # PID-SEC-9: the sheet's own float/fixed indicator — carried verification-only
+        # (bake-off + monitor); the ITO rate type still drives the models.
+        excel_rate_label = None
+        if "tech_rate_type" in record and not _blank(record.get("tech_rate_type")):
+            excel_rate_label = str(record["tech_rate_type"]).strip()
+            upper = excel_rate_label.upper()
+            if ("FIX" in upper and rate_type == RATE_FLOATING) or ("FLOAT" in upper and rate_type == RATE_FIXED):
+                indicator_disagree += 1
         # Data-quality monitor (2026-07-27, motivated by 300–470% OURS-HIGH CLO floaters
         # under floor_mode 'security_floor_else_zero'): a floor far above the coupon —
         # or above 25% annualized — is almost certainly a mis-unit source cell. Logged
@@ -557,6 +567,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 face_path=face_path,
                 ac_proxied=ac_proxied,
                 reference_income=reference_income,
+                excel_rate_label=excel_rate_label,
             )
         )
 
@@ -585,6 +596,11 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         warnings.append(f"{tech_floor_rows} position(s): floor taken from the positions-sheet floor column (decimal; PID-SEC-9)")
     if tech_coupon_rows:
         warnings.append(f"{tech_coupon_rows} position(s): coupon taken from the positions-sheet coupon column (decimal; PID-SEC-9)")
+    if indicator_disagree:
+        warnings.append(
+            f"{indicator_disagree} position(s): positions-sheet float/fixed indicator disagrees with "
+            f"the ITO rate type — ITO governs (verification-only monitor, PID-SEC-9)"
+        )
 
     return SecuritiesInputs(
         firm_id=config.firm_data.firm_id,

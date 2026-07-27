@@ -61,6 +61,7 @@ columns** on the same MDRM header row, located by **exact header text** declared
 | `positions_maturity_years_column` | maturity in years (decimal) | **fallback** when the enrichment maturity date is missing — feeds the PID-SEC-8 accretion denominator AND event timing (quarters = ceil(4 × years)); PID-SEC-7 (Agency WAL) applies only after both are missing |
 | `positions_coupon_column` | coupon rate (decimal) | **fills blanks** — the enrichment coupon stays primary |
 | `positions_floor_column` | coupon floor (decimal) | **preferred** over the enrichment floor when non-blank — it is the reference's own floor input, and drives `floor_mode = "security_floor_else_zero"` (PID-SEC-2 mode 4) |
+| `positions_rate_type_column` | the sheet's own float/fixed indicator (text) | **verification-only** — carried on the position (`excel_rate_label`) for the compare bake-off and a disagreement monitor; the enrichment rate type keeps driving the models until a PID adopts the indicator |
 
 A declared-but-absent column is a hard error (surface and ask — a config/data mismatch, never
 silently ignored). Usage is logged as per-run counts, per-security for coupon fills.
