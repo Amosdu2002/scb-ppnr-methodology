@@ -345,9 +345,13 @@ def test_config_parses_pid_sec9_columns_and_new_floor_mode(tmp_path):
         'positions_coupon_column = "Coupon Rate (decimal)"\n'
         'positions_floor_column = "Coupon Rate Floor (decimal)"\n'
         'positions_rate_type_column = "Float or fixed indicator"\n'
+        'floating_projection = "neg_hold_blend13"\n'
+        'book_yield_categories = ["Municipal Bond"]\n'
     )
     sc = load_config(tmp_path / "c.toml").firm_data.securities
     assert sc.floor_mode == "security_floor_else_zero"
+    assert sc.floating_projection == "neg_hold_blend13"
+    assert sc.book_yield_categories == ("Municipal Bond",)
     assert sc.positions_maturity_years_column == "Maturity (yr)"
     assert sc.positions_coupon_column == "Coupon Rate (decimal)"
     assert sc.positions_floor_column == "Coupon Rate Floor (decimal)"

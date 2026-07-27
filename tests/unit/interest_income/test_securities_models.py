@@ -11,6 +11,8 @@ from __future__ import annotations
 import pytest
 
 from scb_ppnr.interest_income import (
+    FLOAT_PROJECTION_NEG_HOLD,
+    FLOAT_PROJECTION_NEG_HOLD_BLEND,
     FLOOR_MODE_NONE,
     FLOOR_MODE_SECURITY,
     FLOOR_MODE_SECURITY_ELSE_ZERO,
@@ -90,6 +92,40 @@ def test_floating_security_floor_else_zero_mode(make_income_scenario):
     pathp = floating_coupon_path(positive, scenario, FLOOR_MODE_SECURITY_ELSE_ZERO, sink2)
     assert pathp[1] == pytest.approx(0.0480)                                 # raw 0.046 < floor 0.048
     assert floating_coupon_path(positive, scenario, FLOOR_MODE_SECURITY, [])[1] == pytest.approx(0.0460)
+
+
+def test_floating_projection_modes(make_income_scenario):
+    # PID-SEC-10: neg_hold holds a negative-margin floater at the launch coupon for
+    # all nine quarters; neg_hold_blend13 adds the monthly-reset PQ1 for positive margins.
+    scenario = make_income_scenario(t3m={0: 0.0100, **flat(0.0060)})
+    negative = _pos(MODEL_OTHER_SEC, rate_type=RATE_FLOATING, coupon_rate=0.0020)
+    sink: list[str] = []
+    held = floating_coupon_path(negative, scenario, FLOOR_MODE_ZERO, sink, FLOAT_PROJECTION_NEG_HOLD)
+    assert all(held[q] == pytest.approx(0.0020) for q in range(1, 10))       # never re-projected
+    assert any("PID-SEC-10" in w and "held" in w for w in sink)
+
+    positive = _pos(MODEL_OTHER_SEC, rate_type=RATE_FLOATING, coupon_rate=0.0500)   # margin +4%
+    hold_only = floating_coupon_path(positive, scenario, FLOOR_MODE_ZERO, [], FLOAT_PROJECTION_NEG_HOLD)
+    assert hold_only[1] == pytest.approx(0.0460)                             # positive margin: spot unchanged
+    blended = floating_coupon_path(positive, scenario, FLOOR_MODE_ZERO, [], FLOAT_PROJECTION_NEG_HOLD_BLEND)
+    assert blended[1] == pytest.approx(0.0500 / 3 + 2 * 0.0460 / 3)          # ⅓·c0 + ⅔·(margin+3M(1))
+    assert blended[2] == pytest.approx(0.0460)                               # spot thereafter
+
+
+def test_other_sec_book_yield_category_override(make_income_scenario):
+    # PID-SEC-11: configured categories accrue at book yield held flat; missing BY
+    # falls back to the coupon with a surfaced warning.
+    scenario = make_income_scenario()
+    muni = _pos(MODEL_OTHER_SEC, "MUN0000X1", category="Municipal Bond", coupon_rate=0.04,
+                book_yield=0.05, maturity_quarters=40, maturity_years=10.0)
+    no_by = _pos(MODEL_OTHER_SEC, "MUN0000X2", category="Municipal Bond", coupon_rate=0.04,
+                 maturity_quarters=40, maturity_years=10.0)
+    result = project_other_sec([muni, no_by], scenario, firm_id="F", floor_mode=FLOOR_MODE_ZERO,
+                               book_yield_categories=("Municipal Bond",))
+    d1 = result.quarters[0].diagnostics
+    assert d1.coupon_accrual == pytest.approx(1000.0 * 0.05 / 4 + 1000.0 * 0.04 / 4)   # BY + coupon fallback
+    assert any("BOOK YIELD" in w and "1 position" in w for w in result.warnings)
+    assert any(w.startswith("MUN0000X2") and "no book yield" in w for w in result.warnings)
 
 
 def test_reference_accretion_step_hand_values():

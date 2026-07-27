@@ -34,18 +34,31 @@ MODEL_ID = MODEL_OTHER_SEC
 
 
 def _flows(position: SecurityPosition, scenario: IncomeScenarioPaths,
-           floor_mode: str, warnings: list[str]) -> PerSecurityFlows:
+           floor_mode: str, warnings: list[str],
+           floating_projection: str = "spot",
+           book_yield_categories: tuple[str, ...] = ()) -> PerSecurityFlows:
     face = position.current_face
     maturity = position.maturity_quarters
     last_quarter = min(maturity, PROJECTION_QUARTERS[-1]) if maturity is not None else PROJECTION_QUARTERS[-1]
 
-    if position.rate_type == RATE_FLOATING:
-        coupon = floating_coupon_path(position, scenario, floor_mode, warnings)
+    # PID-SEC-11 (reference-identified 2026-07-27): configured categories accrue at
+    # BOOK YIELD held flat — fixed AND floating alike (Municipal floaters matched
+    # book-yield-flat exactly; fixed implied a constant BY/coupon multiplier).
+    # Zero-coupon rows are untouched; a missing book yield falls back to the coupon.
+    if (position.category in book_yield_categories and position.rate_type != RATE_ZERO_COUPON
+            and position.book_yield is not None):
+        coupon = {q: position.book_yield for q in PROJECTION_QUARTERS}
+    elif position.rate_type == RATE_FLOATING:
+        if position.category in book_yield_categories:
+            warnings.append(f"{position.security_id}: book-yield category but no book yield on file — floating margin machinery used (surfaced)")
+        coupon = floating_coupon_path(position, scenario, floor_mode, warnings, floating_projection)
     elif position.rate_type == RATE_ZERO_COUPON:
         coupon = {q: 0.0 for q in PROJECTION_QUARTERS}
     else:
         if position.coupon_rate is None:
             raise ValidationFailure(f"{position.security_id}: fixed-rate security without a coupon rate")
+        if position.category in book_yield_categories:
+            warnings.append(f"{position.security_id}: book-yield category but no book yield on file — coupon fallback (surfaced)")
         coupon = {q: position.coupon_rate for q in PROJECTION_QUARTERS}
 
     # PID-SEC-8 (user-verified 2026-07-24): income is ALWAYS cash coupon + AA
@@ -76,17 +89,24 @@ def project_other_sec(
     firm_id: str,
     floor_mode: str,
     on_error: str = "stop",
+    floating_projection: str = "spot",
+    book_yield_categories: tuple[str, ...] = (),
 ) -> IncomeModelResult:
     warnings: list[str] = []
     flows = []
     skipped = 0
+    by_override = 0
     for position in positions:
         if position.model != MODEL_ID:
             raise ValidationFailure(f"{position.security_id}: model {position.model!r} passed to {MODEL_ID}")
         try:
             if position.ac_proxied:
                 warnings.append(f"{position.security_id}: PID-SEC-3 proxied amortized cost — accretion held at 0")
-            flows.append(_flows(position, scenario, floor_mode, warnings))
+            if (position.category in book_yield_categories and position.book_yield is not None
+                    and position.rate_type != "zero_coupon"):
+                by_override += 1
+            flows.append(_flows(position, scenario, floor_mode, warnings,
+                                floating_projection, book_yield_categories))
         except ValidationFailure as exc:
             if on_error != "skip":
                 raise
@@ -94,6 +114,11 @@ def project_other_sec(
             warnings.append(f"HIGHLIGHT {position.security_id}: skipped (on_security_error='skip') — {exc}")
     if skipped:
         warnings.append(f"{skipped} other-securities position(s) skipped on error — HIGHLIGHTED above; income understated by their contribution")
+    if by_override:
+        warnings.append(
+            f"{by_override} position(s) in {sorted(set(book_yield_categories))} accrued at BOOK YIELD "
+            f"held flat (PID-SEC-11, reference-identified — pending confirmation)"
+        )
     if not flows:
         warnings.append("no in-scope other-securities positions — income is identically zero (logged)")
     return aggregate_model_result(MODEL_ID, firm_id, scenario, flows, warnings)

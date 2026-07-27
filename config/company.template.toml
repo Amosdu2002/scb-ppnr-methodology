@@ -100,6 +100,12 @@ money_scale = "dollars"                 # confirmed 2026-07-24: whole USD -> can
 coupon_scale = "percent"                # enrichment coupon/floor scale
 book_yield_scale = "percent"            # positions-sheet book-yield scale — confirm
 floor_mode = "security_floor"           # PID-SEC-2 mode switch
+# floating_projection = "neg_hold_blend13"   # PID-SEC-10: "spot" (default) | "neg_hold"
+                                        # (negative margin -> launch coupon held flat) |
+                                        # "neg_hold_blend13" (+ monthly-reset PQ1 blend)
+# book_yield_categories = ["Municipal Bond"] # PID-SEC-11: categories accruing at BOOK
+                                        # YIELD held flat (fixed AND floating; zero-coupon
+                                        # untouched; missing BY falls back to the coupon)
 # price_mdrm = "CQSCJH21"               # uncomment/override if the Price column carries a
                                         # different MDRM code; fallback: a header cell whose
                                         # technical name is exactly "Price"

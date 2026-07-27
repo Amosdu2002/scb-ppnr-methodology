@@ -156,17 +156,22 @@ def main() -> None:
 
     inputs = load_securities_inputs(config)
     floor_mode = config.firm_data.securities.floor_mode
+    floating_projection = config.firm_data.securities.floating_projection
+    book_yield_categories = config.firm_data.securities.book_yield_categories
     on_error = config.firm_data.securities.on_security_error
 
     header = (f"firm: {inputs.firm_id}   scenario: {scenario.scenario_id}   "
-              f"floor_mode: {floor_mode}   on_security_error: {on_error}\n"
+              f"floor_mode: {floor_mode}   floating_projection: {floating_projection}   "
+              f"book_yield_categories: {list(book_yield_categories)}   on_security_error: {on_error}\n"
               f"AMOUNTS: USD MILLIONS per quarter — canonical unit, D-006; pre-hedge")
 
     results = [
         project_ust(inputs.ust, scenario, firm_id=inputs.firm_id, on_error=on_error),
         project_mbs(inputs.mbs, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error,
-                    reinvest_paydowns=config.firm_data.securities.reinvest_paydowns),
-        project_other_sec(inputs.other_sec, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error),
+                    reinvest_paydowns=config.firm_data.securities.reinvest_paydowns,
+                    floating_projection=floating_projection),
+        project_other_sec(inputs.other_sec, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error,
+                          floating_projection=floating_projection, book_yield_categories=book_yield_categories),
     ]
     tables = "\n".join(_render_model(result) for result in results)
     all_warnings = [f"loader: {w}" for w in inputs.warnings]

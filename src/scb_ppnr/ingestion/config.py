@@ -80,6 +80,9 @@ class SecuritiesEnrichmentSheet:
 # "security_floor_else_zero" (2026-07-24) is the reference-workbook rule: every
 # floater floored at its security floor when on file, else at 0.
 _FLOOR_MODES = ("zero", "security_floor", "none", "security_floor_else_zero")
+# PID-SEC-10 floating projection modes (mirrored): "neg_hold" holds negative-margin
+# floaters at the launch coupon; "neg_hold_blend13" adds the monthly-reset PQ1 blend.
+_FLOAT_PROJECTION_MODES = ("spot", "neg_hold", "neg_hold_blend13")
 
 
 @dataclass(frozen=True)
@@ -117,6 +120,15 @@ class SecuritiesConfig:
     positions_rate_type_column: str | None = None   # the sheet's own float/fixed indicator —
                                                     # verification-only (bake-off + monitor);
                                                     # ITO rate type still drives the models
+    # PID-SEC-10 (2026-07-27): floating-coupon projection mode — "spot" (original) |
+    # "neg_hold" (negative margin → launch coupon held flat) | "neg_hold_blend13"
+    # (neg_hold + monthly-reset PQ1 blend for positive margins).
+    floating_projection: str = "spot"
+    # PID-SEC-11 (2026-07-27): categories whose securities accrue at BOOK YIELD
+    # instead of the coupon (reference-identified for Municipal Bond: floaters match
+    # book-yield-flat exactly; fixed implied multiplier constant at BY/coupon).
+    # Zero-coupon rows are never affected; missing book yield falls back to coupon.
+    book_yield_categories: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -280,7 +292,14 @@ def load_config(path: Path | str) -> IngestionConfig:
                 positions_rate_type_column=(
                     str(sec["positions_rate_type_column"]) if "positions_rate_type_column" in sec else None
                 ),
+                floating_projection=str(sec.get("floating_projection", "spot")).strip().lower(),
+                book_yield_categories=tuple(str(c) for c in sec.get("book_yield_categories", [])),
             )
+            if securities.floating_projection not in _FLOAT_PROJECTION_MODES:
+                raise ValidationFailure(
+                    f"config [firm_data.securities]: floating_projection must be one of "
+                    f"{_FLOAT_PROJECTION_MODES} (PID-SEC-10), got {sec.get('floating_projection')!r}"
+                )
             if securities.on_security_error not in ("stop", "skip"):
                 raise ValidationFailure(
                     f"config [firm_data.securities]: on_security_error must be 'stop' or 'skip', "

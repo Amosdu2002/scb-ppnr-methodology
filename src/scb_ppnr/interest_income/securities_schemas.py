@@ -46,6 +46,19 @@ FLOOR_MODE_NONE = "none"
 FLOOR_MODE_SECURITY_ELSE_ZERO = "security_floor_else_zero"
 FLOOR_MODES = (FLOOR_MODE_ZERO, FLOOR_MODE_SECURITY, FLOOR_MODE_NONE, FLOOR_MODE_SECURITY_ELSE_ZERO)
 
+# PID-SEC-10 (2026-07-27, reference-identified): floating-coupon projection modes.
+# "spot" — coupon(q) = margin + 3M(q) every quarter (the original rule).
+# "neg_hold" — a NEGATIVE-launch-margin floater is never re-projected: the launch
+#   coupon holds flat PQ1–9 (reference-observed: implied coupons ≈ launch coupon;
+#   equivalently the security's effective floor is its own current coupon).
+# "neg_hold_blend13" — neg_hold plus the monthly-reset PQ1 for positive margins:
+#   PQ1 = ⅓·launch coupon + ⅔·(margin + 3M(PQ1)), spot thereafter (the first month
+#   of PQ1 still accrues at the coupon set before the launch date).
+FLOAT_PROJECTION_SPOT = "spot"
+FLOAT_PROJECTION_NEG_HOLD = "neg_hold"
+FLOAT_PROJECTION_NEG_HOLD_BLEND = "neg_hold_blend13"
+FLOAT_PROJECTION_MODES = (FLOAT_PROJECTION_SPOT, FLOAT_PROJECTION_NEG_HOLD, FLOAT_PROJECTION_NEG_HOLD_BLEND)
+
 # PID-SEC-5 (user-confirmed): SECURITY_DESCRIPTION_1 -> (model, agency_prepayment).
 # Exactly the confirmed categories; anything else errors (never defaulted).
 CATEGORY_MODEL_MAP: Mapping[str, tuple[str, bool]] = {

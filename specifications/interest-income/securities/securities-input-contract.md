@@ -163,7 +163,9 @@ listed above follow this convention only after being surfaced and confirmed.
 | PID-SEC-2 floor treatment | **Four config-switchable modes** — `floor_mode` ∈ `zero` \| `security_floor` \| `none` \| `security_floor_else_zero`; the fourth (2026-07-24) is the reference-workbook rule: every floater floored at its security floor when on file, else at 0 — pending compare-run confirmation |
 | `book_yield` scale | declare in config (`percent` \| `decimal`) — refused if undeclared |
 | Reference II_PQ income scope | **RESOLVED 2026-07-24 (dual ratios):** the II_PQ1..9 columns EXCLUDE reinvestment income — compare mode's primary ratio is xr/ref |
-| PID-SEC-9 technical columns | maturity-years fallback / coupon blank-fill / preferred floor — precedence table in §2a; validated on the next compare run |
+| PID-SEC-9 technical columns | maturity-years fallback / coupon blank-fill / preferred floor / float-fixed indicator — precedence table in §2a; Excel error literals = missing (§6) |
+| PID-SEC-10 floating projection | `floating_projection` ∈ `spot` \| `neg_hold` \| `neg_hold_blend13` — reference-identified 2026-07-27 (negative margins held at the launch coupon; monthly-reset PQ1 blend), pending confirmation rerun |
+| PID-SEC-11 book-yield categories | `book_yield_categories` — categories accruing at book yield held flat (Municipal Bond identified 2026-07-27), pending the user's formula check |
 
 ## 8. Out of scope for this contract
 
