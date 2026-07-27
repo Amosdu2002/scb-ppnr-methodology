@@ -271,6 +271,17 @@ def run_compare(config, args) -> None:
     ref_q = {q: 0.0 for q in quarters}
     no_reference = 0
     compare_skipped = 0
+    # Floating-coupon rule bake-off (2026-07-27): the floor hypothesis is refuted for
+    # Non-Agency RMBS / CMBS (no floor on file in ANY source; totals immobile across
+    # floor sources), so candidate coupon rules are priced side by side — coupon leg
+    # swapped per rule, AA leg ours — and reported as relay-safe rule/ref ratios.
+    #   current  = the configured floor_mode path (baseline; equals xr for the subset)
+    #   flat_c0  = launch coupon held flat PQ1..9 (floater treated as fixed)
+    #   lag1_3m  = c0 + (3M(q) − 3M(PQ1)) — PQ1 anchored at the launch coupon, then
+    #              floating with the 3M CHANGE from PQ1 (one-quarter-lag margin basis)
+    #   by_flat  = book yield held flat (launch coupon when book yield is missing)
+    float_rules: dict[str, dict[str, float]] = {}
+    t3m = scenario.usd_3m_treasury
 
     def flows_for(position, sink):
         if position.model == "ii_ust":
@@ -326,6 +337,28 @@ def run_compare(config, args) -> None:
                 worst.append((abs(diff), f"{_mask(position.security_id)} [{position.category}/{position.rate_type}] "
                                          f"rel-gap {rel:6.1%} sign {'OURS-HIGH' if diff > 0 else 'OURS-LOW'}"))
 
+            if position.rate_type == RATE_FLOATING and position.coupon_rate is not None:
+                fr = float_rules.setdefault(position.category, {"n": 0, "ref": 0.0, "current": 0.0,
+                                                                "flat_c0": 0.0, "lag1_3m": 0.0, "by_flat": 0.0})
+                fr["n"] += 1
+                fr["ref"] += ref_total
+                fr["current"] += ours_xr_total
+                aa_total = sum(flows.accretion.get(q, 0.0) for q in quarters)
+                c0 = position.coupon_rate
+                by = position.book_yield if position.book_yield is not None else c0
+                for quarter in quarters:
+                    if quarter > flows.alive_through:
+                        break
+                    face_prior = (position.face_path[quarter - 1] if position.face_path is not None
+                                  else position.current_face)
+                    weight = face_prior / 4.0
+                    fr["flat_c0"] += weight * c0
+                    fr["lag1_3m"] += weight * (c0 + t3m[quarter] - t3m[1])
+                    fr["by_flat"] += weight * by
+                fr["flat_c0"] += aa_total
+                fr["lag1_3m"] += aa_total
+                fr["by_flat"] += aa_total
+
     print("\nCOMPARE — LOCAL DETAIL (USD millions; masked ids):")
     for category, stats in sorted(per_cat.items()):
         print(f"  {category:42s} n={stats['n']:>6}  ours={stats['ours']:14.2f}  ref={stats['ref']:14.2f}")
@@ -343,6 +376,16 @@ def run_compare(config, args) -> None:
         print(f"COMPARE {category}: n={stats['n']} <=0.1%:{stats['<=0.1%']} <=1%:{stats['<=1%']} "
               f"<=5%:{stats['<=5%']} >5%:{stats['>5%']} ref-zero:{stats['ref-zero']} "
               f"xr/ref={ratio_xr:.4f} incl-reinv/ref={ratio:.4f}")
+    if float_rules:
+        print("FLOAT-RULES (floating+reference subset; coupon leg per rule, AA leg ours; ratios rule/ref):")
+        print("  current=configured mode | flat_c0=launch coupon flat | lag1_3m=c0+(3M(q)-3M(PQ1)) | by_flat=book yield flat")
+        for category, fr in sorted(float_rules.items()):
+            if not fr["ref"]:
+                print(f"FLOAT-RULES {category}: n={fr['n']} ref-total-zero — ratios n/a")
+                continue
+            print(f"FLOAT-RULES {category}: n={fr['n']} current={fr['current'] / fr['ref']:.4f} "
+                  f"flat_c0={fr['flat_c0'] / fr['ref']:.4f} lag1_3m={fr['lag1_3m'] / fr['ref']:.4f} "
+                  f"by_flat={fr['by_flat'] / fr['ref']:.4f}")
     total_ours, total_ref = sum(ours_q.values()), sum(ref_q.values())
     if total_ref:
         print(f"COMPARE-TOTAL: xr/ref={total_xr / total_ref:.4f} incl-reinv/ref={total_ours / total_ref:.4f}")
