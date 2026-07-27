@@ -407,6 +407,15 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
             tech_floor_rows += 1
         elif "floor" in (fields or {}) and not _blank(fields.get("floor")):
             floor = apply_rate_scale(sc.coupon_scale, to_float(fields["floor"], context=f"{context} floor"), context=f"{context} floor")
+        # Data-quality monitor (2026-07-27, motivated by 300–470% OURS-HIGH CLO floaters
+        # under floor_mode 'security_floor_else_zero'): a floor far above the coupon —
+        # or above 25% annualized — is almost certainly a mis-unit source cell. Logged
+        # and applied AS-IS (log-never-clamp); the RATE_SCALE_GUARD (50%) still hard-stops.
+        if floor is not None and (floor > 0.25 or (coupon is not None and floor > 3.0 * max(coupon, 0.02))):
+            warnings.append(
+                f"HIGHLIGHT {security_id}: coupon floor {floor} looks implausible vs coupon {coupon} — "
+                f"suspect source-cell units (applied AS-IS, log-never-clamp; confirm the cell)"
+            )
 
         wal = None
         if not _blank(fields.get("wal")):

@@ -344,7 +344,8 @@ def run_compare(config, args) -> None:
         print("COMPARE-TOTAL: no reference")
     print("COMPARE-BY-QUARTER ours/ref:",
           " ".join(f"PQ{q}={ours_q[q] / ref_q[q]:.3f}" if ref_q[q] else f"PQ{q}=n/a" for q in quarters))
-    print(f"COMPARE-NO-REFERENCE: {no_reference}   COMPARE-SKIPPED: {compare_skipped}")
+    floor_suspect = sum("suspect source-cell units" in w for w in inputs.warnings)
+    print(f"COMPARE-NO-REFERENCE: {no_reference}   COMPARE-SKIPPED: {compare_skipped}   FLOOR-SUSPECT: {floor_suspect}")
     print("======================================================================================")
 
 

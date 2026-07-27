@@ -293,6 +293,18 @@ def test_technical_column_missing_from_header_is_hard_error(tmp_path):
         load_securities_inputs(make_config(tmp_path, prepayment=False, tech=True))
 
 
+def test_floor_suspect_monitor_logs_never_clamps(tmp_path):
+    # ITO floor cell 30 (percent scale → 0.30): under the 0.5 hard guard but implausible.
+    positions = [[REPORT, "FLR00001A", "CLO", 100e6, 100e6, 100e6, "AFS", 5.0, None]]
+    enrichment = [["FLR00001A", serial(2030, 1, 1), 6.0, "FLOATING", 30.0, None, "Y"]]
+    build_workbook(tmp_path / "securities.xlsx", positions, enrichment, None)
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False))
+    clo = inputs.other_sec[0]
+    assert clo.coupon_floor == pytest.approx(0.30)                 # applied AS-IS, never clamped
+    assert any(w.startswith("HIGHLIGHT FLR00001A") and "suspect source-cell units" in w
+               for w in inputs.warnings)
+
+
 def test_config_parses_pid_sec9_columns_and_new_floor_mode(tmp_path):
     (tmp_path / "c.toml").write_text(
         '[firm_data]\nfirm_id = "F"\n'
