@@ -284,8 +284,15 @@ def run_compare(config, args) -> None:
     #   by_flat   = book yield held flat (launch coupon when book yield is missing)
     #   excel_ind = flat_c0 where the sheet's own float/fixed indicator says Fixed,
     #               else lag3m_f0 (needs positions_rate_type_column; missing → lag3m_f0)
+    #   freeze1_f0 = c0 in PQ1, then max(margin + 3M(PQ1), 0) FROZEN for PQ2..9 — one
+    #               reset at PQ1, constant thereafter (per-row-constant accrual)
+    # IMPLIED-CPN (round 3): the reference's own implied coupon path — per category
+    # and rate-type subset, [Σ(ref(q) − our AA(q))] / [Σ face(q−1)/4 × c0], i.e. the
+    # face-weighted implied coupon as a RATIO to the launch coupon (relay-safe).
+    # Read with the SCENARIO-3M line to identify the rule directly.
     float_rules: dict[str, dict[str, float]] = {}
     ratio_rows: dict[str, list[float]] = {}
+    implied: dict[tuple[str, str], dict[int, list[float]]] = {}   # (category, subset) -> q -> [num, c0-weight]
     t3m = scenario.usd_3m_treasury
 
     def flows_for(position, sink):
@@ -345,11 +352,21 @@ def run_compare(config, args) -> None:
             if ref_total > 0.0:
                 ratio_rows.setdefault(position.category, []).append(ours_xr_total / ref_total)
 
+            if position.coupon_rate is not None and position.rate_type in ("floating", "fixed") and ref_total > 0.0:
+                bucket = implied.setdefault((position.category, position.rate_type), {q: [0.0, 0.0] for q in quarters})
+                for quarter in quarters:
+                    if quarter > flows.alive_through:
+                        break
+                    face_prior = (position.face_path[quarter - 1] if position.face_path is not None
+                                  else position.current_face)
+                    bucket[quarter][0] += ref[quarter] - flows.accretion.get(quarter, 0.0)
+                    bucket[quarter][1] += face_prior / 4.0 * position.coupon_rate
+
             if position.rate_type == RATE_FLOATING and position.coupon_rate is not None:
                 fr = float_rules.setdefault(position.category, {"n": 0, "ref": 0.0, "current": 0.0,
                                                                 "flat_c0": 0.0, "lag3m_f0": 0.0,
                                                                 "lag1_3m": 0.0, "by_flat": 0.0,
-                                                                "excel_ind": 0.0,
+                                                                "excel_ind": 0.0, "freeze1_f0": 0.0,
                                                                 "ind_fixed": 0, "ind_float": 0, "ind_na": 0})
                 fr["n"] += 1
                 fr["ref"] += ref_total
@@ -378,7 +395,8 @@ def run_compare(config, args) -> None:
                     fr["lag1_3m"] += weight * (c0 + t3m[quarter] - t3m[1])
                     fr["by_flat"] += weight * by
                     fr["excel_ind"] += weight * (c0 if ind_fixed else lag_coupon)
-                for rule in ("flat_c0", "lag3m_f0", "lag1_3m", "by_flat", "excel_ind"):
+                    fr["freeze1_f0"] += weight * (c0 if quarter == 1 else max(margin + t3m[1], 0.0))
+                for rule in ("flat_c0", "lag3m_f0", "lag1_3m", "by_flat", "excel_ind", "freeze1_f0"):
                     fr[rule] += aa_total
 
     print("\nCOMPARE — LOCAL DETAIL (USD millions; masked ids):")
@@ -402,6 +420,7 @@ def run_compare(config, args) -> None:
         print("FLOAT-RULES (floating+reference subset; coupon leg per rule, AA leg ours; ratios rule/ref):")
         print("  current=configured mode | flat_c0=launch coupon flat | lag3m_f0=max(margin+3M(q-1),0) prior-quarter reset")
         print("  lag1_3m=c0+(3M(q)-3M(PQ1)) | by_flat=book yield flat | excel_ind=flat_c0 if sheet says Fixed else lag3m_f0")
+        print("  freeze1_f0=c0 in PQ1 then max(margin+3M(PQ1),0) frozen PQ2..9")
         for category, fr in sorted(float_rules.items()):
             if not fr["ref"]:
                 print(f"FLOAT-RULES {category}: n={fr['n']} ref-total-zero — ratios n/a")
@@ -409,7 +428,21 @@ def run_compare(config, args) -> None:
             print(f"FLOAT-RULES {category}: n={fr['n']} current={fr['current'] / fr['ref']:.4f} "
                   f"flat_c0={fr['flat_c0'] / fr['ref']:.4f} lag3m_f0={fr['lag3m_f0'] / fr['ref']:.4f} "
                   f"lag1_3m={fr['lag1_3m'] / fr['ref']:.4f} by_flat={fr['by_flat'] / fr['ref']:.4f} "
-                  f"excel_ind={fr['excel_ind'] / fr['ref']:.4f} ind(F/x/na)={fr['ind_fixed']}/{fr['ind_float']}/{fr['ind_na']}")
+                  f"excel_ind={fr['excel_ind'] / fr['ref']:.4f} freeze1_f0={fr['freeze1_f0'] / fr['ref']:.4f} "
+                  f"ind(F/x/na)={fr['ind_fixed']}/{fr['ind_float']}/{fr['ind_na']}")
+    print("SCENARIO-3M (supervisory scenario path, annualized decimals — public FRB data):",
+          " ".join(f"PQ{q}={t3m[q]:.4f}" for q in range(0, 10)))
+    if implied:
+        print("IMPLIED-CPN (reference implied coupon ÷ launch coupon, face-weighted; ref minus OUR AA leg):")
+        off_categories = {c for c, s in per_cat.items() if s["ref"] and abs(s["ours_xr"] / s["ref"] - 1.0) > 0.02}
+        for (category, subset), bucket in sorted(implied.items()):
+            if subset == "fixed" and category not in off_categories:
+                continue
+            cells = []
+            for q in quarters:
+                num, c0w = bucket[q]
+                cells.append(f"q{q}={num / c0w:.3f}" if c0w > 0 else f"q{q}=n/a")
+            print(f"IMPLIED-CPN {category} [{subset}]: " + " ".join(cells))
     spread_lines = []
     for category, stats in sorted(per_cat.items()):
         if not stats["ref"] or abs(stats["ours_xr"] / stats["ref"] - 1.0) <= 0.02:
