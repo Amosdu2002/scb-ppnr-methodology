@@ -303,6 +303,15 @@ def run_compare(config, args) -> None:
     ratio_rows: dict[str, list[float]] = {}
     implied: dict[tuple[str, str], dict[int, list[float]]] = {}   # (category, subset) -> q -> [num, c0-weight]
     cpn_source: dict[str, list[tuple[float, float]]] = {}         # category -> [(face, sheet/ito coupon ratio)]
+    # FIXED-RULES (2026-07-27, Municipal focus): fixed-rate accrual candidates —
+    #   current      = coupon × face/4 + our AA (the PID-SEC-8 baseline)
+    #   by_face_aa   = BOOK YIELD × face/4 + our AA (BY-basis coupon leg)
+    #   by_face_only = BOOK YIELD × face/4 alone (≡ coupon leg + AA=(BY−c0)·face/4,
+    #                  the constant "yield adjustment" — total income = BY × face/4)
+    fixed_rules: dict[str, dict[str, float]] = {}
+    # SOVEREIGN-ZCB decomposition (OQ-028): which reference behavior carries the gap.
+    zcb_buckets: dict[str, list[float]] = {"ref_zero": [0, 0.0, 0.0], "pq1_only": [0, 0.0, 0.0],
+                                           "full": [0, 0.0, 0.0]}    # [n, ours_xr, ref]
     t3m = scenario.usd_3m_treasury
 
     def flows_for(position, sink):
@@ -370,6 +379,33 @@ def run_compare(config, args) -> None:
                 cpn_source.setdefault(position.category, []).append(
                     (position.current_face, position.excel_coupon_rate / position.coupon_rate)
                 )
+
+            if (position.rate_type == "fixed" and position.coupon_rate not in (None, 0.0)
+                    and position.book_yield is not None and ref_total > 0.0):
+                fx = fixed_rules.setdefault(position.category, {"n": 0, "ref": 0.0, "current": 0.0,
+                                                                "by_face_aa": 0.0, "by_face_only": 0.0})
+                aa_total = sum(flows.accretion.get(q, 0.0) for q in quarters)
+                weight_sum = sum(
+                    (position.face_path[q - 1] if position.face_path is not None else position.current_face) / 4.0
+                    for q in quarters if q <= flows.alive_through
+                )
+                fx["n"] += 1
+                fx["ref"] += ref_total
+                fx["current"] += ours_xr_total
+                fx["by_face_aa"] += weight_sum * position.book_yield + aa_total
+                fx["by_face_only"] += weight_sum * position.book_yield
+
+            if position.category == "Sovereign Bond" and position.rate_type == "zero_coupon":
+                nonzero_quarters = [q for q in quarters if abs(ref[q]) > 1e-9]
+                if not nonzero_quarters:
+                    bucket = zcb_buckets["ref_zero"]
+                elif nonzero_quarters == [1]:
+                    bucket = zcb_buckets["pq1_only"]
+                else:
+                    bucket = zcb_buckets["full"]
+                bucket[0] += 1
+                bucket[1] += ours_xr_total
+                bucket[2] += ref_total
 
             if position.coupon_rate is not None and position.rate_type in ("floating", "fixed") and ref_total > 0.0:
                 bucket = implied.setdefault((position.category, position.rate_type), {q: [0.0, 0.0] for q in quarters})
@@ -457,6 +493,24 @@ def run_compare(config, args) -> None:
                   f"excel_ind={fr['excel_ind'] / fr['ref']:.4f} freeze1_f0={fr['freeze1_f0'] / fr['ref']:.4f} "
                   f"blend13={fr['blend13'] / fr['ref']:.4f} neg_hold={fr['neg_hold'] / fr['ref']:.4f} "
                   f"ind(F/x/na)={fr['ind_fixed']}/{fr['ind_float']}/{fr['ind_na']}")
+    off_for_fixed = {c for c, s in per_cat.items() if s["ref"] and abs(s["ours_xr"] / s["ref"] - 1.0) > 0.02}
+    fixed_lines = [(category, fx) for category, fx in sorted(fixed_rules.items())
+                   if category in off_for_fixed and fx["ref"]]
+    if fixed_lines:
+        print("FIXED-RULES (fixed+reference subset, categories >2% off; ratios rule/ref):")
+        print("  current=coupon*face/4 + our AA | by_face_aa=BY*face/4 + our AA | by_face_only=BY*face/4 alone")
+        for category, fx in fixed_lines:
+            print(f"FIXED-RULES {category}: n={fx['n']} current={fx['current'] / fx['ref']:.4f} "
+                  f"by_face_aa={fx['by_face_aa'] / fx['ref']:.4f} by_face_only={fx['by_face_only'] / fx['ref']:.4f}")
+    if any(bucket[0] for bucket in zcb_buckets.values()):
+        sov_ours_total = sum(bucket[1] for bucket in zcb_buckets.values())
+        parts = []
+        for name, (count, ours_sum, ref_sum) in zcb_buckets.items():
+            share = ours_sum / sov_ours_total if sov_ours_total else 0.0
+            ratio = f" ours/ref={ours_sum / ref_sum:.3f}" if ref_sum else ""
+            parts.append(f"{name}: n={int(count)} ours-share={share:.1%}{ratio}")
+        print("SOVEREIGN-ZCB (reference behavior buckets; ours-share = share of OUR sovereign-ZCB income):")
+        print("SOVEREIGN-ZCB " + " | ".join(parts))
     if cpn_source:
         print("CPN-SOURCE (positions-sheet coupon ÷ ITO coupon; face-weighted mean / median / share >1% apart):")
         for category, pairs in sorted(cpn_source.items()):
