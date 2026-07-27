@@ -305,6 +305,26 @@ def test_floor_suspect_monitor_logs_never_clamps(tmp_path):
                for w in inputs.warnings)
 
 
+def test_excel_error_literals_treated_as_missing(tmp_path):
+    # The reference sheet's derived columns error to #VALUE! when their own inputs
+    # are missing (user-directed 2026-07-27): treated as missing, never a hard stop.
+    positions = [
+        [REPORT, "ERR00001A", "Municipal Bond", 90e6, 100e6, 100e6, "AFS", 5.0, None,
+         "#VALUE!", "#VALUE!", "#VALUE!"],
+    ]
+    enrichment = [["ERR00001A", None, 3.0, "FIXED", None, "#N/A", "N"]]   # WAL error cell too
+    build_workbook(tmp_path / "securities.xlsx", positions, enrichment, None,
+                   extra_headers=["Maturity (yr)", "Coupon Rate (decimal)", "Coupon Rate Floor (decimal)"])
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False, tech=True))
+
+    muni = inputs.other_sec[0]
+    assert muni.maturity_years is None and muni.maturity_quarters is None   # #VALUE! → missing
+    assert muni.coupon_floor is None and muni.wal_years is None
+    assert muni.coupon_rate == pytest.approx(0.03)                          # enrichment coupon unaffected
+    census = [w for w in inputs.warnings if "Excel error cell" in w]
+    assert len(census) == 1 and "4 " in census[0]                           # 3 positions + 1 enrichment
+
+
 def test_config_parses_pid_sec9_columns_and_new_floor_mode(tmp_path):
     (tmp_path / "c.toml").write_text(
         '[firm_data]\nfirm_id = "F"\n'

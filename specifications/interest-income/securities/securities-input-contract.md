@@ -144,6 +144,11 @@ listed above follow this convention only after being surfaced and confirmed.
   observed); canonical model unit stays USD millions (D-006) — the loader converts once, with
   the positions-sheet money scale declared per §7.
 - Literal placeholder strings ("(blank)") and empty cells are both **missing**.
+- **Excel formula-error literals** (`#VALUE!`, `#N/A`, `#REF!`, `#DIV/0!`, `#NAME?`, `#NULL!`,
+  `#NUM!`) are **missing** (user-directed 2026-07-27): the sheet's derived columns (§2a) are
+  formulas that error when their own inputs are absent, so an error cell carries no value —
+  the field falls back per its normal chain (maturity → AA held at 0; coupon → the no-coupon
+  surfacing; floor → mode's else-branch). A per-run census warning counts them per field.
 - Maturity date → `maturity_quarters` relative to `report_date` (rounding convention fixed at
   code time and logged); WAL years → the A41 4× factor applies as printed [FACT].
 

@@ -32,6 +32,7 @@ from collections import Counter
 
 from scb_ppnr.ingestion import load_config, load_mev_scenario, load_securities_inputs
 from scb_ppnr.ingestion.securities_loader import (
+    _EXCEL_ERRORS,
     _POSITIONS_MDRM,
     _RATE_TYPE_MAP,
     _REQUIRED_MDRM,
@@ -123,6 +124,11 @@ def main() -> None:
             skipped = sum("PQ1 face is 0" in w for w in prepay_warnings)
             print(f"prepayment sheet: {len(prepayment)} usable rows, {skipped} skipped (PQ1=0/blank)")
             relay.append(f"PREPAY-ROWS:{len(prepayment)} PREPAY-SKIPPED:{skipped}")
+        excel_error_cells = sum(
+            1 for record in records for value in record.values()
+            if isinstance(value, str) and value.strip().upper() in _EXCEL_ERRORS
+        )
+        relay.append(f"EXCEL-ERROR-CELLS:{excel_error_cells} (treated as missing — user-directed 2026-07-27)")
     finally:
         workbook.close()
 

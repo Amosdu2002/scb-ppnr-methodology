@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import math
+from collections import Counter
 from pathlib import Path
 
 from ..core.schemas import PROJECTION_QUARTERS, ValidationFailure
@@ -74,7 +75,13 @@ _RATE_TYPE_MAP = {
 # treatment (pending user confirmation): fixed at the launch coupon, logged per security.
 _STEP_LABELS = {"STEP CPN", "STEP", "STEP COUPON", "STEP-UP"}
 
-_MISSING_STRINGS = {"", "(BLANK)", "N/A", "NA", "-"}
+# Excel formula-error literals (user-directed 2026-07-27): the reference sheet's
+# derived columns (e.g. "Maturity (yr)", "Coupon Rate Floor (decimal)") are
+# formulas that error to #VALUE! when their own inputs are missing — an error
+# cell therefore means "no value", and the field falls back per its normal
+# chain. A per-run census warning reports how many were seen, per field.
+_EXCEL_ERRORS = {"#VALUE!", "#N/A", "#REF!", "#DIV/0!", "#NAME?", "#NULL!", "#NUM!"}
+_MISSING_STRINGS = {"", "(BLANK)", "N/A", "NA", "-"} | _EXCEL_ERRORS
 
 
 def _load_workbook(path: Path):
@@ -314,6 +321,24 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
     warnings.extend(header_notes)
 
     report_date = _parse_date(records[0]["report_date"], context=f"{path} D_DT") if "report_date" in records[0] and not _blank(records[0].get("report_date")) else None
+
+    # Excel error-cell census (user-directed 2026-07-27): counted per field so the
+    # treated-as-missing rule stays surfaced, never silent.
+    error_cells: Counter[str] = Counter()
+    for record in records:
+        for field, value in record.items():
+            if isinstance(value, str) and value.strip().upper() in _EXCEL_ERRORS:
+                error_cells[field] += 1
+    for fields in enrichment.values():
+        for role, value in fields.items():
+            if isinstance(value, str) and value.strip().upper() in _EXCEL_ERRORS:
+                error_cells[f"enrichment.{role}"] += 1
+    if error_cells:
+        breakdown = ", ".join(f"{field}×{n}" for field, n in sorted(error_cells.items()))
+        warnings.append(
+            f"{sum(error_cells.values())} Excel error cell(s) (#VALUE! etc.) treated as missing "
+            f"(user-directed 2026-07-27); each field falls back per its normal chain: {breakdown}"
+        )
 
     skipped_out_of_scope = 0
     skipped_wal = 0
