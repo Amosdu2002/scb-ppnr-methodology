@@ -167,6 +167,7 @@ def main() -> None:
               f"book_yield_categories: {list(book_yield_categories)}   "
               f"maturity_source: {config.firm_data.securities.maturity_source}   "
               f"zcb_no_accretion: {list(config.firm_data.securities.zcb_no_accretion_categories)}   "
+              f"a42_collapsed: {list(config.firm_data.securities.a42_collapsed_categories)}   "
               f"on_security_error: {on_error}\n"
               f"AMOUNTS: USD MILLIONS per quarter — canonical unit, D-006; pre-hedge")
 
@@ -178,7 +179,8 @@ def main() -> None:
         project_other_sec(inputs.other_sec, scenario, firm_id=inputs.firm_id, floor_mode=floor_mode, on_error=on_error,
                           floating_projection=floating_projection, book_yield_categories=book_yield_categories,
                           projection_overrides=projection_overrides,
-                          zcb_no_accretion_categories=config.firm_data.securities.zcb_no_accretion_categories),
+                          zcb_no_accretion_categories=config.firm_data.securities.zcb_no_accretion_categories,
+                          a42_collapsed_categories=config.firm_data.securities.a42_collapsed_categories),
     ]
     tables = "\n".join(_render_model(result) for result in results)
     all_warnings = [f"loader: {w}" for w in inputs.warnings]

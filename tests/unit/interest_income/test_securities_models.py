@@ -328,3 +328,36 @@ def test_position_validation():
         _pos(MODEL_MBS, wal_years=-0.1)
     with pytest.raises(ValidationFailure, match="equity-intent"):
         _pos(MODEL_OTHER_SEC, accounting_intent="EQ")
+
+
+def test_a42_collapsed_categories_match_the_printed_equation(make_income_scenario):
+    # PID-SEC-14: income(q) = AmortizedCost × BookYield / 4, constant PQ1–9, no
+    # separate accretion leg. The three cases below are real reference rows
+    # (face, amortized cost, book yield -> the workbook's constant quarterly
+    # amount) chosen to span discount, deep-discount and PREMIUM — the premium
+    # one is what rules out face as the base.
+    scenario = make_income_scenario()
+    for face, ac, book_yield, expected in ((100.0, 98.302, 0.0757, 1.8604),
+                                           (138.33, 107.08, 0.0562, 1.5045),
+                                           (50.0, 59.626, 0.0227, 0.3384)):     # premium: AC > face
+        muni = _pos(MODEL_OTHER_SEC, "MUNI0001", category="Municipal Bond", rate_type=RATE_FIXED,
+                    current_face=face, amortized_cost=ac, coupon_rate=0.05,
+                    book_yield=book_yield, maturity_quarters=100, maturity_years=25.0)
+        result = project_other_sec([muni], scenario, firm_id="F", floor_mode=FLOOR_MODE_ZERO,
+                                   a42_collapsed_categories=("Municipal Bond",))
+        path = result.income_path()
+        assert path[1] == pytest.approx(expected, abs=5e-4)
+        assert all(path[q] == pytest.approx(path[1]) for q in range(1, 10))     # constant
+        diagnostics = result.quarters[0].diagnostics
+        assert diagnostics.accretion == 0.0                                     # combined term only
+        assert any("Equation A42" in w for w in result.warnings)
+
+
+def test_a42_category_without_book_yield_falls_back_and_says_so(make_income_scenario):
+    muni = _pos(MODEL_OTHER_SEC, "MUNI0002", category="Municipal Bond", rate_type=RATE_FIXED,
+                current_face=100.0, amortized_cost=98.0, coupon_rate=0.05,
+                book_yield=None, maturity_quarters=100, maturity_years=25.0)
+    result = project_other_sec([muni], make_income_scenario(), firm_id="F", floor_mode=FLOOR_MODE_ZERO,
+                               a42_collapsed_categories=("Municipal Bond",))
+    assert result.quarters[0].diagnostics.coupon_accrual == pytest.approx(0.05 * 100.0 / 4)
+    assert any("no book yield on file" in w for w in result.warnings)

@@ -270,6 +270,8 @@ def main() -> None:
 
 def _treatment_for(position, sc) -> str:
     """The treatment actually applied to this row (--gaps / --explain label)."""
+    if position.category in sc.a42_collapsed_categories and position.book_yield is not None:
+        return "a42_collapsed"
     if position.category in sc.book_yield_categories and position.book_yield is not None \
             and position.rate_type != "zero_coupon":
         return "book_yield_flat"
@@ -299,7 +301,8 @@ def _flows_for(position, scenario, sc, sink):
         return m_mbs._other_mbs_flows(position, coupon, sink)
     return m_osec._flows(position, scenario, sc.floor_mode, sink,
                          sc.floating_projection, sc.book_yield_categories,
-                         sc.floating_projection_overrides, sc.zcb_no_accretion_categories)
+                         sc.floating_projection_overrides, sc.zcb_no_accretion_categories,
+                         sc.a42_collapsed_categories)
 
 
 def run_compare(config, args) -> None:
@@ -511,7 +514,8 @@ def run_compare(config, args) -> None:
             if (position.rate_type == "fixed" and position.coupon_rate not in (None, 0.0)
                     and position.book_yield is not None and ref_total > 0.0):
                 fx = fixed_rules.setdefault(position.category, {"n": 0, "ref": 0.0, "current": 0.0,
-                                                                "by_face_aa": 0.0, "by_face_only": 0.0})
+                                                                "by_face_aa": 0.0, "by_face_only": 0.0,
+                                                                "by_ac_only": 0.0})
                 aa_total = sum(flows.accretion.get(q, 0.0) for q in quarters)
                 weight_sum = sum(
                     (position.face_path[q - 1] if position.face_path is not None else position.current_face) / 4.0
@@ -522,6 +526,10 @@ def run_compare(config, args) -> None:
                 fx["current"] += ours_xr_total
                 fx["by_face_aa"] += weight_sum * position.book_yield + aa_total
                 fx["by_face_only"] += weight_sum * position.book_yield
+                # by_ac_only = the PRINTED Equation A42: AmortizedCost × BookYield / 4,
+                # constant, no AA leg. Reference-verified for Municipal Bond 2026-07-28.
+                alive = sum(1 for q in quarters if q <= flows.alive_through)
+                fx["by_ac_only"] += alive * position.amortized_cost / 4.0 * position.book_yield
 
             if position.category == "Sovereign Bond" and position.rate_type == "zero_coupon":
                 nonzero_quarters = [q for q in quarters if abs(ref[q]) > 1e-9]
@@ -633,10 +641,15 @@ def run_compare(config, args) -> None:
                    if category in off_for_fixed and fx["ref"]]
     if fixed_lines:
         print("FIXED-RULES (fixed+reference subset, categories >2% off; ratios rule/ref):")
-        print("  current=coupon*face/4 + our AA | by_face_aa=BY*face/4 + our AA | by_face_only=BY*face/4 alone")
+        print("  current=coupon*face/4 + our AA | by_face_aa=BY*face/4 + our AA | "
+              "by_face_only=BY*face/4 alone")
+        print("  by_ac_only=BY*AMORTIZED COST/4 alone — the PRINTED Equation A42 (PID-SEC-14, "
+              "reference-verified for Municipal Bond)")
         for category, fx in fixed_lines:
             print(f"FIXED-RULES {category}: n={fx['n']} current={fx['current'] / fx['ref']:.4f} "
-                  f"by_face_aa={fx['by_face_aa'] / fx['ref']:.4f} by_face_only={fx['by_face_only'] / fx['ref']:.4f}")
+                  f"by_face_aa={fx['by_face_aa'] / fx['ref']:.4f} "
+                  f"by_face_only={fx['by_face_only'] / fx['ref']:.4f} "
+                  f"by_ac_only={fx['by_ac_only'] / fx['ref']:.4f}")
     if any(bucket[0] for bucket in zcb_buckets.values()):
         sov_ours_total = sum(bucket[1] for bucket in zcb_buckets.values())
         parts = []

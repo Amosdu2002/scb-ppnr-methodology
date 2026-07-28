@@ -38,10 +38,37 @@ def _flows(position: SecurityPosition, scenario: IncomeScenarioPaths,
            floating_projection: str = "spot",
            book_yield_categories: tuple[str, ...] = (),
            projection_overrides: Mapping[str, str] | None = None,
-           zcb_no_accretion_categories: tuple[str, ...] = ()) -> PerSecurityFlows:
+           zcb_no_accretion_categories: tuple[str, ...] = (),
+           a42_collapsed_categories: tuple[str, ...] = ()) -> PerSecurityFlows:
     face = position.current_face
     maturity = position.maturity_quarters
     last_quarter = min(maturity, PROJECTION_QUARTERS[-1]) if maturity is not None else PROJECTION_QUARTERS[-1]
+
+    # PID-SEC-14 (reference-verified 2026-07-28): configured categories are computed
+    # by Equation A42 exactly as printed (PDF p. 201) — the COMBINED coupon +
+    # accretion term is AmortizedCost × BookYield / 4, constant across the horizon
+    # because the amortized cost is not stepped and there is no separate AA leg.
+    # Municipal Bond matched on 20 reference rows spanning AC/face 0.774–1.193
+    # (including premium rows where AC > face) to within book-yield display
+    # rounding; the same amount against FACE is out by up to 29%. This is the one
+    # category where the collapsed A42 form beats the PID-SEC-8 split form.
+    if position.category in a42_collapsed_categories:
+        if position.book_yield is None:
+            warnings.append(
+                f"{position.security_id}: Equation-A42 category but no book yield on file — "
+                f"falling back to the PID-SEC-8 split form (surfaced, never defaulted)"
+            )
+        else:
+            amount = quarterly(position.amortized_cost, position.book_yield)
+            matured_a42 = ({maturity: face} if maturity is not None
+                           and maturity <= PROJECTION_QUARTERS[-1] else {})
+            return PerSecurityFlows(
+                position.security_id,
+                {q: amount for q in range(1, last_quarter + 1)},   # the combined A42 term
+                {q: 0.0 for q in range(1, last_quarter + 1)},      # no separate accretion leg
+                matured_a42,
+                alive_through=last_quarter,
+            )
 
     # PID-SEC-11 (reference-identified 2026-07-27): configured categories accrue at
     # BOOK YIELD held flat — fixed AND floating alike (Municipal floaters matched
@@ -101,12 +128,14 @@ def project_other_sec(
     book_yield_categories: tuple[str, ...] = (),
     projection_overrides: Mapping[str, str] | None = None,
     zcb_no_accretion_categories: tuple[str, ...] = (),
+    a42_collapsed_categories: tuple[str, ...] = (),
 ) -> IncomeModelResult:
     warnings: list[str] = []
     flows = []
     skipped = 0
     by_override = 0
     zcb_suppressed = 0
+    a42_rows = 0
     for position in positions:
         if position.model != MODEL_ID:
             raise ValidationFailure(f"{position.security_id}: model {position.model!r} passed to {MODEL_ID}")
@@ -118,9 +147,11 @@ def project_other_sec(
                 by_override += 1
             if position.rate_type == "zero_coupon" and position.category in zcb_no_accretion_categories:
                 zcb_suppressed += 1
+            if position.category in a42_collapsed_categories and position.book_yield is not None:
+                a42_rows += 1
             flows.append(_flows(position, scenario, floor_mode, warnings,
                                 floating_projection, book_yield_categories, projection_overrides,
-                                zcb_no_accretion_categories))
+                                zcb_no_accretion_categories, a42_collapsed_categories))
         except ValidationFailure as exc:
             if on_error != "skip":
                 raise
@@ -138,6 +169,12 @@ def project_other_sec(
             f"{zcb_suppressed} zero-coupon position(s) in {sorted(set(zcb_no_accretion_categories))} "
             f"book NO accretion (PID-SEC-12, user-directed to match the reference; the Fed-stated "
             f"A42 accretion is a recorded divergence)"
+        )
+    if a42_rows:
+        warnings.append(
+            f"{a42_rows} position(s) in {sorted(set(a42_collapsed_categories))} computed by the printed "
+            f"Equation A42 (AmortizedCost × BookYield / 4, constant, no separate AA leg) — PID-SEC-14, "
+            f"reference-verified 2026-07-28"
         )
     if not flows:
         warnings.append("no in-scope other-securities positions — income is identically zero (logged)")

@@ -147,6 +147,12 @@ class SecuritiesConfig:
     # ZCBs). The Fed-stated A42 accretion is preserved as [FACT]; this switch
     # records the reference divergence. Coupon rows are never affected.
     zcb_no_accretion_categories: tuple[str, ...] = ()
+    # PID-SEC-14 (2026-07-28, reference-verified): categories computed by the
+    # PRINTED Equation A42 — income(q) = AmortizedCost × BookYield / 4, constant,
+    # with no separate accretion leg. Municipal Bond matched 20 reference rows to
+    # within book-yield display rounding (the same amount against FACE is out by
+    # up to 29%). Recommended: ["Municipal Bond"].
+    a42_collapsed_categories: tuple[str, ...] = ()
     # PID-SEC-13 (2026-07-28, user-directed): treatment of a BLANK amortized cost
     # on rows that are NOT genuine unsettled trades — "price_proxy_no_accretion"
     # (the original PID-SEC-3 behavior; default, so numbers never move silently) |
@@ -336,6 +342,7 @@ def load_config(path: Path | str) -> IngestionConfig:
                 book_yield_categories=tuple(str(c) for c in sec.get("book_yield_categories", [])),
                 maturity_source=str(sec.get("maturity_source", "enrichment_first")).strip().lower(),
                 zcb_no_accretion_categories=tuple(str(c) for c in sec.get("zcb_no_accretion_categories", [])),
+                a42_collapsed_categories=tuple(str(c) for c in sec.get("a42_collapsed_categories", [])),
                 missing_ac_mode=str(sec.get("missing_ac_mode", "price_proxy_no_accretion")).strip().lower(),
                 unsettled_window_days=int(sec.get("unsettled_window_days", 7)),
                 missing_ac_mode_overrides=MappingProxyType({

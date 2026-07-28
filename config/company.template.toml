@@ -131,6 +131,16 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
                                         # PID-SEC-3 treatment, whatever missing_ac_mode says.
                                         # No CQSCP095 column -> nothing is classifiable and every
                                         # blank-AC row follows missing_ac_mode (logged per run)
+# a42_collapsed_categories = ["Municipal Bond"]   # PID-SEC-14 (2026-07-28, reference-verified):
+                                        # categories computed by the PRINTED Equation A42 —
+                                        # income(q) = AmortizedCost x BookYield / 4, CONSTANT
+                                        # PQ1-9, no separate accretion leg. Municipal Bond matched
+                                        # 20 reference rows spanning AC/face 0.774-1.193 (incl.
+                                        # premium rows where AC > face) to within book-yield
+                                        # display rounding; the same amount against FACE is out by
+                                        # up to 29%. Fixed, floating and zero-coupon muni rows all
+                                        # take this form. Missing book yield falls back to the
+                                        # PID-SEC-8 split form, surfaced per row.
 # zcb_no_accretion_categories = ["Sovereign Bond"]   # PID-SEC-12: zero-coupon rows in these
                                         # categories book NO accretion (reference GII blank);
                                         # Fed-stated A42 accretion recorded as a divergence
