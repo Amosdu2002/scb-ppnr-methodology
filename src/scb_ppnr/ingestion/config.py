@@ -83,7 +83,7 @@ _FLOOR_MODES = ("zero", "security_floor", "none", "security_floor_else_zero")
 # PID-SEC-10 floating projection modes (mirrored): "neg_hold" holds negative-margin
 # floaters at the launch coupon; "neg_hold_blend13" adds the monthly-reset PQ1 blend;
 # "blend13" = the PQ1 blend WITHOUT the hold; "flat_c0" holds every floater flat.
-_FLOAT_PROJECTION_MODES = ("spot", "neg_hold", "neg_hold_blend13", "blend13", "flat_c0")
+_FLOAT_PROJECTION_MODES = ("spot", "neg_hold", "neg_hold_blend13", "blend13", "flat_c0", "freeze1")
 # PID-SEC-13 blank-amortized-cost treatments (see SecuritiesConfig.missing_ac_mode).
 _MISSING_AC_MODES = ("price_proxy_no_accretion", "price_proxy_accrete", "zero_accrete")
 
@@ -159,6 +159,12 @@ class SecuritiesConfig:
     # near-settle and every blank-AC row follows `missing_ac_mode`.
     missing_ac_mode: str = "price_proxy_no_accretion"
     unsettled_window_days: int = 7
+    # PID-SEC-13 amendment (2026-07-28): the reference does NOT treat blank
+    # amortized costs uniformly — one Agency MBS row accretes the whole face
+    # while ten CLO rows carrying the same blank book NO income at all. So the
+    # mode is per-category, exactly like `floating_projection_overrides`; a
+    # global setting is what turned the Agency fix into a CLO regression.
+    missing_ac_mode_overrides: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -332,12 +338,22 @@ def load_config(path: Path | str) -> IngestionConfig:
                 zcb_no_accretion_categories=tuple(str(c) for c in sec.get("zcb_no_accretion_categories", [])),
                 missing_ac_mode=str(sec.get("missing_ac_mode", "price_proxy_no_accretion")).strip().lower(),
                 unsettled_window_days=int(sec.get("unsettled_window_days", 7)),
+                missing_ac_mode_overrides=MappingProxyType({
+                    str(category): str(mode).strip().lower()
+                    for category, mode in sec.get("missing_ac_mode_overrides", {}).items()
+                }),
             )
             if securities.missing_ac_mode not in _MISSING_AC_MODES:
                 raise ValidationFailure(
                     f"config [firm_data.securities]: missing_ac_mode must be one of {_MISSING_AC_MODES} "
                     f"(PID-SEC-13), got {sec.get('missing_ac_mode')!r}"
                 )
+            for category, mode in securities.missing_ac_mode_overrides.items():
+                if mode not in _MISSING_AC_MODES:
+                    raise ValidationFailure(
+                        f"config [firm_data.securities.missing_ac_mode_overrides]: mode for {category!r} "
+                        f"must be one of {_MISSING_AC_MODES} (PID-SEC-13), got {mode!r}"
+                    )
             if securities.unsettled_window_days < 0:
                 raise ValidationFailure(
                     f"config [firm_data.securities]: unsettled_window_days must be >= 0 (PID-SEC-13), "

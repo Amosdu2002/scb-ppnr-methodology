@@ -372,6 +372,7 @@ def run_compare(config, args) -> None:
     # income. A large share of the residual gap sitting here means the maturity
     # source truncates, not that a rate is wrong — one class, not one row.
     trunc = {"rows": 0, "quarters": 0, "ours": 0.0, "ref": 0.0, "gap": 0.0}
+    trunc_by_category: dict[str, dict[str, float]] = {}   # which categories truncate, and how early
     signed_gap = 0.0
     # GAP ATTRIBUTION: where the remaining gap actually sits, so the next
     # investigation target is read off the run instead of sorted out of the CSV
@@ -463,6 +464,15 @@ def run_compare(config, args) -> None:
                 trunc["ours"] += ours_xr_total
                 trunc["ref"] += ref_total
                 trunc["gap"] += diff
+                per = trunc_by_category.setdefault(position.category,
+                                                   {"rows": 0, "quarters": 0, "ours": 0.0, "ref": 0.0,
+                                                    "gap": 0.0, "first_dead": 0})
+                per["rows"] += 1
+                per["quarters"] += len(dead_but_referenced)
+                per["ours"] += ours_xr_total
+                per["ref"] += ref_total
+                per["gap"] += diff
+                per["first_dead"] += dead_but_referenced[0]     # summed → mean printed below
 
             if args.gaps:
                 record = {
@@ -710,6 +720,15 @@ def run_compare(config, args) -> None:
               f"xr/ref={ratio} share-of-total-signed-gap={share}")
         print("  (our projection ends before PQ9 — maturity_quarters / PID-SEC-7 WAL-as-maturity — "
               "while the reference keeps accruing; --explain those ids for the per-quarter detail)")
+        # Which categories truncate decides the fix: an Agency MBS row whose vendor
+        # face path still carries balance at PQ9 should NOT be ended by a
+        # WAL-derived maturity, whereas a genuinely maturing Treasury should.
+        for category, per in sorted(trunc_by_category.items(), key=lambda kv: abs(kv[1]["gap"]), reverse=True)[:8]:
+            ratio = f"{per['ours'] / per['ref']:.4f}" if per["ref"] else "   n/a"
+            share = f"{per['gap'] / signed_gap:+7.1%}" if abs(signed_gap) > 1e-9 else "    n/a"
+            print(f"  TRUNC {category:42s} rows={per['rows']:>5} xr/ref={ratio} "
+                  f"mean-first-dead-quarter=PQ{per['first_dead'] / per['rows']:.1f} "
+                  f"share-of-signed-gap={share}")
     floor_suspect = sum("suspect source-cell units" in w for w in inputs.warnings)
     print(f"COMPARE-NO-REFERENCE: {no_reference}   COMPARE-SKIPPED: {compare_skipped}   FLOOR-SUSPECT: {floor_suspect}")
 

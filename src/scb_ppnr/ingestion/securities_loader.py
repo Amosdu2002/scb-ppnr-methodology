@@ -552,7 +552,8 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
             else:
                 unsettled_unclassified += 1
 
-            mode = AC_MODE_PRICE_PROXY_NO_ACCRETION if near_settle else sc.missing_ac_mode
+            configured = sc.missing_ac_mode_overrides.get(category, sc.missing_ac_mode)
+            mode = AC_MODE_PRICE_PROXY_NO_ACCRETION if near_settle else configured
             if mode == AC_MODE_ZERO_ACCRETE:
                 amortized_cost = 0.0                       # blank read as zero — the reference's own
                 ac_source = AC_SOURCE_BLANK_AS_ZERO        # treatment; the whole face then accretes
@@ -652,7 +653,8 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         breakdown = ", ".join(f"{treatment}×{n}" for treatment, n in sorted(ac_mode_counts.items()))
         warnings.append(
             f"PID-SEC-13 blank-amortized-cost census (missing_ac_mode={sc.missing_ac_mode!r}, "
-            f"window={sc.unsettled_window_days}d): {sum(ac_mode_counts.values())} row(s) — {breakdown}; "
+            f"overrides={dict(sc.missing_ac_mode_overrides)}, window={sc.unsettled_window_days}d): "
+            f"{sum(ac_mode_counts.values())} row(s) — {breakdown}; "
             f"near-settle classifiable: {unsettled_classified}, unclassifiable: {unsettled_unclassified}"
         )
         if unsettled_unclassified and "purchase_date" not in records[0]:

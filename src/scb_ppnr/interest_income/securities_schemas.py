@@ -83,9 +83,18 @@ FLOAT_PROJECTION_SPOT = "spot"
 FLOAT_PROJECTION_NEG_HOLD = "neg_hold"
 FLOAT_PROJECTION_NEG_HOLD_BLEND = "neg_hold_blend13"
 FLOAT_PROJECTION_BLEND13 = "blend13"          # monthly-reset PQ1 + spot after; NO negative-margin hold
+# "freeze1" (2026-07-28): PQ1 accrues at the launch coupon (the rate fixed at the
+# last reset before the launch date), then the coupon resets ONCE off 3M(PQ1) and
+# is FROZEN there for PQ2..9 — a floater whose index is only observed at the reset
+# following launch. Reference-identified for AGENCY MBS floaters: the compare
+# bake-off prices freeze1_f0 at 0.9907 against the configured spot rule's 0.4627
+# over 898 rows. The bake-off's rule floors the frozen value at 0, so the floor is
+# part of the identified rule and is applied here (configured floor_mode still
+# applies on top and can only raise it).
+FLOAT_PROJECTION_FREEZE1 = "freeze1"
 FLOAT_PROJECTION_FLAT_C0 = "flat_c0"          # launch coupon held flat PQ1–9 for EVERY floater
 FLOAT_PROJECTION_MODES = (FLOAT_PROJECTION_SPOT, FLOAT_PROJECTION_NEG_HOLD, FLOAT_PROJECTION_NEG_HOLD_BLEND,
-                          FLOAT_PROJECTION_BLEND13, FLOAT_PROJECTION_FLAT_C0)
+                          FLOAT_PROJECTION_BLEND13, FLOAT_PROJECTION_FLAT_C0, FLOAT_PROJECTION_FREEZE1)
 
 # PID-SEC-5 (user-confirmed): SECURITY_DESCRIPTION_1 -> (model, agency_prepayment).
 # Exactly the confirmed categories; anything else errors (never defaulted).

@@ -119,6 +119,12 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
                                         # RUNS on the implied discount) | "zero_accrete" (blank
                                         # read as ZERO and the whole face accretes — what the
                                         # reference workbook does; recorded divergence)
+# [firm_data.securities.missing_ac_mode_overrides]   # PID-SEC-13 amendment 2026-07-28: the
+# "Agency MBS" = "zero_accrete"        # reference does NOT treat blank amortized costs uniformly.
+                                        # Setting zero_accrete GLOBALLY closed a -52.6 Agency MBS
+                                        # row but opened +216.7 across 10 CLO rows whose reference
+                                        # income is exactly zero. Scope it per category; leave the
+                                        # global default at price_proxy_no_accretion.
 # unsettled_window_days = 7             # PID-SEC-13: rows whose PURCHASE_DATE (CQSCP095) is
                                         # within this many days of the report date are GENUINE
                                         # unsettled trades and always take the original
@@ -135,6 +141,8 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
 # "Foreign RMBS" = "blend13"
 # "Student Loan ABS" = "blend13"
 # "CMBS" = "neg_hold_blend13"
+# "Agency MBS" = "freeze1"                               # 2026-07-28 bake-off: freeze1 = 0.9907 vs
+                                                         # the spot default's 0.4627 over 898 rows
 # price_mdrm = "CQSCJH21"               # uncomment/override if the Price column carries a
                                         # different MDRM code; fallback: a header cell whose
                                         # technical name is exactly "Price"

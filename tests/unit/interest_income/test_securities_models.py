@@ -13,6 +13,7 @@ import pytest
 from scb_ppnr.interest_income import (
     FLOAT_PROJECTION_BLEND13,
     FLOAT_PROJECTION_FLAT_C0,
+    FLOAT_PROJECTION_FREEZE1,
     FLOAT_PROJECTION_NEG_HOLD,
     FLOAT_PROJECTION_NEG_HOLD_BLEND,
     FLOOR_MODE_NONE,
@@ -118,6 +119,27 @@ def test_floating_projection_modes(make_income_scenario):
     blend_no_hold = floating_coupon_path(negative, scenario, FLOOR_MODE_ZERO, [], FLOAT_PROJECTION_BLEND13)
     assert blend_no_hold[1] == 0.0 and blend_no_hold[2] == 0.0               # negative margin NOT held —
                                                                              # blended/spot path floors at 0
+
+
+def test_floating_projection_freeze1(make_income_scenario):
+    # PID-SEC-10 'freeze1' (2026-07-28, Agency-MBS-identified): PQ1 still accrues at
+    # the coupon fixed before launch; the coupon then resets ONCE off 3M(PQ1) and is
+    # frozen there for PQ2..9 — so a falling 3M path after PQ1 never reaches it.
+    scenario = make_income_scenario(t3m={0: 0.0100, 1: 0.0060, **{q: 0.0010 for q in range(2, 10)}})
+    positive = _pos(MODEL_OTHER_SEC, rate_type=RATE_FLOATING, coupon_rate=0.0500)   # margin +4%
+    sink: list[str] = []
+    path = floating_coupon_path(positive, scenario, FLOOR_MODE_ZERO, sink, FLOAT_PROJECTION_FREEZE1)
+    assert path[1] == pytest.approx(0.0500)                                  # launch coupon
+    frozen = 0.0400 + 0.0060                                                 # margin + 3M(PQ1)
+    assert all(path[q] == pytest.approx(frozen) for q in range(2, 10))       # frozen, not tracking 3M
+    assert any("freeze1" in w for w in sink)
+
+    # The frozen leg floors at 0 (part of the identified rule), while PQ1 keeps the
+    # launch coupon whatever the margin.
+    negative = _pos(MODEL_OTHER_SEC, rate_type=RATE_FLOATING, coupon_rate=0.0020)   # margin -0.8%
+    deep = floating_coupon_path(negative, scenario, FLOOR_MODE_NONE, [], FLOAT_PROJECTION_FREEZE1)
+    assert deep[1] == pytest.approx(0.0020)
+    assert all(deep[q] == 0.0 for q in range(2, 10))                          # -0.8% + 0.6% < 0 -> 0
 
 
 def test_other_sec_projection_override_per_category(make_income_scenario):

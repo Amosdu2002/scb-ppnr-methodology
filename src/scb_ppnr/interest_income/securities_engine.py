@@ -27,6 +27,7 @@ from .schemas import IncomeModelResult, IncomeQuarterResult, IncomeScenarioPaths
 from .securities_schemas import (
     FLOAT_PROJECTION_BLEND13,
     FLOAT_PROJECTION_FLAT_C0,
+    FLOAT_PROJECTION_FREEZE1,
     FLOAT_PROJECTION_MODES,
     FLOAT_PROJECTION_NEG_HOLD_BLEND,
     FLOAT_PROJECTION_SPOT,
@@ -95,6 +96,17 @@ def floating_coupon_path(
             f"(t0 coupon {position.coupon_rate} < t0 spot 3M {scenario.usd_3m_treasury[0]}) — "
             f"PID-SEC-2 floor_mode={floor_mode!r} governs"
         )
+    if projection_mode == FLOAT_PROJECTION_FREEZE1:
+        # One reset after launch, then frozen: PQ1 still accrues at the coupon
+        # fixed before the launch date; PQ2..9 all accrue at the rate set off
+        # 3M(PQ1). Floored at 0 — part of the reference-identified rule.
+        frozen = max(margin + scenario.usd_3m_treasury[1], 0.0)
+        warnings.append(
+            f"{position.security_id}: PQ1 at the launch coupon {position.coupon_rate}, then frozen at "
+            f"{frozen:.6f} for PQ2–9 (PID-SEC-10 mode 'freeze1'; single reset off 3M(PQ1))"
+        )
+        return {quarter: (position.coupon_rate if quarter == 1 else frozen)
+                for quarter in PROJECTION_QUARTERS}
     if projection_mode == FLOAT_PROJECTION_FLAT_C0:
         warnings.append(
             f"{position.security_id}: launch coupon {position.coupon_rate} held flat PQ1–9 "

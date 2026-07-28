@@ -66,7 +66,8 @@ def build_workbook(path: Path, positions: list[list], enrichment: list[list], pr
 def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False,
                 maturity_source: str = "enrichment_first",
                 missing_ac_mode: str = "price_proxy_no_accretion",
-                unsettled_window_days: int = 7) -> IngestionConfig:
+                unsettled_window_days: int = 7,
+                missing_ac_mode_overrides: dict | None = None) -> IngestionConfig:
     return IngestionConfig(
         base_dir=tmp_path,
         firm_data=FirmDataConfig(
@@ -87,6 +88,7 @@ def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False,
                 maturity_source=maturity_source,
                 missing_ac_mode=missing_ac_mode,
                 unsettled_window_days=unsettled_window_days,
+                missing_ac_mode_overrides=missing_ac_mode_overrides or {},
                 prepayment_sheet="prepay" if prepayment else None,
                 enrichment=(
                     SecuritiesEnrichmentSheet(
@@ -499,3 +501,33 @@ def test_zero_accrete_needs_no_price(tmp_path, make_income_scenario):
     inputs = load_securities_inputs(make_config(tmp_path, prepayment=False, missing_ac_mode="zero_accrete"))
     assert inputs.mbs[0].amortized_cost == 0.0
     assert first_quarter_accretion(inputs, make_income_scenario()) == pytest.approx(12.5)
+
+
+def test_missing_ac_mode_override_scopes_by_category(tmp_path, make_income_scenario):
+    # The 2026-07-28 regression: zero_accrete set GLOBALLY fixed one Agency MBS
+    # row and broke ten CLO rows whose reference income is exactly zero. The
+    # per-category override has to beat the global default for its own category
+    # and leave every other category on the default.
+    blank_ac_workbook(tmp_path)                         # AGYBLANK1 is an Agency MBS row
+    inputs = load_securities_inputs(make_config(
+        tmp_path, prepayment=False, missing_ac_mode="price_proxy_no_accretion",
+        missing_ac_mode_overrides={"Agency MBS": "zero_accrete"}))
+    position = inputs.mbs[0]
+    assert position.ac_source == "blank_as_zero" and not position.suppress_accretion
+    assert first_quarter_accretion(inputs, make_income_scenario()) == pytest.approx(12.5)
+
+    # …and the same override leaves a DIFFERENT category on the global default.
+    build_workbook(tmp_path / "securities.xlsx",
+                   [[REPORT, "CLOBLANK1", "CLO", 0, 100e6, 100e6, "AFS", None, 90.0]],
+                   [["CLOBLANK1", None, 5.0, "FIXED", None, 2.0, "N"]], None)
+    other = load_securities_inputs(make_config(
+        tmp_path, prepayment=False, missing_ac_mode="price_proxy_no_accretion",
+        missing_ac_mode_overrides={"Agency MBS": "zero_accrete"}))
+    clo = other.other_sec[0]
+    assert clo.ac_source == "price_proxy" and clo.suppress_accretion
+    assert clo.amortized_cost == pytest.approx(90.0)
+
+
+def test_unknown_override_mode_is_a_hard_error(tmp_path):
+    from scb_ppnr.ingestion.config import _MISSING_AC_MODES
+    assert "zero_accrete" in _MISSING_AC_MODES                 # the validator's own set
