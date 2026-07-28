@@ -83,6 +83,8 @@ def main() -> None:
                              "found in the workbook; never relay or commit this file")
     parser.add_argument("--gaps-top", type=int, default=25,
                         help="how many securities per category in the --gaps file (by absolute gap; default 25)")
+    parser.add_argument("--gaps-matching", type=int, default=10,
+                        help="also include N rows per category that MATCH the reference (smallest relative gap). Without these the file shows only the tail, and a rule fitted to it can break the rows that were already right — which is exactly what happened to CMBS on 2026-07-28 (default 10)")
     parser.add_argument("--gaps-global", type=int, default=50,
                         help="additionally include the globally largest N gaps regardless of category, "
                              "so a big row in a small category cannot hide (default 50)")
@@ -479,6 +481,7 @@ def run_compare(config, args) -> None:
 
             if args.gaps:
                 record = {
+                    "sample": "",                       # worst | matching | global (set at write time)
                     "category": position.category,
                     "security_id": position.security_id,
                     "rate_type": position.rate_type,
@@ -766,13 +769,24 @@ def run_compare(config, args) -> None:
             rows = by_category[category]
             rows.sort(key=lambda r: abs(r["gap"]), reverse=True)
             for record in rows[: args.gaps_top]:
+                record["sample"] = "worst"
                 seen.add(id(record))
                 selected.append(record)
+            # …and a CONTRAST group: rows the reference already agrees with. A rule
+            # inferred from the worst rows alone can break these — fit against both.
+            matching = sorted((r for r in rows if r["rel_gap"] != "" and abs(r["rel_gap"]) <= 0.001),
+                              key=lambda r: abs(r["rel_gap"]))
+            for record in matching[: args.gaps_matching]:
+                if id(record) not in seen:
+                    record["sample"] = "matching"
+                    seen.add(id(record))
+                    selected.append(record)
         # …plus the globally largest, so a big row in a small category cannot hide
         # below its category's cut-off.
         gap_records.sort(key=lambda r: abs(r["gap"]), reverse=True)
         for record in gap_records[: args.gaps_global]:
             if id(record) not in seen:
+                record["sample"] = "global"
                 seen.add(id(record))
                 selected.append(record)
         selected.sort(key=lambda r: abs(r["gap"]), reverse=True)
@@ -780,8 +794,12 @@ def run_compare(config, args) -> None:
             writer = csv.DictWriter(handle, fieldnames=list(selected[0].keys()))
             writer.writeheader()
             writer.writerows(selected)
+        counts = Counter(r["sample"] for r in selected)
         print(f"\nGAP DETAIL: {len(selected)} rows written to {args.gaps} — top {args.gaps_top} per "
-              f"category by absolute gap (USD millions; ours excludes reinvestment = the II_PQ basis).")
+              f"category by absolute gap, plus {args.gaps_matching} MATCHING rows per category and the "
+              f"global top {args.gaps_global} (USD millions; ours excludes reinvestment = the II_PQ basis).")
+        print(f"  sample column: " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+              + " — infer rules against BOTH groups, never the worst rows alone.")
         print("  LOCAL ONLY: the file carries unmasked ids and exact amounts — find rows in the workbook")
         print("  via the CQSCS383 unique-id column; do NOT relay, screenshot, or commit this file.")
     print("======================================================================================")
