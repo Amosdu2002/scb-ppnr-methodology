@@ -507,7 +507,10 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         else:
             maturity_years = enrich_years if enrich_years is not None else tech_years
             used_tech = enrich_years is None and tech_years is not None
-        maturity_quarters = max(1, math.ceil(4.0 * maturity_years)) if maturity_years is not None else None
+        # PID-SEC-15: 'floor' books only FULL quarters (reference-observed on
+        # Sovereign Bond: 4 x years = 3.233 accrues 3 quarters, 2.773 accrues 2).
+        _round = math.floor if sc.maturity_quarters_rounding == "floor" else math.ceil
+        maturity_quarters = max(1, _round(4.0 * maturity_years)) if maturity_years is not None else None
         if used_tech:
             tech_maturity_rows += 1
         # PID-SEC-7 (user-confirmed 2026-07-24): Agency MBS without a maturity date

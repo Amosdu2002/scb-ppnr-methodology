@@ -559,6 +559,7 @@ def run_compare(config, args) -> None:
                                                                 "lag1_3m": 0.0, "by_flat": 0.0,
                                                                 "excel_ind": 0.0, "freeze1_f0": 0.0,
                                                                 "blend13": 0.0, "neg_hold": 0.0,
+                                                                "pos_hold": 0.0, "pos_hold_blend13": 0.0,
                                                                 "ind_fixed": 0, "ind_float": 0, "ind_na": 0})
                 fr["n"] += 1
                 fr["ref"] += ref_total
@@ -592,8 +593,15 @@ def run_compare(config, args) -> None:
                     blend_pq1 = max(c0 / 3.0 + 2.0 * (margin + t3m[1]) / 3.0, 0.0)
                     fr["blend13"] += weight * (blend_pq1 if quarter == 1 else spot_coupon)
                     fr["neg_hold"] += weight * (c0 if margin < 0.0 else spot_coupon)
+                    # Mirror candidates (CMBS-identified 2026-07-28): the POSITIVE-margin
+                    # floater is the one never re-projected; the negative-margin one follows
+                    # the projected path (blend13 PQ1 in the _blend13 variant).
+                    fr["pos_hold"] += weight * (c0 if margin >= 0.0 else spot_coupon)
+                    fr["pos_hold_blend13"] += weight * (
+                        c0 if margin >= 0.0 else (blend_pq1 if quarter == 1 else spot_coupon)
+                    )
                 for rule in ("flat_c0", "lag3m_f0", "lag1_3m", "by_flat", "excel_ind", "freeze1_f0",
-                             "blend13", "neg_hold"):
+                             "blend13", "neg_hold", "pos_hold", "pos_hold_blend13"):
                     fr[rule] += aa_total
 
     print("\nCOMPARE — LOCAL DETAIL (USD millions; masked ids):")
@@ -635,6 +643,8 @@ def run_compare(config, args) -> None:
                   f"lag1_3m={fr['lag1_3m'] / fr['ref']:.4f} by_flat={fr['by_flat'] / fr['ref']:.4f} "
                   f"excel_ind={fr['excel_ind'] / fr['ref']:.4f} freeze1_f0={fr['freeze1_f0'] / fr['ref']:.4f} "
                   f"blend13={fr['blend13'] / fr['ref']:.4f} neg_hold={fr['neg_hold'] / fr['ref']:.4f} "
+                  f"pos_hold={fr['pos_hold'] / fr['ref']:.4f} "
+                  f"pos_hold_blend13={fr['pos_hold_blend13'] / fr['ref']:.4f} "
                   f"ind(F/x/na)={fr['ind_fixed']}/{fr['ind_float']}/{fr['ind_na']}")
     off_for_fixed = {c for c, s in per_cat.items() if s["ref"] and abs(s["ours_xr"] / s["ref"] - 1.0) > 0.02}
     fixed_lines = [(category, fx) for category, fx in sorted(fixed_rules.items())

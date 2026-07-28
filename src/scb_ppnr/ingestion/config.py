@@ -83,7 +83,8 @@ _FLOOR_MODES = ("zero", "security_floor", "none", "security_floor_else_zero")
 # PID-SEC-10 floating projection modes (mirrored): "neg_hold" holds negative-margin
 # floaters at the launch coupon; "neg_hold_blend13" adds the monthly-reset PQ1 blend;
 # "blend13" = the PQ1 blend WITHOUT the hold; "flat_c0" holds every floater flat.
-_FLOAT_PROJECTION_MODES = ("spot", "neg_hold", "neg_hold_blend13", "blend13", "flat_c0", "freeze1")
+_FLOAT_PROJECTION_MODES = ("spot", "neg_hold", "neg_hold_blend13", "blend13", "flat_c0", "freeze1",
+                            "pos_hold", "pos_hold_blend13")
 # PID-SEC-13 blank-amortized-cost treatments (see SecuritiesConfig.missing_ac_mode).
 _MISSING_AC_MODES = ("price_proxy_no_accretion", "price_proxy_accrete", "zero_accrete")
 
@@ -153,6 +154,13 @@ class SecuritiesConfig:
     # within book-yield display rounding (the same amount against FACE is out by
     # up to 29%). Recommended: ["Municipal Bond"].
     a42_collapsed_categories: tuple[str, ...] = ()
+    # PID-SEC-15 (2026-07-28, reference-observed on Sovereign Bond): how many
+    # quarters a security accrues. 'ceil' (default, unchanged) books
+    # ceil(4 x maturity_years); 'floor' books only FULL quarters. Reference rows
+    # with 4 x years = 3.233 accrue 3 quarters and 2.773 accrue 2 -- i.e. floor.
+    # Global switch, so A/B it: the Agency MBS WAL-as-maturity path (PID-SEC-7)
+    # keeps ceil either way, since those rows already end too EARLY.
+    maturity_quarters_rounding: str = "ceil"
     # PID-SEC-13 (2026-07-28, user-directed): treatment of a BLANK amortized cost
     # on rows that are NOT genuine unsettled trades — "price_proxy_no_accretion"
     # (the original PID-SEC-3 behavior; default, so numbers never move silently) |
@@ -361,6 +369,7 @@ def load_config(path: Path | str) -> IngestionConfig:
                 maturity_source=str(sec.get("maturity_source", "enrichment_first")).strip().lower(),
                 zcb_no_accretion_categories=tuple(str(c) for c in sec.get("zcb_no_accretion_categories", [])),
                 a42_collapsed_categories=tuple(str(c) for c in sec.get("a42_collapsed_categories", [])),
+                maturity_quarters_rounding=str(sec.get("maturity_quarters_rounding", "ceil")).strip().lower(),
                 missing_ac_mode=str(sec.get("missing_ac_mode", "price_proxy_no_accretion")).strip().lower(),
                 unsettled_window_days=int(sec.get("unsettled_window_days", 7)),
                 missing_ac_mode_overrides=MappingProxyType({
@@ -368,6 +377,11 @@ def load_config(path: Path | str) -> IngestionConfig:
                     for category, mode in sec.get("missing_ac_mode_overrides", {}).items()
                 }),
             )
+            if securities.maturity_quarters_rounding not in ("ceil", "floor"):
+                raise ValidationFailure(
+                    f"config [firm_data.securities]: maturity_quarters_rounding must be 'ceil' or "
+                    f"'floor' (PID-SEC-15), got {sec.get('maturity_quarters_rounding')!r}"
+                )
             if securities.missing_ac_mode not in _MISSING_AC_MODES:
                 raise ValidationFailure(
                     f"config [firm_data.securities]: missing_ac_mode must be one of {_MISSING_AC_MODES} "

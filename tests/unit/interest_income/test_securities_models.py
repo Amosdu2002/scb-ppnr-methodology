@@ -16,6 +16,8 @@ from scb_ppnr.interest_income import (
     FLOAT_PROJECTION_FREEZE1,
     FLOAT_PROJECTION_NEG_HOLD,
     FLOAT_PROJECTION_NEG_HOLD_BLEND,
+    FLOAT_PROJECTION_POS_HOLD,
+    FLOAT_PROJECTION_POS_HOLD_BLEND,
     FLOOR_MODE_NONE,
     FLOOR_MODE_SECURITY,
     FLOOR_MODE_SECURITY_ELSE_ZERO,
@@ -361,3 +363,30 @@ def test_a42_category_without_book_yield_falls_back_and_says_so(make_income_scen
                                a42_collapsed_categories=("Municipal Bond",))
     assert result.quarters[0].diagnostics.coupon_accrual == pytest.approx(0.05 * 100.0 / 4)
     assert any("no book yield on file" in w for w in result.warnings)
+
+
+def test_floating_projection_pos_hold_is_the_mirror_of_neg_hold(make_income_scenario):
+    # PID-SEC-10 'pos_hold' (2026-07-28, CMBS-identified): the POSITIVE-margin
+    # floater is the one never re-projected. Reference-verified on 8 CMBS rows —
+    # coupon × face/4 + our AA reproduces the workbook's constant quarterly amount
+    # to within 0.08% — while a negative-margin CMBS row shows the reference
+    # projecting and flooring instead of holding.
+    scenario = make_income_scenario(t3m={0: 0.0440, 1: 0.0180, **{q: 0.0010 for q in range(2, 10)}})
+    positive = _pos(MODEL_OTHER_SEC, rate_type=RATE_FLOATING, coupon_rate=0.0442)   # margin +0.0002
+    negative = _pos(MODEL_OTHER_SEC, rate_type=RATE_FLOATING, coupon_rate=0.0390)   # margin -0.0050
+
+    held = floating_coupon_path(positive, scenario, FLOOR_MODE_ZERO, [], FLOAT_PROJECTION_POS_HOLD)
+    assert all(held[q] == pytest.approx(0.0442) for q in range(1, 10))       # never re-projected
+    projected = floating_coupon_path(negative, scenario, FLOOR_MODE_ZERO, [], FLOAT_PROJECTION_POS_HOLD)
+    assert projected[1] == pytest.approx(0.0130)                             # -0.0050 + 0.0180
+    assert all(projected[q] == 0.0 for q in range(2, 10))                    # -0.0050 + 0.0010 -> floored
+
+    # …and it is exactly the opposite of neg_hold on the same two securities.
+    assert floating_coupon_path(negative, scenario, FLOOR_MODE_ZERO, [],
+                                FLOAT_PROJECTION_NEG_HOLD)[5] == pytest.approx(0.0390)
+    # pos_hold_blend13 blends only the PROJECTED (negative-margin) leg's PQ1.
+    blended = floating_coupon_path(negative, scenario, FLOOR_MODE_ZERO, [],
+                                   FLOAT_PROJECTION_POS_HOLD_BLEND)
+    assert blended[1] == pytest.approx(0.0390 / 3 + 2 * 0.0130 / 3)
+    assert floating_coupon_path(positive, scenario, FLOOR_MODE_ZERO, [],
+                                FLOAT_PROJECTION_POS_HOLD_BLEND)[1] == pytest.approx(0.0442)

@@ -30,6 +30,8 @@ from .securities_schemas import (
     FLOAT_PROJECTION_FREEZE1,
     FLOAT_PROJECTION_MODES,
     FLOAT_PROJECTION_NEG_HOLD_BLEND,
+    FLOAT_PROJECTION_POS_HOLD,
+    FLOAT_PROJECTION_POS_HOLD_BLEND,
     FLOAT_PROJECTION_SPOT,
     FLOOR_MODE_SECURITY,
     FLOOR_MODE_SECURITY_ELSE_ZERO,
@@ -113,6 +115,17 @@ def floating_coupon_path(
             f"(PID-SEC-10 mode 'flat_c0'; floater never re-projected)"
         )
         return {quarter: position.coupon_rate for quarter in PROJECTION_QUARTERS}
+    if not negative_margin and projection_mode in (FLOAT_PROJECTION_POS_HOLD,
+                                                   FLOAT_PROJECTION_POS_HOLD_BLEND):
+        # Mirror of neg_hold (CMBS-identified 2026-07-28): the POSITIVE-margin
+        # floater is the one that is never re-projected. Because 3M falls from the
+        # launch spot in this scenario, margin + 3M(q) is always below the launch
+        # coupon — the reference behaves as if the coupon cannot reset downward.
+        warnings.append(
+            f"{position.security_id}: positive margin {margin:.6f} — launch coupon "
+            f"{position.coupon_rate} held flat PQ1–9 (PID-SEC-10 mode {projection_mode!r})"
+        )
+        return {quarter: position.coupon_rate for quarter in PROJECTION_QUARTERS}
     if negative_margin and projection_mode in ("neg_hold", FLOAT_PROJECTION_NEG_HOLD_BLEND):
         warnings.append(
             f"{position.security_id}: negative margin — launch coupon {position.coupon_rate} held "
@@ -126,7 +139,8 @@ def floating_coupon_path(
     floored_quarters: list[int] = []
     for quarter in PROJECTION_QUARTERS:
         coupon = margin + scenario.usd_3m_treasury[quarter]
-        if quarter == 1 and projection_mode in (FLOAT_PROJECTION_NEG_HOLD_BLEND, FLOAT_PROJECTION_BLEND13):
+        if quarter == 1 and projection_mode in (FLOAT_PROJECTION_NEG_HOLD_BLEND, FLOAT_PROJECTION_BLEND13,
+                                                FLOAT_PROJECTION_POS_HOLD_BLEND):
             # Monthly-reset PQ1 (PID-SEC-10): the first month still accrues at the
             # launch coupon; the remaining two at the newly reset rate.
             coupon = position.coupon_rate / 3.0 + 2.0 * (margin + scenario.usd_3m_treasury[1]) / 3.0

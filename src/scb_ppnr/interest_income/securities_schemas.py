@@ -92,9 +92,20 @@ FLOAT_PROJECTION_BLEND13 = "blend13"          # monthly-reset PQ1 + spot after; 
 # part of the identified rule and is applied here (configured floor_mode still
 # applies on top and can only raise it).
 FLOAT_PROJECTION_FREEZE1 = "freeze1"
+# "pos_hold" / "pos_hold_blend13" (2026-07-28) — the MIRROR of neg_hold, and the
+# CMBS-identified rule: a POSITIVE-margin floater is never re-projected (its launch
+# coupon holds flat PQ1-9), while a NEGATIVE-margin one follows the projected path.
+# Reference-verified on 8 CMBS rows: coupon x face/4 + our AA reproduces the
+# workbook's constant quarterly amount to within 0.08%, while a negative-margin CMBS
+# row shows the reference accruing a partial PQ1 then nothing — i.e. projected and
+# floored, not held. "pos_hold_blend13" additionally gives the projected (negative-
+# margin) leg the monthly-reset PQ1 blend.
+FLOAT_PROJECTION_POS_HOLD = "pos_hold"
+FLOAT_PROJECTION_POS_HOLD_BLEND = "pos_hold_blend13"
 FLOAT_PROJECTION_FLAT_C0 = "flat_c0"          # launch coupon held flat PQ1–9 for EVERY floater
 FLOAT_PROJECTION_MODES = (FLOAT_PROJECTION_SPOT, FLOAT_PROJECTION_NEG_HOLD, FLOAT_PROJECTION_NEG_HOLD_BLEND,
-                          FLOAT_PROJECTION_BLEND13, FLOAT_PROJECTION_FLAT_C0, FLOAT_PROJECTION_FREEZE1)
+                          FLOAT_PROJECTION_BLEND13, FLOAT_PROJECTION_FLAT_C0, FLOAT_PROJECTION_FREEZE1,
+                          FLOAT_PROJECTION_POS_HOLD, FLOAT_PROJECTION_POS_HOLD_BLEND)
 
 # PID-SEC-5 (user-confirmed): SECURITY_DESCRIPTION_1 -> (model, agency_prepayment).
 # Exactly the confirmed categories; anything else errors (never defaulted).
