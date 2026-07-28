@@ -111,6 +111,20 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
                                         # (ITO date / 365; default) | "positions_first" (the
                                         # sheet's own Maturity (yr) column primary — the
                                         # reference's divisor; call-adjusted for callable munis)
+# missing_ac_mode = "price_proxy_no_accretion"   # PID-SEC-13: how a BLANK amortized cost is
+                                        # treated on rows that are NOT genuine unsettled trades.
+                                        # "price_proxy_no_accretion" (default = the original
+                                        # PID-SEC-3 behavior: AC = price/100 × face, accretion
+                                        # held at 0) | "price_proxy_accrete" (same AC, accretion
+                                        # RUNS on the implied discount) | "zero_accrete" (blank
+                                        # read as ZERO and the whole face accretes — what the
+                                        # reference workbook does; recorded divergence)
+# unsettled_window_days = 7             # PID-SEC-13: rows whose PURCHASE_DATE (CQSCP095) is
+                                        # within this many days of the report date are GENUINE
+                                        # unsettled trades and always take the original
+                                        # PID-SEC-3 treatment, whatever missing_ac_mode says.
+                                        # No CQSCP095 column -> nothing is classifiable and every
+                                        # blank-AC row follows missing_ac_mode (logged per run)
 # zcb_no_accretion_categories = ["Sovereign Bond"]   # PID-SEC-12: zero-coupon rows in these
                                         # categories book NO accretion (reference GII blank);
                                         # Fed-stated A42 accretion recorded as a divergence

@@ -69,20 +69,20 @@ def _flows(position: SecurityPosition, scenario: IncomeScenarioPaths,
     # the reference computes. AA = (prior face − prior AC)/(4 × maturity years);
     # AC(q) = AC(q−1) + AA(q).
     denominator = 4.0 * position.maturity_years if position.maturity_years is not None else None
-    if denominator is None and not position.ac_proxied and face != position.amortized_cost:
+    if denominator is None and not position.suppress_accretion and face != position.amortized_cost:
         warnings.append(f"{position.security_id}: no maturity for the PID-SEC-8 accretion denominator — AA held at 0 (surfaced)")
     # PID-SEC-12 (user-directed 2026-07-27, matches the reference): configured
     # categories book NO accretion on zero-coupon rows (reference GII blank for
     # sovereign ZCBs). The Fed-stated A42 accretion is a recorded divergence.
-    suppress_accretion = (position.rate_type == RATE_ZERO_COUPON
-                          and position.category in zcb_no_accretion_categories)
+    zcb_no_accretion = (position.rate_type == RATE_ZERO_COUPON
+                        and position.category in zcb_no_accretion_categories)
 
     coupon_cash: dict[int, float] = {}
     accretion: dict[int, float] = {}
     ac = position.amortized_cost
     for quarter in range(1, last_quarter + 1):
         coupon_cash[quarter] = quarterly(face, coupon[quarter])
-        if position.ac_proxied or denominator is None or suppress_accretion:
+        if position.suppress_accretion or denominator is None or zcb_no_accretion:
             accretion[quarter] = 0.0
         else:
             accretion[quarter], ac = reference_accretion_step(face, ac, face, denominator)
@@ -111,7 +111,7 @@ def project_other_sec(
         if position.model != MODEL_ID:
             raise ValidationFailure(f"{position.security_id}: model {position.model!r} passed to {MODEL_ID}")
         try:
-            if position.ac_proxied:
+            if position.suppress_accretion:
                 warnings.append(f"{position.security_id}: PID-SEC-3 proxied amortized cost — accretion held at 0")
             if (position.category in book_yield_categories and position.book_yield is not None
                     and position.rate_type != "zero_coupon"):

@@ -64,7 +64,9 @@ def build_workbook(path: Path, positions: list[list], enrichment: list[list], pr
 
 
 def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False,
-                maturity_source: str = "enrichment_first") -> IngestionConfig:
+                maturity_source: str = "enrichment_first",
+                missing_ac_mode: str = "price_proxy_no_accretion",
+                unsettled_window_days: int = 7) -> IngestionConfig:
     return IngestionConfig(
         base_dir=tmp_path,
         firm_data=FirmDataConfig(
@@ -83,6 +85,8 @@ def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False,
                 positions_floor_column="Coupon Rate Floor (decimal)" if tech else None,
                 positions_rate_type_column="Float or fixed indicator" if tech else None,
                 maturity_source=maturity_source,
+                missing_ac_mode=missing_ac_mode,
+                unsettled_window_days=unsettled_window_days,
                 prepayment_sheet="prepay" if prepayment else None,
                 enrichment=(
                     SecuritiesEnrichmentSheet(
@@ -400,3 +404,98 @@ def test_config_parses_pid_sec9_columns_and_new_floor_mode(tmp_path):
     assert sc.positions_coupon_column == "Coupon Rate (decimal)"
     assert sc.positions_floor_column == "Coupon Rate Floor (decimal)"
     assert sc.positions_rate_type_column == "Float or fixed indicator"
+
+
+# --- PID-SEC-13: blank amortized cost --------------------------------------
+# The reference workbook reads a blank amortized cost as ZERO and accretes the
+# whole face over the PID-SEC-8 denominator; PID-SEC-3's price proxy (written
+# for genuine unsettled trades) suppressed that accretion on every blank-AC row
+# because its trigger never tested a settle date. These pin all three modes and
+# the near-settle scoping. Fixture: Agency MBS, 100 face, no maturity date, WAL
+# 2.0y -> denominator 4 x 2.0 = 8 quarters; price 90 -> proxy AC = 90.
+
+def blank_ac_workbook(tmp_path: Path, *, purchase_date: object = None) -> None:
+    row = [REPORT, "AGYBLANK1", "Agency MBS", 0, 100e6, 100e6, "AFS", None, 90.0]
+    extra = None
+    if purchase_date is not None:
+        row = row + [purchase_date]
+        extra = ["CQSCP095"]
+    build_workbook(tmp_path / "securities.xlsx", [row],
+                   [["AGYBLANK1", None, 5.0, "FIXED", None, 2.0, "N"]], None, extra_headers=extra)
+
+
+def first_quarter_accretion(inputs, scenario) -> float:
+    result = project_mbs(inputs.mbs, scenario, firm_id=inputs.firm_id, floor_mode="security_floor")
+    return result.quarters[0].diagnostics.accretion
+
+
+def test_blank_ac_default_mode_proxies_and_suppresses_accretion(tmp_path, make_income_scenario):
+    blank_ac_workbook(tmp_path)
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False))
+    position = inputs.mbs[0]
+    assert position.ac_proxied and position.suppress_accretion
+    assert position.ac_source == "price_proxy"
+    assert position.amortized_cost == pytest.approx(90.0)           # 90/100 × 100 face
+    assert first_quarter_accretion(inputs, make_income_scenario()) == 0.0
+
+
+def test_blank_ac_zero_accrete_matches_the_reference(tmp_path, make_income_scenario):
+    blank_ac_workbook(tmp_path)
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False, missing_ac_mode="zero_accrete"))
+    position = inputs.mbs[0]
+    assert not position.ac_proxied and not position.suppress_accretion
+    assert position.ac_source == "blank_as_zero"
+    assert position.amortized_cost == 0.0
+    # AA(1) = (face - AC) / (4 × WAL) = (100 - 0) / 8 — the whole face accretes.
+    assert first_quarter_accretion(inputs, make_income_scenario()) == pytest.approx(12.5)
+    assert any("read as ZERO and accreted" in w for w in inputs.warnings)
+
+
+def test_blank_ac_price_proxy_accrete_uses_the_implied_discount(tmp_path, make_income_scenario):
+    blank_ac_workbook(tmp_path)
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False, missing_ac_mode="price_proxy_accrete"))
+    position = inputs.mbs[0]
+    assert position.ac_proxied and not position.suppress_accretion
+    # AA(1) = (100 - 90) / 8 — only the discount the price implies.
+    assert first_quarter_accretion(inputs, make_income_scenario()) == pytest.approx(1.25)
+    assert any("RUNS on the implied discount" in w for w in inputs.warnings)
+
+
+def test_near_settle_row_keeps_the_original_pid_sec_3_treatment(tmp_path, make_income_scenario):
+    # Purchased two days before the report date: a genuine unsettled trade, so the
+    # price proxy and the accretion hold apply even under zero_accrete.
+    blank_ac_workbook(tmp_path, purchase_date=serial(2024, 12, 29))
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False, missing_ac_mode="zero_accrete"))
+    position = inputs.mbs[0]
+    assert position.ac_proxied and position.suppress_accretion
+    assert position.amortized_cost == pytest.approx(90.0)
+    assert first_quarter_accretion(inputs, make_income_scenario()) == 0.0
+    assert any("near-settle (PID-SEC-3 as defined)" in w for w in inputs.warnings)
+
+
+def test_far_from_settle_row_follows_the_configured_mode(tmp_path, make_income_scenario):
+    # Same sheet, purchased years earlier — not an unsettled trade, so the mode governs.
+    blank_ac_workbook(tmp_path, purchase_date=serial(2019, 6, 30))
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False, missing_ac_mode="zero_accrete"))
+    position = inputs.mbs[0]
+    assert position.ac_source == "blank_as_zero" and not position.suppress_accretion
+    assert first_quarter_accretion(inputs, make_income_scenario()) == pytest.approx(12.5)
+    assert any("near-settle classifiable: 1" in w for w in inputs.warnings)
+
+
+def test_missing_purchase_date_column_is_surfaced_not_assumed(tmp_path):
+    blank_ac_workbook(tmp_path)                         # no CQSCP095 column at all
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False))
+    assert any("no PURCHASE_DATE (CQSCP095) column" in w for w in inputs.warnings)
+    assert any("unclassifiable: 1" in w for w in inputs.warnings)
+
+
+def test_zero_accrete_needs_no_price(tmp_path, make_income_scenario):
+    # The price proxy's hard stop (blank price) must not fire when the mode does
+    # not use the price at all.
+    build_workbook(tmp_path / "securities.xlsx",
+                   [[REPORT, "AGYBLANK2", "Agency MBS", 0, 100e6, 100e6, "AFS", None, None]],
+                   [["AGYBLANK2", None, 5.0, "FIXED", None, 2.0, "N"]], None)
+    inputs = load_securities_inputs(make_config(tmp_path, prepayment=False, missing_ac_mode="zero_accrete"))
+    assert inputs.mbs[0].amortized_cost == 0.0
+    assert first_quarter_accretion(inputs, make_income_scenario()) == pytest.approx(12.5)

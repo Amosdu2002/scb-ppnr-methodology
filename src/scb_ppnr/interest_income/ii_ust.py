@@ -43,7 +43,7 @@ def _flows(position: SecurityPosition, warnings: list[str]) -> PerSecurityFlows:
 
     maturity = position.maturity_quarters
     last_quarter = min(maturity, PROJECTION_QUARTERS[-1])
-    if position.ac_proxied:
+    if position.suppress_accretion:
         accretion_amount = 0.0
         warnings.append(f"{position.security_id}: PID-SEC-3 proxied amortized cost — accretion held at 0")
     else:

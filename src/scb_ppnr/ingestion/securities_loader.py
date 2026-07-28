@@ -30,6 +30,11 @@ from pathlib import Path
 
 from ..core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from ..interest_income.securities_schemas import (
+    AC_MODE_PRICE_PROXY_NO_ACCRETION,
+    AC_MODE_ZERO_ACCRETE,
+    AC_SOURCE_BLANK_AS_ZERO,
+    AC_SOURCE_PRICE_PROXY,
+    AC_SOURCE_REPORTED,
     MODEL_MBS,
     MODEL_OTHER_SEC,
     MODEL_UST,
@@ -57,6 +62,9 @@ _POSITIONS_MDRM = {
     "CQSCP094": "book_yield",
     "CQSCS383": "unique_id",             # per-row transaction id — positions sheets carry
                                          # multiple rows (lots) per CUSIP
+    "CQSCP095": "purchase_date",         # PID-SEC-13: scopes the PID-SEC-3 price proxy to
+                                         # genuine near-settle rows (optional — absence just
+                                         # means no row can be classified as unsettled)
 }
 # The price column is handled separately: configurable MDRM ([firm_data.securities].price_mdrm,
 # default CQSCJH21) with a technical-name fallback ("Price") — see _positions_rows.
@@ -343,6 +351,11 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
 
     skipped_out_of_scope = 0
     skipped_wal = 0
+    # PID-SEC-13 census: how blank amortized costs were resolved, and how many
+    # rows could actually be classified as near-settle.
+    ac_mode_counts: Counter[str] = Counter()
+    unsettled_classified = 0
+    unsettled_unclassified = 0
     tech_maturity_rows = 0
     tech_coupon_rows = 0
     tech_floor_rows = 0
@@ -515,19 +528,56 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
             by = to_float(record["book_yield"], context=f"{context} book_yield")
             book_yield = apply_rate_scale(sc.book_yield_scale, by, context=f"{context} book_yield") if by != 0.0 else 0.0
 
-        # PID-SEC-3: unsettled-transaction AC proxy.
+        # PID-SEC-3 unsettled-transaction AC proxy, scoped by PID-SEC-13.
         ac_proxied = False
+        suppress_accretion = False
+        ac_source = AC_SOURCE_REPORTED
         trigger = maturity_quarters is None or book_yield in (None, 0.0) or amortized_cost in (None, 0.0)
         if trigger and amortized_cost in (None, 0.0):
-            if _blank(record.get("price")):
-                raise ValidationFailure(
-                    f"{context}: PID-SEC-3 trigger (maturity/book yield/amortized cost missing or zero) "
-                    f"but no price to proxy from — surfaced, never defaulted"
+            # Is this a GENUINE unsettled trade? PID-SEC-3's own definition says
+            # "settle date very close to the reporting date"; until PID-SEC-13 the
+            # trigger never tested it, so every blank-AC row took the proxy and
+            # lost its accretion. A row we cannot classify (no purchase date on
+            # the sheet, or no report date) follows `missing_ac_mode`.
+            near_settle = False
+            row_report_date = report_date
+            if not _blank(record.get("report_date")):
+                row_report_date = _parse_date(record["report_date"], context=f"{context} D_DT")
+            purchased = None
+            if not _blank(record.get("purchase_date")):
+                purchased = _parse_date(record["purchase_date"], context=f"{context} CQSCP095")
+            if purchased is not None and row_report_date is not None:
+                near_settle = abs((row_report_date - purchased).days) <= sc.unsettled_window_days
+                unsettled_classified += 1
+            else:
+                unsettled_unclassified += 1
+
+            mode = AC_MODE_PRICE_PROXY_NO_ACCRETION if near_settle else sc.missing_ac_mode
+            if mode == AC_MODE_ZERO_ACCRETE:
+                amortized_cost = 0.0                       # blank read as zero — the reference's own
+                ac_source = AC_SOURCE_BLANK_AS_ZERO        # treatment; the whole face then accretes
+                warnings.append(
+                    f"{security_id}: blank amortized cost read as ZERO and accreted "
+                    f"(PID-SEC-13 missing_ac_mode='zero_accrete' — reference behavior, recorded divergence)"
                 )
-            price = to_float(record["price"], context=f"{context} price")
-            amortized_cost = price / 100.0 * face          # per-100 price × notional (current face, TBC)
-            ac_proxied = True
-            warnings.append(f"{security_id}: PID-SEC-3 amortized-cost proxy applied (price/100 × current face); accretion held at 0")
+            else:
+                if _blank(record.get("price")):
+                    raise ValidationFailure(
+                        f"{context}: PID-SEC-3 trigger (maturity/book yield/amortized cost missing or zero) "
+                        f"but no price to proxy from — surfaced, never defaulted"
+                    )
+                price = to_float(record["price"], context=f"{context} price")
+                amortized_cost = price / 100.0 * face      # per-100 price × notional (current face, TBC)
+                ac_proxied = True
+                ac_source = AC_SOURCE_PRICE_PROXY
+                suppress_accretion = mode == AC_MODE_PRICE_PROXY_NO_ACCRETION
+                reason = "near-settle (PID-SEC-3 as defined)" if near_settle else f"PID-SEC-13 mode {mode!r}"
+                warnings.append(
+                    f"{security_id}: PID-SEC-3 amortized-cost proxy applied (price/100 × current face) — "
+                    f"{reason}; accretion {'held at 0' if suppress_accretion else 'RUNS on the implied discount/premium'}"
+                )
+            ac_mode_counts[ac_source if not ac_proxied else
+                           ("price_proxy_no_accretion" if suppress_accretion else "price_proxy_accrete")] += 1
         if book_yield == 0.0:
             book_yield = None
 
@@ -578,6 +628,8 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 wal_years=wal,
                 face_path=face_path,
                 ac_proxied=ac_proxied,
+                suppress_accretion=suppress_accretion,
+                ac_source=ac_source,
                 reference_income=reference_income,
                 excel_rate_label=excel_rate_label,
                 excel_coupon_rate=excel_coupon,
@@ -596,6 +648,19 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         )
     for leftover in sorted(set(prepayment) - used_prepayment):
         warnings.append(f"prepayment sheet row {leftover} matches no in-scope Agency MBS position (ignored, logged)")
+    if ac_mode_counts:
+        breakdown = ", ".join(f"{treatment}×{n}" for treatment, n in sorted(ac_mode_counts.items()))
+        warnings.append(
+            f"PID-SEC-13 blank-amortized-cost census (missing_ac_mode={sc.missing_ac_mode!r}, "
+            f"window={sc.unsettled_window_days}d): {sum(ac_mode_counts.values())} row(s) — {breakdown}; "
+            f"near-settle classifiable: {unsettled_classified}, unclassifiable: {unsettled_unclassified}"
+        )
+        if unsettled_unclassified and "purchase_date" not in records[0]:
+            warnings.append(
+                "PID-SEC-13: no PURCHASE_DATE (CQSCP095) column on the positions sheet — no row can be "
+                "confirmed as a genuine unsettled trade, so every blank-amortized-cost row follows "
+                f"missing_ac_mode={sc.missing_ac_mode!r} (surfaced, never silent)"
+            )
     if skipped_out_of_scope:
         warnings.append(f"{skipped_out_of_scope} equity-intent/out-of-scope position(s) excluded (PID-SEC-5)")
     if skipped_wal:

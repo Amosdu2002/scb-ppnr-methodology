@@ -84,6 +84,8 @@ _FLOOR_MODES = ("zero", "security_floor", "none", "security_floor_else_zero")
 # floaters at the launch coupon; "neg_hold_blend13" adds the monthly-reset PQ1 blend;
 # "blend13" = the PQ1 blend WITHOUT the hold; "flat_c0" holds every floater flat.
 _FLOAT_PROJECTION_MODES = ("spot", "neg_hold", "neg_hold_blend13", "blend13", "flat_c0")
+# PID-SEC-13 blank-amortized-cost treatments (see SecuritiesConfig.missing_ac_mode).
+_MISSING_AC_MODES = ("price_proxy_no_accretion", "price_proxy_accrete", "zero_accrete")
 
 
 @dataclass(frozen=True)
@@ -145,6 +147,18 @@ class SecuritiesConfig:
     # ZCBs). The Fed-stated A42 accretion is preserved as [FACT]; this switch
     # records the reference divergence. Coupon rows are never affected.
     zcb_no_accretion_categories: tuple[str, ...] = ()
+    # PID-SEC-13 (2026-07-28, user-directed): treatment of a BLANK amortized cost
+    # on rows that are NOT genuine unsettled trades — "price_proxy_no_accretion"
+    # (the original PID-SEC-3 behavior; default, so numbers never move silently) |
+    # "price_proxy_accrete" (price proxy, accretion runs) | "zero_accrete" (blank
+    # read as zero and accreted — what the reference workbook does).
+    # `unsettled_window_days` scopes the ORIGINAL PID-SEC-3 treatment to rows whose
+    # PURCHASE_DATE (CQSCP095) is within that many days of the report date; those
+    # always take the price proxy with accretion suppressed, whatever the mode.
+    # With no purchase-date column on the sheet, no row can be classified as
+    # near-settle and every blank-AC row follows `missing_ac_mode`.
+    missing_ac_mode: str = "price_proxy_no_accretion"
+    unsettled_window_days: int = 7
 
 
 @dataclass(frozen=True)
@@ -316,7 +330,19 @@ def load_config(path: Path | str) -> IngestionConfig:
                 book_yield_categories=tuple(str(c) for c in sec.get("book_yield_categories", [])),
                 maturity_source=str(sec.get("maturity_source", "enrichment_first")).strip().lower(),
                 zcb_no_accretion_categories=tuple(str(c) for c in sec.get("zcb_no_accretion_categories", [])),
+                missing_ac_mode=str(sec.get("missing_ac_mode", "price_proxy_no_accretion")).strip().lower(),
+                unsettled_window_days=int(sec.get("unsettled_window_days", 7)),
             )
+            if securities.missing_ac_mode not in _MISSING_AC_MODES:
+                raise ValidationFailure(
+                    f"config [firm_data.securities]: missing_ac_mode must be one of {_MISSING_AC_MODES} "
+                    f"(PID-SEC-13), got {sec.get('missing_ac_mode')!r}"
+                )
+            if securities.unsettled_window_days < 0:
+                raise ValidationFailure(
+                    f"config [firm_data.securities]: unsettled_window_days must be >= 0 (PID-SEC-13), "
+                    f"got {sec.get('unsettled_window_days')!r}"
+                )
             if securities.maturity_source not in ("enrichment_first", "positions_first"):
                 raise ValidationFailure(
                     f"config [firm_data.securities]: maturity_source must be 'enrichment_first' or "

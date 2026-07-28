@@ -54,6 +54,31 @@ FLOOR_MODES = (FLOOR_MODE_ZERO, FLOOR_MODE_SECURITY, FLOOR_MODE_NONE, FLOOR_MODE
 # "neg_hold_blend13" — neg_hold plus the monthly-reset PQ1 for positive margins:
 #   PQ1 = ⅓·launch coupon + ⅔·(margin + 3M(PQ1)), spot thereafter (the first month
 #   of PQ1 still accrues at the coupon set before the launch date).
+# PID-SEC-13 (2026-07-28, user-directed): how a BLANK amortized cost is treated
+# when the row is NOT a genuine unsettled trade. PID-SEC-3's price proxy was
+# written for securities settling at the reporting date; its trigger never
+# tested a settle date, so every blank-AC row got the proxy AND had accretion
+# suppressed. The reference workbook instead reads the blank as ZERO and
+# accretes the whole face over the PID-SEC-8 denominator.
+#   "price_proxy_no_accretion" — AC = price/100 × face, accretion held at 0
+#                                (the original behavior; DEFAULT — no silent change)
+#   "price_proxy_accrete"      — AC = price/100 × face, accretion RUNS on the
+#                                genuine discount/premium the price implies
+#   "zero_accrete"             — AC = 0, accretion runs (reproduces the reference)
+# Genuine near-settle rows (purchase date within the configured window of the
+# report date) always take the original PID-SEC-3 treatment regardless of mode.
+AC_MODE_PRICE_PROXY_NO_ACCRETION = "price_proxy_no_accretion"
+AC_MODE_PRICE_PROXY_ACCRETE = "price_proxy_accrete"
+AC_MODE_ZERO_ACCRETE = "zero_accrete"
+MISSING_AC_MODES = (AC_MODE_PRICE_PROXY_NO_ACCRETION, AC_MODE_PRICE_PROXY_ACCRETE, AC_MODE_ZERO_ACCRETE)
+
+# Provenance of `amortized_cost` — reported by the firm, proxied from price
+# (PID-SEC-3), or a blank read as zero (PID-SEC-13 'zero_accrete').
+AC_SOURCE_REPORTED = "reported"
+AC_SOURCE_PRICE_PROXY = "price_proxy"
+AC_SOURCE_BLANK_AS_ZERO = "blank_as_zero"
+AC_SOURCES = (AC_SOURCE_REPORTED, AC_SOURCE_PRICE_PROXY, AC_SOURCE_BLANK_AS_ZERO)
+
 FLOAT_PROJECTION_SPOT = "spot"
 FLOAT_PROJECTION_NEG_HOLD = "neg_hold"
 FLOAT_PROJECTION_NEG_HOLD_BLEND = "neg_hold_blend13"
@@ -106,7 +131,10 @@ class SecurityPosition:
     OQ-027). `maturity_quarters` is relative to PQ0 (>= 1). `face_path` exists
     only for Agency-prepayment securities (PID-MBS-1): PQ0..PQ9 projected
     current face in USD millions. `ac_proxied` marks PID-SEC-3 securities
-    (amortized cost proxied from price/100 x face; accretion forced to zero)."""
+    (amortized cost proxied from price/100 x face); `suppress_accretion` is the
+    separate behavioural flag the models read — the two coincide only under the
+    default PID-SEC-13 mode, so accretion is never suppressed as a side effect
+    of provenance. `ac_source` records where the amortized cost came from."""
 
     security_id: str
     model: str
@@ -122,7 +150,9 @@ class SecurityPosition:
     maturity_years: float | None = None    # PID-SEC-8 accretion denominators: day difference / 365
     wal_years: float | None = None
     face_path: Mapping[int, float] | None = None
-    ac_proxied: bool = False
+    ac_proxied: bool = False               # PID-SEC-3 price proxy supplied the amortized cost
+    suppress_accretion: bool = False       # PID-SEC-13: hold AA at 0 for this row (the models' flag)
+    ac_source: str = AC_SOURCE_REPORTED    # provenance, for diagnostics and the census
     reference_income: Mapping[int, float] | None = None   # verification only — the workbook's own
                                                           # per-security II_PQ1..PQ9 (USD millions);
                                                           # never consumed by the models
@@ -141,6 +171,8 @@ class SecurityPosition:
         require_id("category", self.category)
         if self.rate_type not in _RATE_TYPES:
             raise ValidationFailure(f"{self.security_id}: rate_type must be one of {_RATE_TYPES}, got {self.rate_type!r}")
+        if self.ac_source not in AC_SOURCES:
+            raise ValidationFailure(f"{self.security_id}: ac_source must be one of {AC_SOURCES}, got {self.ac_source!r}")
         if self.accounting_intent.strip().upper() == ACCOUNTING_INTENT_EQUITY:
             raise ValidationFailure(f"{self.security_id}: equity-intent positions are out of scope (PID-SEC-5) — exclude at the loader")
         object.__setattr__(self, "current_face", check_balance(f"{self.security_id}.current_face", self.current_face))

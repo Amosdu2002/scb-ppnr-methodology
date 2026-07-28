@@ -44,7 +44,7 @@ block are tolerated; the loader locates the header block by the MDRM row. Column
 | `accounting_intent` | CQSCP092 | AFS \| HTM \| EQ — **EQ ⇒ out of scope** [PID-SEC-5]; drives reinvestment designation [FACT, MRM p. 73] | text |
 | `pricing_date` | CQSCP093 | pricing date (user-confirmed 2026-07-24 — **not** a price) | date `mm/dd/yyyy` |
 | `book_yield` | CQSCP094 | A42 combined term; `ii_mbs` coupon fallback [FACT] | rate (scale §6) |
-| `purchase_date` | CQSCP095 | unsettled-trade context (PID-SEC-3) | date |
+| `purchase_date` | CQSCP095 | **loaded and used** since PID-SEC-13 (2026-07-28): scopes the PID-SEC-3 price proxy to genuine near-settle rows (\|purchase − report\| ≤ `unsettled_window_days`). Optional — absent ⇒ no row is classifiable and every blank-amortized-cost row follows `missing_ac_mode`, logged per run | date |
 | `currency` | CQSCS371 | informational — balances already USD [PID-SEC-6] | text |
 | `price` | CQSCJH21 | PID-SEC-3 price candidate (§7 TBC) | per-100 price |
 | `transtype` | (internal) | transaction-type context (unsettled trades) | text |

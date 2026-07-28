@@ -454,6 +454,8 @@ def run_compare(config, args) -> None:
                     "maturity_quarters": position.maturity_quarters,
                     "wal_years": position.wal_years,
                     "ac_proxied": position.ac_proxied,
+                    "ac_source": position.ac_source,
+                    "suppress_accretion": position.suppress_accretion,
                 }
                 for q in quarters:
                     record[f"ours_q{q}"] = round(flows.total.get(q, 0.0), 6)
@@ -719,7 +721,8 @@ def run_explain(config, args) -> None:
         print(f"  inputs: current_face={position.current_face:,.4f}  amortized_cost={position.amortized_cost:,.4f}  "
               f"coupon={position.coupon_rate}  book_yield={position.book_yield}  floor={position.coupon_floor}")
         print(f"          maturity_years={position.maturity_years}  maturity_quarters={position.maturity_quarters}  "
-              f"wal_years={position.wal_years}  ac_proxied={position.ac_proxied}  intent={position.accounting_intent}  "
+              f"wal_years={position.wal_years}  ac_source={position.ac_source}  "
+              f"suppress_accretion={position.suppress_accretion}  intent={position.accounting_intent}  "
               f"excel_rate_label={position.excel_rate_label}  excel_coupon={position.excel_coupon_rate}")
 
         sink: list[str] = []
