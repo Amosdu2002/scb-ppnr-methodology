@@ -147,8 +147,11 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
                                         # so turn these two on TOGETHER.
 # [firm_data.securities.maturity_quarters_rounding_overrides]   # PID-SEC-15 per category. floor set
 # "Sovereign Bond" = "floor"            # GLOBALLY was a regression: it fixed Sovereign (fixed rows to
-                                        # xr/ref 1.0006) but cost US Treasuries 544 USD mm, because
-                                        # maturity_quarters also feeds the Eq A40 accretion denominator.
+                                        # xr/ref 1.0006) but cost US Treasuries 544 USD mm — one
+                                        # quarter of COUPON on 181 rows. Likely the split is by income
+                                        # FORM, not category: A42 reads the CURRENT quarter's amortized
+                                        # cost (zero when it matures -> floor), the split form reads the
+                                        # PRIOR quarter's face (still positive -> ceil). See OQ-032.
 # maturity_quarters_rounding = "ceil"   # PID-SEC-15 global default — leave at ceil (2026-07-28): how many quarters a security
                                         # accrues. "ceil" (default) books ceil(4 x maturity_years);
                                         # "floor" books only FULL quarters. Sovereign reference rows
