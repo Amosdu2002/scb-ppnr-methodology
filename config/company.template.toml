@@ -92,6 +92,11 @@ sheet = "<QUARTERLY_TAB_NAME>"
 # "security_floor_else_zero" is the reference-workbook rule (2026-07-24): EVERY
 # floater's projected coupon is floored at the security's coupon floor when on
 # file, else at 0.
+# TOML ORDERING: every bare key after a [table] header belongs to THAT table, so
+# EVERY scalar setting below must stay ABOVE the [firm_data.securities.*] sub-tables
+# and the [[firm_data.securities.enrichment]] blocks. A setting appended at the end
+# of the file silently becomes an override entry — the loader now catches that and
+# names the offending key, but the ordering is the thing to get right.
 [firm_data.securities]
 workbook = "<PATH_TO_SECURITIES_WORKBOOK>.xlsx"
 positions_sheet = "<POSITIONS_SHEET_NAME>"

@@ -10,7 +10,7 @@ config plus its data folder travels as a unit. Template with placeholders:
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
@@ -213,6 +213,24 @@ def _table_source(section: Mapping[str, object], context: str) -> TableSource:
     return TableSource(path=Path(path), sheet=str(sheet) if sheet is not None else None)
 
 
+def _reject_misplaced_key(table: str, key: str) -> None:
+    """Catch the TOML scoping trap before it surfaces as a nonsense mode error.
+
+    Once `[firm_data.securities.<table>]` opens, every bare key after it belongs
+    to THAT table — so a scalar setting appended at the end of the file silently
+    becomes an override entry, and the mode validator then complains that a
+    setting name is not a valid mode. If an override key is itself the name of a
+    securities setting, that is what happened."""
+    if key in {f.name for f in fields(SecuritiesConfig)}:
+        raise ValidationFailure(
+            f"config [firm_data.securities.{table}]: {key!r} is a [firm_data.securities] SETTING, "
+            f"not a security category. In TOML every bare key after a [table] header belongs to "
+            f"that table, so {key!r} was written below [firm_data.securities.{table}] instead of "
+            f"above it. Move the {key} = ... line up, so it sits with the other scalar settings "
+            f"BEFORE any [firm_data.securities.*] sub-table or [[...enrichment]] block."
+        )
+
+
 def load_config(path: Path | str) -> IngestionConfig:
     path = Path(path)
     if not path.exists():
@@ -356,6 +374,7 @@ def load_config(path: Path | str) -> IngestionConfig:
                     f"(PID-SEC-13), got {sec.get('missing_ac_mode')!r}"
                 )
             for category, mode in securities.missing_ac_mode_overrides.items():
+                _reject_misplaced_key("missing_ac_mode_overrides", category)
                 if mode not in _MISSING_AC_MODES:
                     raise ValidationFailure(
                         f"config [firm_data.securities.missing_ac_mode_overrides]: mode for {category!r} "
@@ -377,6 +396,7 @@ def load_config(path: Path | str) -> IngestionConfig:
                     f"{_FLOAT_PROJECTION_MODES} (PID-SEC-10), got {sec.get('floating_projection')!r}"
                 )
             for category, mode in securities.floating_projection_overrides.items():
+                _reject_misplaced_key("floating_projection_overrides", category)
                 if mode not in _FLOAT_PROJECTION_MODES:
                     raise ValidationFailure(
                         f"config [firm_data.securities.floating_projection_overrides]: mode for "

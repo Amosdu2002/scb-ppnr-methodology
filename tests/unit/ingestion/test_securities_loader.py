@@ -531,3 +531,52 @@ def test_missing_ac_mode_override_scopes_by_category(tmp_path, make_income_scena
 def test_unknown_override_mode_is_a_hard_error(tmp_path):
     from scb_ppnr.ingestion.config import _MISSING_AC_MODES
     assert "zero_accrete" in _MISSING_AC_MODES                 # the validator's own set
+
+
+def test_setting_written_below_an_override_table_is_named_in_the_error(tmp_path):
+    # TOML scoping trap (hit for real 2026-07-28): a scalar setting appended at the
+    # end of the file lands INSIDE the preceding [firm_data.securities.<map>] table,
+    # and the mode validator then reports that a setting name is not a valid mode.
+    # The error has to name the real problem.
+    from scb_ppnr.ingestion import load_config
+    config = tmp_path / "company.toml"
+    config.write_text('''
+[mev]
+date_column = "Date"
+launch_point = "2025Q4"
+[mev.scenarios.sa]
+path = "x.csv"
+[mev.series.usd_3m_treasury]
+column = "USD 3M Treasury"
+scale = "percent"
+[firm_data]
+firm_id = "F"
+[firm_data.spot]
+path = "s.csv"
+[firm_data.quarterly]
+path = "q.csv"
+[firm_data.securities]
+workbook = "w.xlsx"
+positions_sheet = "P"
+money_scale = "dollars"
+coupon_scale = "percent"
+book_yield_scale = "percent"
+floor_mode = "security_floor"
+
+[firm_data.securities.missing_ac_mode_overrides]
+"Agency MBS" = "zero_accrete"
+
+a42_collapsed_categories = ["Municipal Bond"]
+''', encoding="utf-8")
+    with pytest.raises(ValidationFailure, match="is a \\[firm_data.securities\\] SETTING"):
+        load_config(config)
+
+    # Moving the line above the sub-table is all it takes.
+    config.write_text(config.read_text(encoding="utf-8")
+                      .replace('a42_collapsed_categories = ["Municipal Bond"]\n', "")
+                      .replace('floor_mode = "security_floor"',
+                               'floor_mode = "security_floor"\na42_collapsed_categories = ["Municipal Bond"]'),
+                      encoding="utf-8")
+    securities = load_config(config).firm_data.securities
+    assert securities.a42_collapsed_categories == ("Municipal Bond",)
+    assert dict(securities.missing_ac_mode_overrides) == {"Agency MBS": "zero_accrete"}
