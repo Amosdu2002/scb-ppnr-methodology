@@ -509,7 +509,8 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
             used_tech = enrich_years is None and tech_years is not None
         # PID-SEC-15: 'floor' books only FULL quarters (reference-observed on
         # Sovereign Bond: 4 x years = 3.233 accrues 3 quarters, 2.773 accrues 2).
-        _round = math.floor if sc.maturity_quarters_rounding == "floor" else math.ceil
+        _rounding = sc.maturity_quarters_rounding_overrides.get(category, sc.maturity_quarters_rounding)
+        _round = math.floor if _rounding == "floor" else math.ceil
         maturity_quarters = max(1, _round(4.0 * maturity_years)) if maturity_years is not None else None
         if used_tech:
             tech_maturity_rows += 1

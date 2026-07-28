@@ -426,3 +426,25 @@ def test_agency_face_path_survival_books_maturity_where_the_path_zeroes(make_inc
     flows = m_mbs._agency_flows(position, {q: 0.05 for q in range(1, 10)}, [], True)
     assert flows.alive_through == 2                                 # last quarter with a live face
     assert flows.matured_face == {3: pytest.approx(200.0)}          # the path's own zero, carrying PQ2's face
+
+
+def test_zcb_suppression_wins_over_the_a42_form(make_income_scenario):
+    # 2026-07-28 regression: adding "Sovereign Bond" to a42_collapsed_categories
+    # revived its zero-coupon rows (xr/ref 8.96 against a reference that books
+    # exactly zero) because the A42 branch returned before the PID-SEC-12 check.
+    zcb = _pos(MODEL_OTHER_SEC, "SOV0000Z1", category="Sovereign Bond", rate_type=RATE_ZERO_COUPON,
+               current_face=100.0, amortized_cost=80.0, coupon_rate=None,
+               book_yield=0.05, maturity_quarters=20, maturity_years=5.0)
+    result = project_other_sec([zcb], make_income_scenario(), firm_id="F", floor_mode=FLOOR_MODE_ZERO,
+                               a42_collapsed_categories=("Sovereign Bond",),
+                               zcb_no_accretion_categories=("Sovereign Bond",))
+    assert result.cumulative_income == 0.0                       # suppression still wins
+
+    # …and a COUPON row in the same category still takes the A42 form.
+    fixed = _pos(MODEL_OTHER_SEC, "SOV0000F1", category="Sovereign Bond", rate_type=RATE_FIXED,
+                 current_face=100.0, amortized_cost=80.0, coupon_rate=0.03,
+                 book_yield=0.05, maturity_quarters=20, maturity_years=5.0)
+    coupon_row = project_other_sec([fixed], make_income_scenario(), firm_id="F", floor_mode=FLOOR_MODE_ZERO,
+                                   a42_collapsed_categories=("Sovereign Bond",),
+                                   zcb_no_accretion_categories=("Sovereign Bond",))
+    assert coupon_row.income_path()[1] == pytest.approx(0.05 * 80.0 / 4)

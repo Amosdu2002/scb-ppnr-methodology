@@ -52,7 +52,13 @@ def _flows(position: SecurityPosition, scenario: IncomeScenarioPaths,
     # (including premium rows where AC > face) to within book-yield display
     # rounding; the same amount against FACE is out by up to 29%. This is the one
     # category where the collapsed A42 form beats the PID-SEC-8 split form.
-    if position.category in a42_collapsed_categories:
+    # PID-SEC-12 wins over PID-SEC-14: a zero-coupon row in a suppressed category
+    # books nothing, and must NOT be revived by the A42 form (2026-07-28 regression —
+    # sovereign ZCBs jumped to xr/ref 8.96 against a reference that books zero).
+    a42_row = (position.category in a42_collapsed_categories
+               and not (position.rate_type == RATE_ZERO_COUPON
+                        and position.category in zcb_no_accretion_categories))
+    if a42_row:
         if position.book_yield is None:
             warnings.append(
                 f"{position.security_id}: Equation-A42 category but no book yield on file — "
@@ -147,7 +153,9 @@ def project_other_sec(
                 by_override += 1
             if position.rate_type == "zero_coupon" and position.category in zcb_no_accretion_categories:
                 zcb_suppressed += 1
-            if position.category in a42_collapsed_categories and position.book_yield is not None:
+            if (position.category in a42_collapsed_categories and position.book_yield is not None
+                    and not (position.rate_type == "zero_coupon"
+                             and position.category in zcb_no_accretion_categories)):
                 a42_rows += 1
             flows.append(_flows(position, scenario, floor_mode, warnings,
                                 floating_projection, book_yield_categories, projection_overrides,

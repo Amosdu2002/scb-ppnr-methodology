@@ -161,6 +161,12 @@ class SecuritiesConfig:
     # Global switch, so A/B it: the Agency MBS WAL-as-maturity path (PID-SEC-7)
     # keeps ceil either way, since those rows already end too EARLY.
     maturity_quarters_rounding: str = "ceil"
+    # Per-category override (2026-07-28). Applying floor GLOBALLY was a regression:
+    # it fixed Sovereign Bond (fixed rows went to xr/ref 1.0006) but cost US
+    # Treasuries 544 USD mm (0.9985 -> 0.9766, 181 rows newly truncating) because
+    # their maturity_quarters also feeds the Eq A40 straight-line DENOMINATOR.
+    # Only Sovereign Bond is evidenced; keep the global default at ceil.
+    maturity_quarters_rounding_overrides: Mapping[str, str] = field(default_factory=dict)
     # PID-SEC-16 (2026-07-28): for Agency MBS carrying a vendor prepayment face
     # path, let that PATH decide how long the security lives instead of the
     # PID-SEC-7 WAL-as-maturity. A WAL is an average life, not a maturity: a
@@ -378,6 +384,10 @@ def load_config(path: Path | str) -> IngestionConfig:
                 zcb_no_accretion_categories=tuple(str(c) for c in sec.get("zcb_no_accretion_categories", [])),
                 a42_collapsed_categories=tuple(str(c) for c in sec.get("a42_collapsed_categories", [])),
                 maturity_quarters_rounding=str(sec.get("maturity_quarters_rounding", "ceil")).strip().lower(),
+                maturity_quarters_rounding_overrides=MappingProxyType({
+                    str(category): str(mode).strip().lower()
+                    for category, mode in sec.get("maturity_quarters_rounding_overrides", {}).items()
+                }),
                 agency_face_path_survival=bool(sec.get("agency_face_path_survival", False)),
                 missing_ac_mode=str(sec.get("missing_ac_mode", "price_proxy_no_accretion")).strip().lower(),
                 unsettled_window_days=int(sec.get("unsettled_window_days", 7)),
@@ -386,6 +396,13 @@ def load_config(path: Path | str) -> IngestionConfig:
                     for category, mode in sec.get("missing_ac_mode_overrides", {}).items()
                 }),
             )
+            for category, mode in securities.maturity_quarters_rounding_overrides.items():
+                _reject_misplaced_key("maturity_quarters_rounding_overrides", category)
+                if mode not in ("ceil", "floor"):
+                    raise ValidationFailure(
+                        f"config [firm_data.securities.maturity_quarters_rounding_overrides]: mode for "
+                        f"{category!r} must be 'ceil' or 'floor' (PID-SEC-15), got {mode!r}"
+                    )
             if securities.maturity_quarters_rounding not in ("ceil", "floor"):
                 raise ValidationFailure(
                     f"config [firm_data.securities]: maturity_quarters_rounding must be 'ceil' or "

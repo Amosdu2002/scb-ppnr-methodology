@@ -65,6 +65,8 @@ def build_workbook(path: Path, positions: list[list], enrichment: list[list], pr
 
 def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False,
                 maturity_source: str = "enrichment_first",
+                maturity_quarters_rounding: str = "ceil",
+                maturity_quarters_rounding_overrides: dict | None = None,
                 missing_ac_mode: str = "price_proxy_no_accretion",
                 unsettled_window_days: int = 7,
                 missing_ac_mode_overrides: dict | None = None) -> IngestionConfig:
@@ -86,6 +88,8 @@ def make_config(tmp_path: Path, *, prepayment: bool = True, tech: bool = False,
                 positions_floor_column="Coupon Rate Floor (decimal)" if tech else None,
                 positions_rate_type_column="Float or fixed indicator" if tech else None,
                 maturity_source=maturity_source,
+                maturity_quarters_rounding=maturity_quarters_rounding,
+                maturity_quarters_rounding_overrides=maturity_quarters_rounding_overrides or {},
                 missing_ac_mode=missing_ac_mode,
                 unsettled_window_days=unsettled_window_days,
                 missing_ac_mode_overrides=missing_ac_mode_overrides or {},
@@ -580,3 +584,24 @@ a42_collapsed_categories = ["Municipal Bond"]
     securities = load_config(config).firm_data.securities
     assert securities.a42_collapsed_categories == ("Municipal Bond",)
     assert dict(securities.missing_ac_mode_overrides) == {"Agency MBS": "zero_accrete"}
+
+
+def test_maturity_rounding_is_per_category(tmp_path):
+    # 2026-07-28: floor applied GLOBALLY fixed Sovereign but cost US Treasuries
+    # 544 USD mm, because maturity_quarters also feeds the A40 accretion
+    # denominator. Only the named category may take floor.
+    positions = [
+        [REPORT, "SOV00001A", "Sovereign Bond", 95e6, 100e6, 100e6, "AFS", 4.0, 99.0],
+        [REPORT, "UST00002A", "US Treasuries & Agencies", 95e6, 100e6, 100e6, "AFS", 4.0, 99.0],
+    ]
+    # 0.8082y -> 4 x years = 3.233: ceil 4, floor 3.
+    enrichment = [["SOV00001A", serial(2025, 10, 22), 3.5, "FIXED", None, None, "N"],
+                  ["UST00002A", serial(2025, 10, 22), 3.5, "FIXED", None, None, "N"]]
+    build_workbook(tmp_path / "securities.xlsx", positions, enrichment, None)
+    inputs = load_securities_inputs(make_config(
+        tmp_path, prepayment=False,
+        maturity_quarters_rounding_overrides={"Sovereign Bond": "floor"}))
+    sovereign = inputs.other_sec[0]
+    treasury = inputs.ust[0]
+    assert sovereign.maturity_quarters == 3          # floor, per the override
+    assert treasury.maturity_quarters == 4           # ceil, the global default — untouched
