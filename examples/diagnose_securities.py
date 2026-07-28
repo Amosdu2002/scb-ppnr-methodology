@@ -1,6 +1,9 @@
 """Securities-loader diagnostic — classifies every issue instead of stopping.
 
     PYTHONPATH=src python3 examples/diagnose_securities.py --config config/local/company.toml
+    …--compare                       per-security diff vs the workbook's II_PQ1..9
+    …--compare --gaps gaps.csv       the largest gaps, with their inputs (LOCAL ONLY)
+    …--explain <ID or CUSIP>         one security, quarter by quarter (LOCAL ONLY)
 
 Walks the same parsing as load_securities_inputs but never raises on data
 issues: every security is classified into short ISSUE CODES, and the final
@@ -80,12 +83,23 @@ def main() -> None:
                              "found in the workbook; never relay or commit this file")
     parser.add_argument("--gaps-top", type=int, default=25,
                         help="how many securities per category in the --gaps file (by absolute gap; default 25)")
+    parser.add_argument("--explain", default=None, metavar="ID[,ID...]",
+                        help="drill into named securities (id, CUSIP, or CUSIP prefix — every matching lot) "
+                             "and print the full quarter-by-quarter decomposition against the reference: "
+                             "face path, coupon path, AA path, AC path, and the reference-implied coupon/"
+                             "face/AA. LOCAL ONLY (unmasked ids and amounts); skips the loader scan")
+    parser.add_argument("--explain-max", type=int, default=12,
+                        help="cap on how many matching securities --explain prints (default 12)")
     args = parser.parse_args()
 
     config = load_config(args.config)
     if config.firm_data is None or config.firm_data.securities is None:
         raise SystemExit("config has no [firm_data.securities] section")
     sc = config.firm_data.securities
+
+    if args.explain:
+        run_explain(config, args)
+        return
     path = config.resolve(sc.workbook)
     workbook = _load_workbook(path)
 
@@ -251,15 +265,46 @@ def main() -> None:
         run_compare(config, args)
 
 
+def _treatment_for(position, sc) -> str:
+    """The treatment actually applied to this row (--gaps / --explain label)."""
+    if position.category in sc.book_yield_categories and position.book_yield is not None \
+            and position.rate_type != "zero_coupon":
+        return "book_yield_flat"
+    if position.rate_type == "zero_coupon":
+        return ("zcb_no_accretion" if position.category in sc.zcb_no_accretion_categories
+                else "zero_coupon")
+    if position.rate_type == "floating":
+        return sc.floating_projection_overrides.get(position.category, sc.floating_projection)
+    return position.rate_type
+
+
+def _flows_for(position, scenario, sc, sink):
+    """Run the position through its own model's per-security flow function —
+    the same code path the runner uses, so a drill-down can never drift from
+    the projection it explains."""
+    from scb_ppnr.interest_income import ii_mbs as m_mbs
+    from scb_ppnr.interest_income import ii_other_sec as m_osec
+    from scb_ppnr.interest_income import ii_ust as m_ust
+
+    if position.model == "ii_ust":
+        return m_ust._flows(position, sink)
+    if position.model == "ii_mbs":
+        coupon = m_mbs._coupon_path(position, scenario, sc.floor_mode, sink,
+                                    sc.floating_projection, sc.floating_projection_overrides)
+        if position.face_path is not None:
+            return m_mbs._agency_flows(position, coupon, sink)
+        return m_mbs._other_mbs_flows(position, coupon, sink)
+    return m_osec._flows(position, scenario, sc.floor_mode, sink,
+                         sc.floating_projection, sc.book_yield_categories,
+                         sc.floating_projection_overrides, sc.zcb_no_accretion_categories)
+
+
 def run_compare(config, args) -> None:
     """Per-security diff: our income vs the workbook's own II_PQ1..II_PQ9 columns.
 
     Local section shows category aggregates in USD millions and the worst movers
     (masked ids). The relay section carries only counts, tolerance bands, and
     ours/reference RATIOS — no amounts."""
-    from scb_ppnr.interest_income import ii_mbs as m_mbs
-    from scb_ppnr.interest_income import ii_other_sec as m_osec
-    from scb_ppnr.interest_income import ii_ust as m_ust
     from scb_ppnr.interest_income.securities_engine import reinvestment_income
 
     sc = config.firm_data.securities
@@ -319,32 +364,19 @@ def run_compare(config, args) -> None:
     zcb_buckets: dict[str, list[float]] = {"ref_zero": [0, 0.0, 0.0], "pq1_only": [0, 0.0, 0.0],
                                            "full": [0, 0.0, 0.0]}    # [n, ours_xr, ref]
     gap_records: list[dict] = []                                     # --gaps CSV rows (LOCAL ONLY)
+    # TRUNCATION census: rows whose projection DIES before PQ9 (our maturity /
+    # WAL-derived maturity ends the security) while the reference still books
+    # income. A large share of the residual gap sitting here means the maturity
+    # source truncates, not that a rate is wrong — one class, not one row.
+    trunc = {"rows": 0, "quarters": 0, "ours": 0.0, "ref": 0.0, "gap": 0.0}
+    signed_gap = 0.0
     t3m = scenario.usd_3m_treasury
 
     def treatment_for(position) -> str:
-        """The treatment actually applied to this row (for the --gaps file)."""
-        if position.category in sc.book_yield_categories and position.book_yield is not None \
-                and position.rate_type != "zero_coupon":
-            return "book_yield_flat"
-        if position.rate_type == "zero_coupon":
-            return ("zcb_no_accretion" if position.category in sc.zcb_no_accretion_categories
-                    else "zero_coupon")
-        if position.rate_type == "floating":
-            return sc.floating_projection_overrides.get(position.category, sc.floating_projection)
-        return position.rate_type
+        return _treatment_for(position, sc)
 
     def flows_for(position, sink):
-        if position.model == "ii_ust":
-            return m_ust._flows(position, sink)
-        if position.model == "ii_mbs":
-            coupon = m_mbs._coupon_path(position, scenario, sc.floor_mode, sink,
-                                        sc.floating_projection, sc.floating_projection_overrides)
-            if position.face_path is not None:
-                return m_mbs._agency_flows(position, coupon, sink)
-            return m_mbs._other_mbs_flows(position, coupon, sink)
-        return m_osec._flows(position, scenario, sc.floor_mode, sink,
-                             sc.floating_projection, sc.book_yield_categories,
-                             sc.floating_projection_overrides, sc.zcb_no_accretion_categories)
+        return _flows_for(position, scenario, sc, sink)
 
     for group in (inputs.ust, inputs.mbs, inputs.other_sec):
         for position in group:
@@ -392,6 +424,16 @@ def run_compare(config, args) -> None:
 
             if ref_total > 0.0:
                 ratio_rows.setdefault(position.category, []).append(ours_xr_total / ref_total)
+
+            signed_gap += diff
+            dead_but_referenced = [q for q in quarters
+                                   if abs(flows.total.get(q, 0.0)) < 1e-9 and abs(ref[q]) > 1e-9]
+            if dead_but_referenced:
+                trunc["rows"] += 1
+                trunc["quarters"] += len(dead_but_referenced)
+                trunc["ours"] += ours_xr_total
+                trunc["ref"] += ref_total
+                trunc["gap"] += diff
 
             if args.gaps:
                 record = {
@@ -599,6 +641,13 @@ def run_compare(config, args) -> None:
         print("COMPARE-TOTAL: no reference")
     print("COMPARE-BY-QUARTER ours/ref:",
           " ".join(f"PQ{q}={ours_q[q] / ref_q[q]:.3f}" if ref_q[q] else f"PQ{q}=n/a" for q in quarters))
+    if trunc["rows"]:
+        share = f"{trunc['gap'] / signed_gap:.1%}" if abs(signed_gap) > 1e-9 else "n/a"
+        ratio = f"{trunc['ours'] / trunc['ref']:.4f}" if trunc["ref"] else "n/a"
+        print(f"TRUNCATION-CLASS: rows={trunc['rows']} dead-quarters={trunc['quarters']} "
+              f"xr/ref={ratio} share-of-total-signed-gap={share}")
+        print("  (our projection ends before PQ9 — maturity_quarters / PID-SEC-7 WAL-as-maturity — "
+              "while the reference keeps accruing; --explain those ids for the per-quarter detail)")
     floor_suspect = sum("suspect source-cell units" in w for w in inputs.warnings)
     print(f"COMPARE-NO-REFERENCE: {no_reference}   COMPARE-SKIPPED: {compare_skipped}   FLOOR-SUSPECT: {floor_suspect}")
 
@@ -621,6 +670,158 @@ def run_compare(config, args) -> None:
         print("  LOCAL ONLY: the file carries unmasked ids and exact amounts — find rows in the workbook")
         print("  via the CQSCS383 unique-id column; do NOT relay, screenshot, or commit this file.")
     print("======================================================================================")
+
+
+def _spread(values: list[float]) -> tuple[float, float, float]:
+    """(min, mean, max) — used to say whether an implied ratio is CONSTANT."""
+    return min(values), sum(values) / len(values), max(values)
+
+
+def run_explain(config, args) -> None:
+    """Quarter-by-quarter drill-down on named securities (LOCAL ONLY).
+
+    Decomposes our projection into the legs that produce it — face path, coupon
+    path, AA, AC — and inverts the reference column against each leg:
+
+      implied coupon = (ref(q) − our AA(q)) ÷ (our face_prior(q)/4)
+      implied face   = (ref(q) − our AA(q)) ÷ (our coupon(q)/4), as a ratio to ours
+      implied AA     =  ref(q) − our coupon leg(q)
+
+    A ratio that is CONSTANT across quarters identifies which single input the
+    reference disagrees on; a ratio that drifts says the shape differs (an AA
+    recursion or a face path). Nothing here changes the model — it reports what
+    the reference would have had to use."""
+    from scb_ppnr.interest_income.securities_engine import reinvestment_income
+
+    sc = config.firm_data.securities
+    if config.mev is None:
+        raise SystemExit("--explain needs a [mev] section for the scenario")
+    scenario_id = args.scenario or next(iter(config.mev.scenarios))
+    scenario = load_mev_scenario(config, scenario_id).interest_income_scenario_paths()
+    inputs = load_securities_inputs(config)
+    quarters = range(1, 10)
+    tokens = [t.strip().upper() for t in args.explain.split(",") if t.strip()]
+
+    matches = [p for group in (inputs.ust, inputs.mbs, inputs.other_sec) for p in group
+               if any(t in str(p.security_id).upper() for t in tokens)]
+    print(f"scenario: {scenario_id}   matched {len(matches)} position(s) for {tokens}")
+    print("SCENARIO-3M:", " ".join(f"PQ{q}={scenario.usd_3m_treasury[q]:.4f}" for q in range(0, 10)))
+    print("SCENARIO-1Y:", " ".join(f"PQ{q}={scenario.usd_1y_treasury[q]:.4f}" for q in quarters))
+    if not matches:
+        print("no position matched — pass the security_id from the --gaps CSV (multi-lot rows are CUSIP#rN)")
+        return
+    print("LOCAL ONLY: unmasked ids and exact amounts (USD millions) — do not relay, screenshot, or commit.")
+
+    for position in matches[: args.explain_max]:
+        print("\n" + "=" * 110)
+        print(f"EXPLAIN {position.security_id}   model={position.model}   category={position.category!r}   "
+              f"rate_type={position.rate_type}   treatment={_treatment_for(position, sc)}")
+        print(f"  inputs: current_face={position.current_face:,.4f}  amortized_cost={position.amortized_cost:,.4f}  "
+              f"coupon={position.coupon_rate}  book_yield={position.book_yield}  floor={position.coupon_floor}")
+        print(f"          maturity_years={position.maturity_years}  maturity_quarters={position.maturity_quarters}  "
+              f"wal_years={position.wal_years}  ac_proxied={position.ac_proxied}  intent={position.accounting_intent}  "
+              f"excel_rate_label={position.excel_rate_label}  excel_coupon={position.excel_coupon_rate}")
+
+        sink: list[str] = []
+        try:
+            flows = _flows_for(position, scenario, sc, sink)
+        except ValidationFailure as exc:
+            print(f"  MODEL STOP: {exc}")
+            continue
+        reinv, _ = reinvestment_income(flows.reinvestment_events(sc.reinvest_paydowns), scenario)
+
+        face_prior = {q: (position.face_path[q - 1] if position.face_path is not None else position.current_face)
+                      for q in quarters}
+        if position.face_path is not None:
+            base = position.face_path[0]
+            print("  FACE PATH (prepayment pivot, scaled to this lot's launch face):")
+            print("          " + "  ".join(f"PQ{q}={position.face_path[q]:,.2f}" for q in range(0, 10)))
+            print("          survival " + "  ".join(
+                f"PQ{q}={position.face_path[q] / base:.4f}" if base else f"PQ{q}=n/a" for q in range(0, 10)))
+        else:
+            print(f"  FACE PATH: FLAT at {position.current_face:,.4f} "
+                  f"({'no prepayment sheet row — PID-SEC-5 multi-family treatment' if position.model == 'ii_mbs' else 'flat-face model'})")
+        matured_events = {q: round(v, 2) for q, v in flows.matured_face.items()}
+        paydown_events = {q: round(v, 2) for q, v in (flows.paydown_face or {}).items()}
+        print(f"  alive_through=PQ{flows.alive_through}   matured={matured_events}   paydowns={paydown_events}")
+
+        ref = position.reference_income
+        header = ("  q  | face_prior    | cpn_used | coupon_leg |     AA_leg |     AC_end |    ours_xr"
+                  + ("|        ref |        gap | impl_cpn | impl_face | impl_AA" if ref else ""))
+        print(header)
+        ac = position.amortized_cost
+        impl_cpn_ratio: list[float] = []
+        impl_face_ratio: list[float] = []
+        ours_dead_ref_live = 0
+        for q in quarters:
+            coupon_leg = flows.coupon_cash.get(q, 0.0)
+            aa = flows.accretion.get(q, 0.0)
+            paydown = (flows.paydown_face or {}).get(q, 0.0)
+            ac = ac + aa - paydown
+            cpn_used = coupon_leg / (face_prior[q] / 4.0) if face_prior[q] else 0.0
+            ours_xr = coupon_leg + aa
+            line = (f"  PQ{q} | {face_prior[q]:13,.2f} | {cpn_used:8.4f} | {coupon_leg:10.4f} | "
+                    f"{aa:10.4f} | {ac:10.2f} | {ours_xr:10.4f}")
+            if ref:
+                gap = ours_xr - ref[q]
+                cpn_leg_ref = ref[q] - aa            # the ref's coupon leg, if our AA leg is right
+                impl_aa = ref[q] - coupon_leg        # the ref's AA leg, if our coupon leg is right
+                line += f"| {ref[q]:10.4f} | {gap:10.4f} |"
+                if face_prior[q] and abs(cpn_used) > 1e-12:
+                    impl_cpn = cpn_leg_ref / (face_prior[q] / 4.0)
+                    face_ratio = cpn_leg_ref / (cpn_used / 4.0) / face_prior[q]
+                    impl_cpn_ratio.append(impl_cpn / cpn_used)
+                    impl_face_ratio.append(face_ratio)
+                    line += f" {impl_cpn:8.4f} | {face_ratio:9.4f} |"
+                else:
+                    line += f" {'n/a':>8} | {'n/a':>9} |"
+                line += f" {impl_aa:7.4f}"
+                if abs(ours_xr) < 1e-9 and abs(ref[q]) > 1e-9:
+                    ours_dead_ref_live += 1
+            print(line)
+
+        coupon_total = sum(flows.coupon_cash.get(q, 0.0) for q in quarters)
+        aa_total = sum(flows.accretion.get(q, 0.0) for q in quarters)
+        reinv_total = sum(reinv[q] for q in quarters)
+        print(f"  TOTALS  coupon={coupon_total:,.4f}  AA={aa_total:,.4f}  ours_xr={coupon_total + aa_total:,.4f}  "
+              f"reinvestment(excluded from the II_PQ basis)={reinv_total:,.4f}")
+        if ref:
+            ref_total = sum(ref[q] for q in quarters)
+            gap_total = coupon_total + aa_total - ref_total
+            rel = f"{gap_total / ref_total:+.2%}" if ref_total else "n/a"
+            print(f"          ref={ref_total:,.4f}  GAP={gap_total:,.4f} ({rel})   "
+                  f"reference-implied AA (ref − our coupon leg)={ref_total - coupon_total:,.4f} vs our AA {aa_total:,.4f}")
+            notes = []
+            if ref_total == 0.0:
+                notes.append("REF-ZERO — the reference books no income at all for this row (cf. OQ-028/OQ-029)")
+            if ours_dead_ref_live:
+                notes.append(f"TRUNCATION — we book nothing in {ours_dead_ref_live} quarter(s) where the reference does; "
+                             f"our projection stops at PQ{flows.alive_through} (maturity_quarters="
+                             f"{position.maturity_quarters}; PID-SEC-7/PID-SEC-9 maturity source governs)")
+            if len(impl_face_ratio) >= 3:
+                lo, mean, hi = _spread(impl_face_ratio)
+                if hi - lo < 0.02 and abs(mean - 1.0) > 0.02:
+                    notes.append(f"FACE-LEVEL — implied face is CONSTANT at {mean:.4f}× ours "
+                                 f"(the reference used a different balance, not a different rate)")
+            if len(impl_cpn_ratio) >= 3:
+                lo, mean, hi = _spread(impl_cpn_ratio)
+                if hi - lo < 0.02 and abs(mean - 1.0) > 0.02:
+                    notes.append(f"COUPON-LEVEL — implied coupon is CONSTANT at {mean:.4f}× ours")
+                elif hi - lo >= 0.02:
+                    notes.append(f"SHAPE — implied coupon DRIFTS ({lo:.3f}…{hi:.3f}× ours): a path difference "
+                                 f"(projection rule, face path, or AA recursion), not a level difference")
+            for note in notes:
+                print(f"  ! {note}")
+
+        related = [w for w in inputs.warnings if str(position.security_id) in w] + sink
+        if related:
+            print(f"  WARNINGS ({len(related)}):")
+            for warning in related[:20]:
+                print(f"    {warning}")
+
+    if len(matches) > args.explain_max:
+        print(f"\n… {len(matches) - args.explain_max} further match(es) suppressed (--explain-max)")
+    print("=" * 110)
 
 
 if __name__ == "__main__":
