@@ -83,6 +83,9 @@ def main() -> None:
                              "found in the workbook; never relay or commit this file")
     parser.add_argument("--gaps-top", type=int, default=25,
                         help="how many securities per category in the --gaps file (by absolute gap; default 25)")
+    parser.add_argument("--gaps-global", type=int, default=50,
+                        help="additionally include the globally largest N gaps regardless of category, "
+                             "so a big row in a small category cannot hide (default 50)")
     parser.add_argument("--explain", default=None, metavar="ID[,ID...]",
                         help="drill into named securities (id, CUSIP, or CUSIP prefix — every matching lot) "
                              "and print the full quarter-by-quarter decomposition against the reference: "
@@ -370,6 +373,16 @@ def run_compare(config, args) -> None:
     # source truncates, not that a rate is wrong — one class, not one row.
     trunc = {"rows": 0, "quarters": 0, "ours": 0.0, "ref": 0.0, "gap": 0.0}
     signed_gap = 0.0
+    # GAP ATTRIBUTION: where the remaining gap actually sits, so the next
+    # investigation target is read off the run instead of sorted out of the CSV
+    # by hand. Buckets are (category, rate_type, treatment) — the three things a
+    # PID can change — plus the AC provenance when it is not the reported value.
+    attribution: dict[str, dict[str, float]] = {}
+    # CONCENTRATION: how much of the total ABSOLUTE gap sits in the largest few
+    # rows. High ⇒ another single-row data issue (--explain it); low ⇒ a rule
+    # difference spread across a population (compare the category's rules).
+    row_abs_gaps: list[float] = []
+    worst_abs: list[tuple[float, str]] = []
     t3m = scenario.usd_3m_treasury
 
     def treatment_for(position) -> str:
@@ -426,6 +439,22 @@ def run_compare(config, args) -> None:
                 ratio_rows.setdefault(position.category, []).append(ours_xr_total / ref_total)
 
             signed_gap += diff
+            row_abs_gaps.append(abs(diff))
+            treatment = treatment_for(position)
+            bucket_key = f"{position.category}/{position.rate_type}/{treatment}"
+            if position.ac_source != "reported":
+                bucket_key += f"+ac:{position.ac_source}"
+            bucket = attribution.setdefault(bucket_key, {"n": 0, "gap": 0.0, "abs": 0.0,
+                                                         "ours_xr": 0.0, "ref": 0.0})
+            bucket["n"] += 1
+            bucket["gap"] += diff
+            bucket["abs"] += abs(diff)
+            bucket["ours_xr"] += ours_xr_total
+            bucket["ref"] += ref_total
+            worst_abs.append((abs(diff), f"{_mask(position.security_id)} [{bucket_key}] "
+                                         f"gap {diff:+.2f} rel {rel:6.1%} "
+                                         f"{'OURS-HIGH' if diff > 0 else 'OURS-LOW'}"))
+
             dead_but_referenced = [q for q in quarters
                                    if abs(flows.total.get(q, 0.0)) < 1e-9 and abs(ref[q]) > 1e-9]
             if dead_but_referenced:
@@ -554,7 +583,14 @@ def run_compare(config, args) -> None:
         print(f"  {category:42s} n={stats['n']:>6}  ours={stats['ours']:14.2f}  ref={stats['ref']:14.2f}")
     worst.sort(reverse=True)
     for _, line in worst[:15]:
-        print(f"  worst: {line}")
+        print(f"  worst rel: {line}")
+    # Ranked by ABSOLUTE gap, independent of the relative bands — a huge row with
+    # a small percentage gap never reaches the >5% list above but can still be the
+    # largest thing left to explain.
+    worst_abs.sort(key=lambda item: item[0], reverse=True)
+    print("  --- largest ABSOLUTE gaps (USD millions; --explain these ids) ---")
+    for _, line in worst_abs[:15]:
+        print(f"  worst abs: {line}")
 
     print("\n================ COMPARE SUMMARY TO RELAY (counts/bands/ratios only) ================")
     print("(xr/ref is PRIMARY — resolved 2026-07-24: the II_PQ columns exclude reinvestment income)")
@@ -643,6 +679,30 @@ def run_compare(config, args) -> None:
         print("COMPARE-TOTAL: no reference")
     print("COMPARE-BY-QUARTER ours/ref:",
           " ".join(f"PQ{q}={ours_q[q] / ref_q[q]:.3f}" if ref_q[q] else f"PQ{q}=n/a" for q in quarters))
+    if row_abs_gaps:
+        ordered = sorted(row_abs_gaps, reverse=True)
+        total_abs = sum(ordered)
+        if total_abs > 0:
+            shares = {n: sum(ordered[:n]) / total_abs for n in (1, 5, 20)}
+            print(f"GAP-CONCENTRATION: rows={len(ordered)} "
+                  + " ".join(f"top{n}={s:.1%}" for n, s in shares.items())
+                  + "   (high ⇒ single-row data issues: --explain them; "
+                    "low ⇒ a rule difference across a population)")
+    if attribution:
+        ranked = sorted(attribution.items(), key=lambda item: abs(item[1]["gap"]), reverse=True)
+        total_bucket_abs = sum(v["abs"] for v in attribution.values())
+        print("GAP-ATTRIBUTION (bucket = category/rate_type/treatment; signed share of the total "
+              "signed gap,\n  xr/ref ratio, and the bucket's share of total ABSOLUTE gap — ratios only, "
+              "relay-safe):")
+        if total_bucket_abs > 0 and abs(signed_gap) < 0.5 * total_bucket_abs:
+            print(f"  NOTE: buckets OFFSET each other (net {abs(signed_gap) / total_bucket_abs:.0%} of gross) "
+                  f"— signed shares exceed 100% and flip sign; rank by the ABS column, not the signed one.")
+        for key, stats in ranked[:12]:
+            share = f"{stats['gap'] / signed_gap:+7.1%}" if abs(signed_gap) > 1e-9 else "    n/a"
+            ratio = f"{stats['ours_xr'] / stats['ref']:.4f}" if stats["ref"] else "   n/a"
+            abs_share = stats["abs"] / total_bucket_abs if total_bucket_abs else 0.0
+            print(f"  {share} of signed gap | xr/ref={ratio} | {abs_share:5.1%} of abs gap | "
+                  f"n={stats['n']:>5} | {key}")
     if trunc["rows"]:
         share = f"{trunc['gap'] / signed_gap:.1%}" if abs(signed_gap) > 1e-9 else "n/a"
         ratio = f"{trunc['ours'] / trunc['ref']:.4f}" if trunc["ref"] else "n/a"
@@ -659,10 +719,21 @@ def run_compare(config, args) -> None:
         for record in gap_records:
             by_category.setdefault(record["category"], []).append(record)
         selected: list[dict] = []
+        seen: set[int] = set()
         for category in sorted(by_category):
             rows = by_category[category]
             rows.sort(key=lambda r: abs(r["gap"]), reverse=True)
-            selected.extend(rows[: args.gaps_top])
+            for record in rows[: args.gaps_top]:
+                seen.add(id(record))
+                selected.append(record)
+        # …plus the globally largest, so a big row in a small category cannot hide
+        # below its category's cut-off.
+        gap_records.sort(key=lambda r: abs(r["gap"]), reverse=True)
+        for record in gap_records[: args.gaps_global]:
+            if id(record) not in seen:
+                seen.add(id(record))
+                selected.append(record)
+        selected.sort(key=lambda r: abs(r["gap"]), reverse=True)
         with open(args.gaps, "w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(selected[0].keys()))
             writer.writeheader()
