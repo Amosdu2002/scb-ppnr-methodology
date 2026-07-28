@@ -48,6 +48,11 @@ def _flows(position: SecurityPosition, scenario: IncomeScenarioPaths,
     # by Equation A42 exactly as printed (PDF p. 201) — the COMBINED coupon +
     # accretion term is AmortizedCost × BookYield / 4, constant across the horizon
     # because the amortized cost is not stepped and there is no separate AA leg.
+    # The amortized cost is the STATIC launch value from the positions sheet — user-
+    # confirmed 2026-07-28 that the workbook cell points at AMORTIZED_COST on the main
+    # sheet, not at any per-quarter column; that is why the amount is constant. (The
+    # workbook uses a 'margin assumption' in place of book yield for FLOATING rows in
+    # these categories — immaterial today, see OQ-032.)
     # Municipal Bond matched on 20 reference rows spanning AC/face 0.774–1.193
     # (including premium rows where AC > face) to within book-yield display
     # rounding; the same amount against FACE is out by up to 29%. This is the one
