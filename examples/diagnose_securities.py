@@ -297,7 +297,7 @@ def _flows_for(position, scenario, sc, sink):
         coupon = m_mbs._coupon_path(position, scenario, sc.floor_mode, sink,
                                     sc.floating_projection, sc.floating_projection_overrides)
         if position.face_path is not None:
-            return m_mbs._agency_flows(position, coupon, sink)
+            return m_mbs._agency_flows(position, coupon, sink, sc.agency_face_path_survival)
         return m_mbs._other_mbs_flows(position, coupon, sink)
     return m_osec._flows(position, scenario, sc.floor_mode, sink,
                          sc.floating_projection, sc.book_yield_categories,

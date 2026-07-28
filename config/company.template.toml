@@ -136,6 +136,15 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
                                         # PID-SEC-3 treatment, whatever missing_ac_mode says.
                                         # No CQSCP095 column -> nothing is classifiable and every
                                         # blank-AC row follows missing_ac_mode (logged per run)
+# agency_face_path_survival = true      # PID-SEC-16 (2026-07-28): for Agency MBS with a vendor
+                                        # prepayment face path, let the PATH decide how long the
+                                        # security lives instead of the PID-SEC-7 WAL-as-maturity.
+                                        # A WAL is an average life, not a maturity date — the
+                                        # reference zeroes a face only when the security actually
+                                        # MATURES. 476 rows currently end early (TRUNCATION-CLASS
+                                        # xr/ref 0.8182, mean first dead quarter PQ7.3), and
+                                        # maturity_quarters_rounding = "floor" makes that worse,
+                                        # so turn these two on TOGETHER.
 # maturity_quarters_rounding = "floor"  # PID-SEC-15 (2026-07-28): how many quarters a security
                                         # accrues. "ceil" (default) books ceil(4 x maturity_years);
                                         # "floor" books only FULL quarters. Sovereign reference rows

@@ -58,7 +58,8 @@ def _coupon_path(position: SecurityPosition, scenario: IncomeScenarioPaths,
     return {q: position.coupon_rate for q in PROJECTION_QUARTERS}
 
 
-def _agency_flows(position: SecurityPosition, coupon: dict[int, float], warnings: list[str]) -> PerSecurityFlows:
+def _agency_flows(position: SecurityPosition, coupon: dict[int, float], warnings: list[str],
+                  face_path_survival: bool = False) -> PerSecurityFlows:
     face_path = position.face_path
     assert face_path is not None
     if abs(face_path[0] - position.current_face) > 1e-6 * max(1.0, position.current_face):
@@ -71,6 +72,19 @@ def _agency_flows(position: SecurityPosition, coupon: dict[int, float], warnings
         raise ValidationFailure(f"{position.security_id}: Agency accretion needs WAL(t=0)")
     maturity = position.maturity_quarters
     last_quarter = min(maturity, PROJECTION_QUARTERS[-1]) if maturity is not None else PROJECTION_QUARTERS[-1]
+    # PID-SEC-16: the vendor face path is the balance projection. A WAL-derived
+    # maturity (PID-SEC-7) is an average life, not a maturity date, and must not
+    # end a security the vendor says still has face.
+    if face_path_survival:
+        alive = [q for q in PROJECTION_QUARTERS if face_path[q] > 0.0]
+        path_last = alive[-1] if alive else 0
+        if path_last != last_quarter:
+            warnings.append(
+                f"{position.security_id}: face path carries balance through PQ{path_last} but "
+                f"maturity_quarters={maturity} would end it at PQ{last_quarter} — path governs "
+                f"(PID-SEC-16)"
+            )
+        last_quarter = path_last
 
     coupon_cash: dict[int, float] = {}
     accretion: dict[int, float] = {}
@@ -91,7 +105,13 @@ def _agency_flows(position: SecurityPosition, coupon: dict[int, float], warnings
             # PID-SEC-8: AA on prior-quarter values over 4×WAL(t=0); AC absorbs AA minus the paydown.
             accretion[quarter], ac = reference_accretion_step(face_prior, ac, face_path[quarter], wal_quarters, paydown)
     matured = {}
-    if maturity is not None and maturity <= PROJECTION_QUARTERS[-1]:
+    if face_path_survival:
+        # Matured only where the vendor path itself reaches zero; the remaining
+        # face is carried by the paydown ledger instead.
+        zero_quarter = next((q for q in PROJECTION_QUARTERS if face_path[q] == 0.0), None)
+        if zero_quarter is not None and face_path[zero_quarter - 1] > 0.0:
+            matured = {zero_quarter: face_path[zero_quarter - 1]}
+    elif maturity is not None and maturity <= PROJECTION_QUARTERS[-1]:
         matured = {maturity: face_path[maturity]}
     return PerSecurityFlows(position.security_id, coupon_cash, accretion, matured,
                             alive_through=last_quarter, paydown_face=paydowns)
@@ -132,6 +152,7 @@ def project_mbs(
     reinvest_paydowns: bool = True,
     floating_projection: str = "spot",
     projection_overrides: Mapping[str, str] | None = None,
+    agency_face_path_survival: bool = False,
 ) -> IncomeModelResult:
     warnings: list[str] = []
     flows = []
@@ -144,7 +165,7 @@ def project_mbs(
             if position.suppress_accretion:
                 warnings.append(f"{position.security_id}: PID-SEC-3 proxied amortized cost — accretion held at 0")
             if position.face_path is not None:
-                flows.append(_agency_flows(position, coupon, warnings))
+                flows.append(_agency_flows(position, coupon, warnings, agency_face_path_survival))
             else:
                 flows.append(_other_mbs_flows(position, coupon, warnings))
         except ValidationFailure as exc:

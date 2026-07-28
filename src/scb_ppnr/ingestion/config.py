@@ -161,6 +161,14 @@ class SecuritiesConfig:
     # Global switch, so A/B it: the Agency MBS WAL-as-maturity path (PID-SEC-7)
     # keeps ceil either way, since those rows already end too EARLY.
     maturity_quarters_rounding: str = "ceil"
+    # PID-SEC-16 (2026-07-28): for Agency MBS carrying a vendor prepayment face
+    # path, let that PATH decide how long the security lives instead of the
+    # PID-SEC-7 WAL-as-maturity. A WAL is an average life, not a maturity: a
+    # pass-through with WAL 1.5y has a legal maturity decades out and the vendor
+    # path still carries balance at PQ9, yet we currently zero it at ceil(4xWAL).
+    # The reference zeroes a face only when the security actually MATURES, so
+    # these rows should not stop at all. Default False (unchanged).
+    agency_face_path_survival: bool = False
     # PID-SEC-13 (2026-07-28, user-directed): treatment of a BLANK amortized cost
     # on rows that are NOT genuine unsettled trades — "price_proxy_no_accretion"
     # (the original PID-SEC-3 behavior; default, so numbers never move silently) |
@@ -370,6 +378,7 @@ def load_config(path: Path | str) -> IngestionConfig:
                 zcb_no_accretion_categories=tuple(str(c) for c in sec.get("zcb_no_accretion_categories", [])),
                 a42_collapsed_categories=tuple(str(c) for c in sec.get("a42_collapsed_categories", [])),
                 maturity_quarters_rounding=str(sec.get("maturity_quarters_rounding", "ceil")).strip().lower(),
+                agency_face_path_survival=bool(sec.get("agency_face_path_survival", False)),
                 missing_ac_mode=str(sec.get("missing_ac_mode", "price_proxy_no_accretion")).strip().lower(),
                 unsettled_window_days=int(sec.get("unsettled_window_days", 7)),
                 missing_ac_mode_overrides=MappingProxyType({

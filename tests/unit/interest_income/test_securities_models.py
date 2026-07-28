@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import pytest
 
+from scb_ppnr.interest_income import ii_mbs as m_mbs
+
 from scb_ppnr.interest_income import (
     FLOAT_PROJECTION_BLEND13,
     FLOAT_PROJECTION_FLAT_C0,
@@ -390,3 +392,37 @@ def test_floating_projection_pos_hold_is_the_mirror_of_neg_hold(make_income_scen
     assert blended[1] == pytest.approx(0.0390 / 3 + 2 * 0.0130 / 3)
     assert floating_coupon_path(positive, scenario, FLOOR_MODE_ZERO, [],
                                 FLOAT_PROJECTION_POS_HOLD_BLEND)[1] == pytest.approx(0.0442)
+
+
+def test_agency_face_path_governs_survival(make_income_scenario):
+    # PID-SEC-16: a WAL is an average life, not a maturity. With WAL 1.25y the
+    # PID-SEC-7 fallback ends the security at PQ5, but the vendor face path still
+    # carries balance at PQ9 — and the reference only zeroes a face when the
+    # security actually MATURES. The path has to win.
+    face_path = {q: 400.0 - 5.0 * q for q in range(0, 10)}          # 400 -> 355, never zero
+    position = _pos(MODEL_MBS, "AGY0000S1", category="Agency MBS", rate_type=RATE_FIXED,
+                    current_face=400.0, amortized_cost=396.0, coupon_rate=0.05,
+                    maturity_quarters=5, maturity_years=1.25, wal_years=1.25, face_path=face_path)
+    scenario = make_income_scenario()
+
+    sink: list[str] = []
+    off = m_mbs._agency_flows(position, {q: 0.05 for q in range(1, 10)}, sink, False)
+    assert off.alive_through == 5                                   # today: WAL ends it early
+    assert off.coupon_cash.get(6, 0.0) == 0.0
+
+    sink2: list[str] = []
+    on = m_mbs._agency_flows(position, {q: 0.05 for q in range(1, 10)}, sink2, True)
+    assert on.alive_through == 9                                    # path carries balance to PQ9
+    assert on.coupon_cash[9] == pytest.approx(0.05 * face_path[8] / 4)
+    assert on.matured_face == {}                                    # never reaches zero -> no maturity event
+    assert any("PID-SEC-16" in w for w in sink2)
+
+
+def test_agency_face_path_survival_books_maturity_where_the_path_zeroes(make_income_scenario):
+    face_path = {0: 400.0, 1: 300.0, 2: 200.0, 3: 0.0, **{q: 0.0 for q in range(4, 10)}}
+    position = _pos(MODEL_MBS, "AGY0000S2", category="Agency MBS", rate_type=RATE_FIXED,
+                    current_face=400.0, amortized_cost=396.0, coupon_rate=0.05,
+                    maturity_quarters=9, maturity_years=2.25, wal_years=2.25, face_path=face_path)
+    flows = m_mbs._agency_flows(position, {q: 0.05 for q in range(1, 10)}, [], True)
+    assert flows.alive_through == 2                                 # last quarter with a live face
+    assert flows.matured_face == {3: pytest.approx(200.0)}          # the path's own zero, carrying PQ2's face
