@@ -105,94 +105,74 @@ money_scale = "dollars"                 # confirmed 2026-07-24: whole USD -> can
 coupon_scale = "percent"                # enrichment coupon/floor scale
 book_yield_scale = "percent"            # positions-sheet book-yield scale — confirm
 floor_mode = "security_floor"           # PID-SEC-2 mode switch
+# ---------------------------------------------------------------------------
+# SCALAR SETTINGS — every one of these must stay ABOVE the sub-tables below.
+# In TOML a bare key belongs to the most recent [table] header, so a scalar moved
+# past that divider silently becomes a map entry (the loader now catches this and
+# names the key, but keep the order right).
+# ---------------------------------------------------------------------------
 # floating_projection = "spot"          # PID-SEC-10 default mode: "spot" | "neg_hold" |
-                                        # "neg_hold_blend13" | "blend13" (monthly-reset PQ1,
-                                        # no negative-margin hold) | "flat_c0" (every floater
-                                        # held at the launch coupon)
-# book_yield_categories = []            # PID-SEC-11: categories accruing at BOOK YIELD held
-                                        # flat (REFUTED for Municipal Bond as a mechanism
-                                        # 2026-07-27 — keep empty unless re-evidenced)
+                                        # "neg_hold_blend13" | "blend13" (monthly-reset PQ1, no
+                                        # negative-margin hold) | "flat_c0" (every floater held at
+                                        # the launch coupon) | "freeze1" (PQ1 at the launch coupon,
+                                        # then one reset off 3M(PQ1), frozen) | "pos_hold" /
+                                        # "pos_hold_blend13" (mirror of neg_hold — REFUTED for CMBS
+                                        # 2026-07-28, see the overrides block)
+# book_yield_categories = []            # PID-SEC-11: REFUTED for Municipal Bond 2026-07-27 and
+                                        # superseded by a42_collapsed_categories — keep empty
 # maturity_source = "positions_first"   # OQ-030: AA-denominator maturity — "enrichment_first"
                                         # (ITO date / 365; default) | "positions_first" (the
-                                        # sheet's own Maturity (yr) column primary — the
-                                        # reference's divisor; call-adjusted for callable munis)
-# missing_ac_mode = "price_proxy_no_accretion"   # PID-SEC-13: how a BLANK amortized cost is
-                                        # treated on rows that are NOT genuine unsettled trades.
-                                        # "price_proxy_no_accretion" (default = the original
-                                        # PID-SEC-3 behavior: AC = price/100 × face, accretion
-                                        # held at 0) | "price_proxy_accrete" (same AC, accretion
-                                        # RUNS on the implied discount) | "zero_accrete" (blank
-                                        # read as ZERO and the whole face accretes — what the
-                                        # reference workbook does; recorded divergence)
-# [firm_data.securities.missing_ac_mode_overrides]   # PID-SEC-13 amendment 2026-07-28: the
-# "Agency MBS" = "zero_accrete"        # reference does NOT treat blank amortized costs uniformly.
-                                        # Setting zero_accrete GLOBALLY closed a -52.6 Agency MBS
-                                        # row but opened +216.7 across 10 CLO rows whose reference
-                                        # income is exactly zero. Scope it per category; leave the
-                                        # global default at price_proxy_no_accretion.
-# unsettled_window_days = 7             # PID-SEC-13: rows whose PURCHASE_DATE (CQSCP095) is
-                                        # within this many days of the report date are GENUINE
-                                        # unsettled trades and always take the original
-                                        # PID-SEC-3 treatment, whatever missing_ac_mode says.
-                                        # No CQSCP095 column -> nothing is classifiable and every
-                                        # blank-AC row follows missing_ac_mode (logged per run)
-# agency_face_path_survival = true      # PID-SEC-16 (2026-07-28): for Agency MBS with a vendor
-                                        # prepayment face path, let the PATH decide how long the
-                                        # security lives instead of the PID-SEC-7 WAL-as-maturity.
-                                        # A WAL is an average life, not a maturity date — the
-                                        # reference zeroes a face only when the security actually
-                                        # MATURES. 476 rows currently end early (TRUNCATION-CLASS
-                                        # xr/ref 0.8182, mean first dead quarter PQ7.3), and
-                                        # maturity_quarters_rounding = "floor" makes that worse,
-                                        # so turn these two on TOGETHER.
-# [firm_data.securities.maturity_quarters_rounding_overrides]   # PID-SEC-15 per category. floor set
-# "Sovereign Bond" = "floor"            # GLOBALLY was a regression: it fixed Sovereign (fixed rows to
-                                        # xr/ref 1.0006) but cost US Treasuries 544 USD mm — one
-                                        # quarter of COUPON on 181 rows. Likely the split is by income
-                                        # FORM, not category: A42 reads the CURRENT quarter's amortized
-                                        # cost (zero when it matures -> floor), the split form reads the
-                                        # PRIOR quarter's face (still positive -> ceil). See OQ-032.
-# maturity_quarters_rounding = "ceil"   # PID-SEC-15 global default — leave at ceil (2026-07-28): how many quarters a security
-                                        # accrues. "ceil" (default) books ceil(4 x maturity_years);
-                                        # "floor" books only FULL quarters. Sovereign reference rows
-                                        # with 4 x years = 3.233 accrue 3 quarters and 2.773 accrue 2.
-                                        # Global switch — A/B it, and note Agency MBS rows already end
-                                        # too EARLY (see TRUNCATION-CLASS), so watch that category.
-# a42_collapsed_categories = ["Municipal Bond", "Sovereign Bond"]   # PID-SEC-14 (2026-07-28, reference-verified):
-                                        # categories computed by the PRINTED Equation A42 —
-                                        # income(q) = AmortizedCost x BookYield / 4, CONSTANT
-                                        # PQ1-9, no separate accretion leg. Municipal Bond matched
-                                        # 20 reference rows spanning AC/face 0.774-1.193 (incl.
-                                        # premium rows where AC > face) to within book-yield
-                                        # display rounding; the same amount against FACE is out by
-                                        # up to 29%. Fixed, floating and zero-coupon muni rows all
-                                        # take this form. Missing book yield falls back to the
-                                        # PID-SEC-8 split form, surfaced per row.
+                                        # sheet's own Maturity (yr) column primary)
+# a42_collapsed_categories = ["Municipal Bond", "Sovereign Bond"]
+                                        # PID-SEC-14 (reference-verified 2026-07-28): categories
+                                        # computed by the PRINTED Equation A42 — income(q) =
+                                        # AmortizedCost x BookYield / 4, CONSTANT PQ1-9, no separate
+                                        # accretion leg. The amortized cost is the STATIC launch
+                                        # value (user-confirmed: the workbook cell points at
+                                        # AMORTIZED_COST on the main sheet, not a per-quarter
+                                        # column). Municipal matched 20 reference rows spanning
+                                        # AC/face 0.774-1.193 to within book-yield display rounding
+                                        # -> category 1.0000, all 1992 rows inside 0.1%. Sovereign
+                                        # fixed rows reach 1.0006 WITH the rounding override below.
+                                        # Missing book yield falls back to the split form, logged.
 # zcb_no_accretion_categories = ["Sovereign Bond"]   # PID-SEC-12: zero-coupon rows in these
-                                        # categories book NO accretion (reference GII blank);
-                                        # Fed-stated A42 accretion recorded as a divergence
-# [firm_data.securities.floating_projection_overrides]   # PID-SEC-10 per-category modes —
-# "Domestic Non-Agency RMBS (incl HEL ABS)" = "flat_c0"  # the reference treats categories
-# "CLO" = "blend13"                                      # differently (2026-07-27 bake-off)
-# "Auto ABS" = "blend13"
-# "Foreign RMBS" = "blend13"
-# "Student Loan ABS" = "blend13"
-# "CMBS" = "neg_hold_blend13"
-# "CMBS" = "neg_hold_blend13"                            # KEEP. pos_hold_blend13 was tried 2026-07-28
-                                                         # and REVERTED: it was fitted to the 15 worst
-                                                         # rows in the gaps CSV (a biased sample) and
-                                                         # broke the ~180 rows already at 1.000 —
-                                                         # category went 0.9148 -> 1.4135.
-# "Agency MBS" = "freeze1"                               # 2026-07-28 bake-off: freeze1 = 0.9907 vs
-                                                         # the spot default's 0.4627 over 898 rows
-# price_mdrm = "CQSCJH21"               # uncomment/override if the Price column carries a
-                                        # different MDRM code; fallback: a header cell whose
-                                        # technical name is exactly "Price"
-# on_security_error = "skip"            # "stop" (strict default) | "skip" — skip isolates a
-                                        # failing security with a HIGHLIGHT warning and a count
-                                        # instead of halting the run (debugging phase)
+                                        # categories book NO accretion. This WINS over
+                                        # a42_collapsed_categories — without that precedence the
+                                        # sovereign ZCBs came back at xr/ref 8.96 against a
+                                        # reference that books exactly zero for 60 of them.
+# missing_ac_mode = "price_proxy_no_accretion"   # PID-SEC-13: how a BLANK amortized cost is treated
+                                        # on rows that are NOT genuine unsettled trades.
+                                        # "price_proxy_no_accretion" (default = original PID-SEC-3:
+                                        # AC = price/100 x face, accretion held at 0) |
+                                        # "price_proxy_accrete" (same AC, accretion runs) |
+                                        # "zero_accrete" (blank read as ZERO, whole face accretes —
+                                        # what the reference does). Set it PER CATEGORY below.
+# unsettled_window_days = 7             # PID-SEC-13: rows whose PURCHASE_DATE (CQSCP095) is within
+                                        # this many days of the report date are GENUINE unsettled
+                                        # trades and always take the original PID-SEC-3 treatment,
+                                        # whatever missing_ac_mode says. No CQSCP095 column -> no row
+                                        # is classifiable and all follow missing_ac_mode (logged).
+# maturity_quarters_rounding = "ceil"   # PID-SEC-15: how many quarters a security accrues.
+                                        # "ceil" = ceil(4 x maturity_years); "floor" = FULL quarters
+                                        # only. LEAVE THE GLOBAL DEFAULT AT ceil — user-confirmed
+                                        # 2026-07-28 that Coupon Accrual references the PRIOR
+                                        # quarter's face, which is still positive in the quarter a
+                                        # security matures, so the split form books that quarter.
+                                        # floor set globally cost US Treasuries 544 USD mm (one
+                                        # quarter of coupon on 181 rows). Override per category.
+# agency_face_path_survival = true      # PID-SEC-16 (2026-07-28): for Agency MBS with a vendor
+                                        # prepayment face path, the PATH decides how long the
+                                        # security lives, not the PID-SEC-7 WAL-as-maturity. A WAL is
+                                        # an average life, not a maturity date, and the reference
+                                        # zeroes a face only when the security actually MATURES.
+                                        # 476 Agency rows end early (TRUNCATION-CLASS xr/ref 0.8182,
+                                        # mean first dead quarter PQ7.3).
+# price_mdrm = "CQSCJH21"               # override if the Price column carries a different MDRM
+                                        # code; fallback: a header cell technically named "Price"
+# on_security_error = "skip"            # "stop" (strict default) | "skip" — skip isolates a failing
+                                        # security with a HIGHLIGHT warning and a count
 # reinvest_paydowns = true              # MRM p. 72: paydown proceeds reinvest like maturities
-                                        # (default true); set false only for A/B comparison runs
+                                        # (default true); set false only for A/B runs
 # PID-SEC-9 — optional positions-sheet technical input columns (exact header text
 # on the MDRM header row; DECIMAL units, no scale applied). Precedence: maturity
 # date stays primary (years column = fallback); enrichment coupon stays primary
@@ -204,6 +184,37 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
 # positions_rate_type_column = "Float or fixed indicator"   # verification-only: the sheet's own
                                         # float/fixed flag feeds the compare bake-off and a
                                         # disagreement monitor; the ITO rate type drives the models
+
+# ---------------------------------------------------------------------------
+# SUB-TABLES — NO SCALAR SETTING MAY APPEAR BELOW THIS LINE.
+# ---------------------------------------------------------------------------
+# [firm_data.securities.missing_ac_mode_overrides]   # PID-SEC-13 per category. zero_accrete set
+# "Agency MBS" = "zero_accrete"                      # GLOBALLY closed a -52.6 Agency MBS row but
+                                                     # opened +216.7 across 10 CLO rows whose
+                                                     # reference income is exactly zero.
+
+# [firm_data.securities.maturity_quarters_rounding_overrides]   # PID-SEC-15 per category. Only
+# "Sovereign Bond" = "floor"                                    # Sovereign is evidenced: its fixed
+                                                     # rows reach xr/ref 1.0006 under floor + A42,
+                                                     # while US Treasuries needs ceil. The reason
+                                                     # the two differ is UNEXPLAINED — the proposed
+                                                     # mechanism was refuted 2026-07-28 (the A42
+                                                     # cell reads a STATIC amortized cost, so there
+                                                     # is no per-quarter AC to go to zero). Set this
+                                                     # from measurement, not by analogy. See OQ-032.
+
+# [firm_data.securities.floating_projection_overrides]   # PID-SEC-10 per-category modes — the
+# "Domestic Non-Agency RMBS (incl HEL ABS)" = "flat_c0"  # reference treats categories differently
+# "CLO" = "blend13"
+# "Auto ABS" = "blend13"
+# "Foreign RMBS" = "blend13"
+# "Student Loan ABS" = "blend13"
+# "CMBS" = "neg_hold_blend13"           # KEEP. pos_hold_blend13 was tried 2026-07-28 and REVERTED:
+                                        # fitted to the 15 worst rows in the gaps CSV (a biased
+                                        # sample), it broke the ~180 rows already at 1.000 and took
+                                        # the category 0.9148 -> 1.4135.
+# "Agency MBS" = "freeze1"              # 2026-07-28 bake-off: freeze1 = 0.9907 against the spot
+                                        # default's 0.4627 over 898 rows -> category 0.9989.
 
 [[firm_data.securities.enrichment]]     # one block per enrichment tab (repeat as needed)
 sheet = "<ENRICHMENT_TAB_NAME>"
