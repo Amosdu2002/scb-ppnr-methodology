@@ -122,6 +122,7 @@ def _technical_columns(sc: SecuritiesConfig) -> dict[str, str]:
         "tech_coupon": sc.positions_coupon_column,
         "tech_floor": sc.positions_floor_column,
         "tech_rate_type": sc.positions_rate_type_column,
+        "tech_margin": sc.positions_margin_column,
     }
     return {field: name for field, name in declared.items() if name is not None}
 
@@ -234,6 +235,8 @@ def _enrichment_map(workbook, spec: SecuritiesEnrichmentSheet, path: Path) -> di
         needed["floor"] = spec.floor_column
     if spec.floater_indicator_column is not None:
         needed["floater_indicator"] = spec.floater_indicator_column
+    if spec.margin_column is not None:
+        needed["margin"] = spec.margin_column          # PID-SEC-17
     columns: dict[str, int] = {}
     for role, name in needed.items():
         if name not in header:
@@ -359,6 +362,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
     tech_maturity_rows = 0
     tech_coupon_rows = 0
     tech_floor_rows = 0
+    margin_rows = 0
     indicator_disagree = 0
     unmatched: list[str] = []
     grouped: dict[str, list[SecurityPosition]] = {MODEL_UST: [], MODEL_MBS: [], MODEL_OTHER_SEC: []}
@@ -586,6 +590,16 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         if book_yield == 0.0:
             book_yield = None
 
+        # PID-SEC-17: supplied margin — positions column first, then the enrichment tab.
+        margin = None
+        if not _blank(record.get("tech_margin")):
+            margin = to_float(record["tech_margin"], context=f"{context} margin column")
+        elif "margin" in fields and not _blank(fields.get("margin")):
+            margin = apply_rate_scale(sc.coupon_scale, to_float(fields["margin"], context=f"{context} margin"),
+                                      context=f"{context} margin")
+        if margin is not None:
+            margin_rows += 1
+
         reference_income = None
         if all(f"reference_pq{q}" in record for q in range(1, 10)):
             try:
@@ -628,6 +642,7 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
                 coupon_rate=coupon,
                 book_yield=book_yield,
                 coupon_floor=floor,
+                margin=margin,
                 maturity_quarters=maturity_quarters,
                 maturity_years=maturity_years,
                 wal_years=wal,
@@ -645,6 +660,11 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         warnings.append(
             f"{len(unmatched)} position(s) skipped for missing enrichment (maturity/coupon/rate-type "
             f"unavailable) — HIGHLIGHTED above; confirm skip vs data fix"
+        )
+    if margin_rows:
+        warnings.append(
+            f"{margin_rows} floating position(s) carry a SUPPLIED margin — used in place of the "
+            f"t0 imputation (PID-SEC-17; the Board holds real margins for Agency residential MBS)"
         )
     if apportioned_cusips:
         warnings.append(

@@ -19,6 +19,7 @@ from scb_ppnr.interest_income import (
     FLOAT_PROJECTION_NEG_HOLD,
     FLOAT_PROJECTION_NEG_HOLD_BLEND,
     FLOAT_PROJECTION_POS_HOLD,
+    FLOAT_PROJECTION_SPOT,
     FLOAT_PROJECTION_POS_HOLD_BLEND,
     FLOOR_MODE_NONE,
     FLOOR_MODE_SECURITY,
@@ -475,3 +476,24 @@ def test_face_path_survival_never_shortens_a_life(make_income_scenario):
                   current_face=400.0, amortized_cost=396.0, coupon_rate=0.05,
                   maturity_quarters=5, maturity_years=1.25, wal_years=1.25, face_path=long_path)
     assert m_mbs._agency_flows(extend, {q: 0.05 for q in range(1, 10)}, [], True).alive_through == 9
+
+
+def test_supplied_margin_beats_the_imputation(make_income_scenario):
+    # PID-SEC-17: the Board's imputation (margin = t0 coupon - t0 spot 3M) is a
+    # FALLBACK for instruments whose margin it does not hold; Agency residential MBS
+    # are the stated exception (PPNR p. 199). A supplied margin must win.
+    scenario = make_income_scenario(t3m={0: 0.0440, 1: 0.0180, **{q: 0.0010 for q in range(2, 10)}})
+    supplied = _pos(MODEL_MBS, "AGY0000M1", category="Agency MBS", rate_type=RATE_FLOATING,
+                    coupon_rate=0.0365, margin=0.0355, maturity_quarters=46, maturity_years=11.441,
+                    wal_years=11.441)
+    sink: list[str] = []
+    path = floating_coupon_path(supplied, scenario, FLOOR_MODE_NONE, sink, FLOAT_PROJECTION_SPOT)
+    assert path[1] == pytest.approx(0.0355 + 0.0180)          # real margin + 3M(q)
+    assert path[5] == pytest.approx(0.0355 + 0.0010)
+    assert any("supplied margin" in w for w in sink)
+
+    # …and with no margin on file the imputation still applies, unchanged.
+    imputed = _pos(MODEL_MBS, "AGY0000M2", category="Agency MBS", rate_type=RATE_FLOATING,
+                   coupon_rate=0.0365, maturity_quarters=46, maturity_years=11.441, wal_years=11.441)
+    fallback = floating_coupon_path(imputed, scenario, FLOOR_MODE_NONE, [], FLOAT_PROJECTION_SPOT)
+    assert fallback[5] == pytest.approx((0.0365 - 0.0440) + 0.0010)

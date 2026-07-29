@@ -166,6 +166,12 @@ class SecurityPosition:
     coupon_rate: float | None = None
     book_yield: float | None = None
     coupon_floor: float | None = None
+    margin: float | None = None            # PID-SEC-17: the security's ACTUAL spread over the
+                                           # index, when the firm holds it. The Board states it
+                                           # lacks reliable margin data for floating instruments
+                                           # "except for Agency residential mortgage-backed
+                                           # securities" (PPNR p. 199), so those rows should use
+                                           # the real margin rather than the c0 - 3M(0) imputation.
     maturity_quarters: int | None = None   # event timing (maturity → reinvestment): ceil(4 × years)
     maturity_years: float | None = None    # PID-SEC-8 accretion denominators: day difference / 365
     wal_years: float | None = None
@@ -197,7 +203,7 @@ class SecurityPosition:
             raise ValidationFailure(f"{self.security_id}: equity-intent positions are out of scope (PID-SEC-5) — exclude at the loader")
         object.__setattr__(self, "current_face", check_balance(f"{self.security_id}.current_face", self.current_face))
         object.__setattr__(self, "amortized_cost", check_balance(f"{self.security_id}.amortized_cost", self.amortized_cost))
-        for name in ("coupon_rate", "book_yield", "coupon_floor", "excel_coupon_rate"):
+        for name in ("coupon_rate", "book_yield", "coupon_floor", "margin", "excel_coupon_rate"):
             value = getattr(self, name)
             if value is not None:
                 object.__setattr__(self, name, check_rate(f"{self.security_id}.{name}", value))

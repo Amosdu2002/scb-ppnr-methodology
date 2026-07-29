@@ -71,6 +71,7 @@ class SecuritiesEnrichmentSheet:
     rate_type_column: str
     wal_column: str
     floor_column: str | None = None
+    margin_column: str | None = None              # PID-SEC-17: enrichment-tab margin, if it lives there
     floater_indicator_column: str | None = None   # optional Y/N cross-check vs rate_type (monitor)
     header_row: int = 1
 
@@ -121,6 +122,9 @@ class SecuritiesConfig:
     positions_maturity_years_column: str | None = None
     positions_coupon_column: str | None = None
     positions_floor_column: str | None = None
+    positions_margin_column: str | None = None      # PID-SEC-17: the sheet's own MARGIN column
+                                                    # (decimal spread over the index). Where present
+                                                    # it replaces the c0 - 3M(0) imputation.
     positions_rate_type_column: str | None = None   # the sheet's own float/fixed indicator —
                                                     # verification-only (bake-off + monitor);
                                                     # ITO rate type still drives the models
@@ -373,6 +377,9 @@ def load_config(path: Path | str) -> IngestionConfig:
                 ),
                 positions_rate_type_column=(
                     str(sec["positions_rate_type_column"]) if "positions_rate_type_column" in sec else None
+                ),
+                positions_margin_column=(
+                    str(sec["positions_margin_column"]) if "positions_margin_column" in sec else None
                 ),
                 floating_projection=str(sec.get("floating_projection", "spot")).strip().lower(),
                 floating_projection_overrides=MappingProxyType({

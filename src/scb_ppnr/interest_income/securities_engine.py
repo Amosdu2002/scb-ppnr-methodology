@@ -90,7 +90,18 @@ def floating_coupon_path(
         raise ValidationFailure(f"floating projection mode must be one of {FLOAT_PROJECTION_MODES}, got {projection_mode!r}")
     if position.coupon_rate is None:
         raise ValidationFailure(f"{position.security_id}: floating security has no t=0 coupon for the margin imputation")
-    margin = position.coupon_rate - scenario.usd_3m_treasury[0]
+    # PID-SEC-17: a SUPPLIED margin wins over the imputation. The Fed's imputation
+    # (margin = t0 coupon - t0 spot 3M) is explicitly a fallback for instruments whose
+    # margin the Board does not hold — and Agency residential MBS are the stated
+    # exception (PPNR p. 199), so those carry a real spread.
+    if position.margin is not None:
+        margin = position.margin
+        warnings.append(
+            f"{position.security_id}: supplied margin {margin:.6f} used (PID-SEC-17); "
+            f"the t0 imputation would have given {position.coupon_rate - scenario.usd_3m_treasury[0]:.6f}"
+        )
+    else:
+        margin = position.coupon_rate - scenario.usd_3m_treasury[0]
     negative_margin = margin < 0.0
     if negative_margin:
         warnings.append(

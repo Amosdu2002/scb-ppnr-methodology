@@ -181,6 +181,15 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
 # positions_maturity_years_column = "Maturity (yr)"
 # positions_coupon_column = "Coupon Rate (decimal)"
 # positions_floor_column = "Coupon Rate Floor (decimal)"
+# positions_margin_column = "<MARGIN_COLUMN>"   # PID-SEC-17: the sheet's own MARGIN column (decimal
+                                        # spread over the index). Where present it REPLACES the
+                                        # c0 - 3M(0) imputation, so coupon(q) = margin + 3M(q) uses
+                                        # the real spread. The Board states it lacks reliable margin
+                                        # data for floating instruments "except for Agency
+                                        # residential mortgage-backed securities" (PPNR p. 199) —
+                                        # which is why every imputation-based projection mode failed
+                                        # on those 898 rows. An enrichment tab can supply it instead
+                                        # via margin_column on the [[...enrichment]] block.
 # positions_rate_type_column = "Float or fixed indicator"   # verification-only: the sheet's own
                                         # float/fixed flag feeds the compare bake-off and a
                                         # disagreement monitor; the ITO rate type drives the models
@@ -209,7 +218,12 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
 # "Auto ABS" = "blend13"
 # "Foreign RMBS" = "blend13"
 # "Student Loan ABS" = "blend13"
-# "CMBS" = "neg_hold_blend13"           # KEEP. pos_hold_blend13 was tried 2026-07-28 and REVERTED:
+# "CMBS" = "flat_c0"                    # 2026-07-29: the gaps file's MATCHING rows are 5/5 negative
+                                        # margin (held, and correct) while the WORST rows are 20/20
+                                        # POSITIVE margin (projected, and wrong) — the reference holds
+                                        # them all. flat_c0 treats negative-margin rows identically to
+                                        # neg_hold, so it cannot break what already matches.
+# "CMBS" = "neg_hold_blend13"           # superseded. pos_hold_blend13 was tried 2026-07-28 and REVERTED:
                                         # fitted to the 15 worst rows in the gaps CSV (a biased
                                         # sample), it broke the ~180 rows already at 1.000 and took
                                         # the category 0.9148 -> 1.4135.
