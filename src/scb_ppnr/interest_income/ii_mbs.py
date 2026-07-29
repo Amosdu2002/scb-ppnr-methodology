@@ -78,13 +78,26 @@ def _agency_flows(position: SecurityPosition, coupon: dict[int, float], warnings
     if face_path_survival:
         alive = [q for q in PROJECTION_QUARTERS if face_path[q] > 0.0]
         path_last = alive[-1] if alive else 0
-        if path_last != last_quarter:
+        # ONLY EXTEND (fixed 2026-07-29). The switch exists to stop a WAL-derived
+        # maturity ending a security the vendor says still has balance; it must never
+        # do the reverse. Taking the path end unconditionally shortened lives instead,
+        # because trailing BLANK cells in the prepayment pivot are read as 0 (PID-SEC-8)
+        # and are indistinguishable from a genuine paydown to zero — that is how
+        # TRUNC Agency MBS went 476 rows @ PQ7.3 to 520 @ PQ5.5 with the switch ON.
+        if path_last > last_quarter:
             warnings.append(
                 f"{position.security_id}: face path carries balance through PQ{path_last} but "
                 f"maturity_quarters={maturity} would end it at PQ{last_quarter} — path governs "
                 f"(PID-SEC-16)"
             )
-        last_quarter = path_last
+            last_quarter = path_last
+        elif path_last < last_quarter:
+            warnings.append(
+                f"{position.security_id}: face path ends at PQ{path_last}, before "
+                f"maturity_quarters={maturity} — NOT shortened (PID-SEC-16 only extends; "
+                f"trailing blank prepayment cells read as 0 are indistinguishable from a real "
+                f"paydown to zero)"
+            )
 
     coupon_cash: dict[int, float] = {}
     accretion: dict[int, float] = {}

@@ -167,7 +167,12 @@ def main() -> None:
               f"book_yield_categories: {list(book_yield_categories)}   "
               f"maturity_source: {config.firm_data.securities.maturity_source}   "
               f"zcb_no_accretion: {list(config.firm_data.securities.zcb_no_accretion_categories)}   "
-              f"a42_collapsed: {list(config.firm_data.securities.a42_collapsed_categories)}   "
+              f"a42_collapsed: {list(config.firm_data.securities.a42_collapsed_categories)}\n"
+              f"maturity_rounding: {config.firm_data.securities.maturity_quarters_rounding} "
+              f"overrides: {dict(config.firm_data.securities.maturity_quarters_rounding_overrides)}   "
+              f"missing_ac_mode: {config.firm_data.securities.missing_ac_mode} "
+              f"overrides: {dict(config.firm_data.securities.missing_ac_mode_overrides)}   "
+              f"agency_face_path_survival: {config.firm_data.securities.agency_face_path_survival}   "
               f"on_security_error: {on_error}\n"
               f"AMOUNTS: USD MILLIONS per quarter — canonical unit, D-006; pre-hedge")
 

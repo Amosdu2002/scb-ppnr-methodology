@@ -424,7 +424,12 @@ def test_agency_face_path_survival_books_maturity_where_the_path_zeroes(make_inc
                     current_face=400.0, amortized_cost=396.0, coupon_rate=0.05,
                     maturity_quarters=9, maturity_years=2.25, wal_years=2.25, face_path=face_path)
     flows = m_mbs._agency_flows(position, {q: 0.05 for q in range(1, 10)}, [], True)
-    assert flows.alive_through == 2                                 # last quarter with a live face
+    # alive_through stays at the maturity — PID-SEC-16 only EXTENDS (see
+    # test_face_path_survival_never_shortens_a_life). Income is unaffected either
+    # way: coupon accrues on the PRIOR quarter's face, which is 0 from PQ4 on.
+    assert flows.alive_through == 9
+    assert flows.coupon_cash[3] == pytest.approx(0.05 * 200.0 / 4)  # PQ3 accrues on PQ2's face
+    assert all(flows.coupon_cash[q] == 0.0 for q in range(4, 10))   # zero face -> zero income
     assert flows.matured_face == {3: pytest.approx(200.0)}          # the path's own zero, carrying PQ2's face
 
 
@@ -448,3 +453,25 @@ def test_zcb_suppression_wins_over_the_a42_form(make_income_scenario):
                                    a42_collapsed_categories=("Sovereign Bond",),
                                    zcb_no_accretion_categories=("Sovereign Bond",))
     assert coupon_row.income_path()[1] == pytest.approx(0.05 * 80.0 / 4)
+
+
+def test_face_path_survival_never_shortens_a_life(make_income_scenario):
+    # 2026-07-29 regression: taking the face path's end UNCONDITIONALLY shortened
+    # lives, because trailing BLANK prepayment cells are read as 0 (PID-SEC-8) and
+    # look identical to a real paydown. TRUNC Agency MBS went 476 rows @ PQ7.3 to
+    # 520 @ PQ5.5 with the switch ON — the opposite of its purpose.
+    trailing_blanks = {0: 400.0, 1: 380.0, 2: 360.0, **{q: 0.0 for q in range(3, 10)}}
+    position = _pos(MODEL_MBS, "AGY0000S3", category="Agency MBS", rate_type=RATE_FIXED,
+                    current_face=400.0, amortized_cost=396.0, coupon_rate=0.05,
+                    maturity_quarters=8, maturity_years=2.0, wal_years=2.0, face_path=trailing_blanks)
+    sink: list[str] = []
+    flows = m_mbs._agency_flows(position, {q: 0.05 for q in range(1, 10)}, sink, True)
+    assert flows.alive_through == 8                       # maturity still governs — NOT cut to PQ2
+    assert any("NOT shortened" in w for w in sink)
+
+    # …while a path that outlives the WAL-derived maturity still extends it.
+    long_path = {q: 400.0 - 5.0 * q for q in range(0, 10)}
+    extend = _pos(MODEL_MBS, "AGY0000S4", category="Agency MBS", rate_type=RATE_FIXED,
+                  current_face=400.0, amortized_cost=396.0, coupon_rate=0.05,
+                  maturity_quarters=5, maturity_years=1.25, wal_years=1.25, face_path=long_path)
+    assert m_mbs._agency_flows(extend, {q: 0.05 for q in range(1, 10)}, [], True).alive_through == 9
