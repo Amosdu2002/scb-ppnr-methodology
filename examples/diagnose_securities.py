@@ -500,12 +500,37 @@ def run_compare(config, args) -> None:
                     "wal_years": position.wal_years,
                     "ac_proxied": position.ac_proxied,
                     "ac_source": position.ac_source,
+                    "implied_floor_over_c0": "",        # filled below once implied_floor is known
                     "suppress_accretion": position.suppress_accretion,
                 }
                 for q in quarters:
                     record[f"ours_q{q}"] = round(flows.total.get(q, 0.0), 6)
                 for q in quarters:
                     record[f"ref_q{q}"] = round(ref[q], 6)
+                # IMPLIED COUPON (2026-07-29): the rate the REFERENCE must have used,
+                # backed out of its own income. Independent of whichever projection mode
+                # we run, because the AA leg does not depend on the coupon:
+                #     implied(q) = (ref(q) - our AA(q)) / (face_prior(q) / 4)
+                # Under the confirmed rule coupon(q) = Max(CPN_Floor, c0 + 3M(q) - 3M(0)),
+                # any quarter where implied(q) exceeds c0 + 3M(q) - 3M(0) is a quarter the
+                # FLOOR is binding — and implied(q) is then the floor itself.
+                for q in quarters:
+                    face_prior = (position.face_path[q - 1] if position.face_path is not None
+                                  else position.current_face)
+                    aa = flows.accretion.get(q, 0.0)
+                    record[f"implied_cpn_q{q}"] = (round((ref[q] - aa) / (face_prior / 4.0), 6)
+                                                   if face_prior else "")
+                unfloored = {q: (position.coupon_rate + t3m[q] - t3m[0]) if position.coupon_rate is not None else None
+                             for q in quarters}
+                record["unfloored_cpn_q5"] = round(unfloored[5], 6) if unfloored[5] is not None else ""
+                record["implied_floor"] = ""
+                if position.coupon_rate is not None and position.rate_type == RATE_FLOATING:
+                    # If the floor binds in the late quarters the implied coupon is flat
+                    # there and equals the floor. Report it, and how it compares with c0.
+                    late = [record[f"implied_cpn_q{q}"] for q in (5, 6, 7, 8, 9)
+                            if isinstance(record[f"implied_cpn_q{q}"], float)]
+                    if late and max(late) - min(late) <= 1e-4:
+                        record["implied_floor"] = round(late[0], 6)
                 gap_records.append(record)
 
             if (position.coupon_rate not in (None, 0.0) and position.excel_coupon_rate is not None
@@ -789,6 +814,9 @@ def run_compare(config, args) -> None:
                 record["sample"] = "global"
                 seen.add(id(record))
                 selected.append(record)
+        for record in selected:
+            if isinstance(record.get("implied_floor"), float) and record.get("coupon_rate"):
+                record["implied_floor_over_c0"] = round(record["implied_floor"] / record["coupon_rate"], 4)
         selected.sort(key=lambda r: abs(r["gap"]), reverse=True)
         with open(args.gaps, "w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(selected[0].keys()))
