@@ -212,6 +212,16 @@ floor_mode = "security_floor"           # PID-SEC-2 mode switch
                                                      # is no per-quarter AC to go to zero). Set this
                                                      # from measurement, not by analogy. See OQ-032.
 
+# LEAVE floating_projection_overrides EMPTY (2026-07-29). The user supplied the
+# reference's actual rule, and it is ONE rule for ALL floating securities:
+#     coupon(PQx) = Max(CPN_Floor, Coupon Rate - PQ0 3M UST + PQx 3M UST)
+# which is exactly floating_projection = "spot" with floor_mode =
+# "security_floor_else_zero". Every per-category mode below (freeze1, blend13,
+# flat_c0, neg_hold, pos_hold) was an approximation of a FLOOR that was not being
+# read — see PID-SEC-18. Verified: with CPN_Floor = c0 the formula reproduces the
+# failing Agency row at 0.5181 vs 0.5181 and the CMBS rows to within 0.08%; with
+# CPN_Floor = 0 the coupon collapses to the AA leg alone. The entries below are
+# kept only as a record of what was tried.
 # [firm_data.securities.floating_projection_overrides]   # PID-SEC-10 per-category modes — the
 # "Domestic Non-Agency RMBS (incl HEL ABS)" = "flat_c0"  # reference treats categories differently
 # "CLO" = "blend13"

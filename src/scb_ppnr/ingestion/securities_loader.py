@@ -363,6 +363,8 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
     tech_coupon_rows = 0
     tech_floor_rows = 0
     margin_rows = 0
+    enrich_floor_rows = 0
+    floor_at_coupon_rows = 0
     indicator_disagree = 0
     unmatched: list[str] = []
     grouped: dict[str, list[SecurityPosition]] = {MODEL_UST: [], MODEL_MBS: [], MODEL_OTHER_SEC: []}
@@ -450,11 +452,22 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
         floor = None
         if "tech_floor" in record and not _blank(record.get("tech_floor")):
             # PID-SEC-9: the positions-sheet floor column (decimal) is PREFERRED —
-            # it is the reference workbook's own floor input.
-            floor = to_float(record["tech_floor"], context=f"{context} floor (positions sheet, decimal)")
-            tech_floor_rows += 1
-        elif "floor" in (fields or {}) and not _blank(fields.get("floor")):
+            # it is the reference workbook's own floor input. PID-SEC-18 amendment
+            # (2026-07-29): a ZERO there is treated as NOT POPULATED and falls through
+            # to the enrichment floor. A 0 floor and no floor are operationally
+            # identical under floor_mode 'security_floor_else_zero', so nothing is lost
+            # — but preferring a literal 0 over a real CPN_Floor on the enrichment tab
+            # discarded the value that holds these coupons up.
+            candidate = to_float(record["tech_floor"], context=f"{context} floor (positions sheet, decimal)")
+            if candidate != 0.0:
+                floor = candidate
+                tech_floor_rows += 1
+        if floor is None and "floor" in (fields or {}) and not _blank(fields.get("floor")):
             floor = apply_rate_scale(sc.coupon_scale, to_float(fields["floor"], context=f"{context} floor"), context=f"{context} floor")
+            if floor is not None and floor != 0.0:
+                enrich_floor_rows += 1
+        if floor is not None and coupon is not None and abs(floor - coupon) <= 1e-6:
+            floor_at_coupon_rows += 1
         # PID-SEC-9: the sheet's own float/fixed indicator — carried verification-only
         # (bake-off + monitor); the ITO rate type still drives the models.
         excel_rate_label = None
@@ -697,8 +710,15 @@ def load_securities_inputs(config: IngestionConfig) -> SecuritiesInputs:
             f"(maturity_source={sc.maturity_source!r}; PID-SEC-9/OQ-030) for the PID-SEC-8 denominator "
             f"and event timing"
         )
-    if tech_floor_rows:
-        warnings.append(f"{tech_floor_rows} position(s): floor taken from the positions-sheet floor column (decimal; PID-SEC-9)")
+    if tech_floor_rows or enrich_floor_rows:
+        warnings.append(
+            f"FLOOR-SOURCE (PID-SEC-18): {tech_floor_rows} row(s) took a non-zero floor from the "
+            f"positions-sheet column, {enrich_floor_rows} from the enrichment tab; {floor_at_coupon_rows} "
+            f"row(s) have a floor equal to their launch coupon. A ZERO in the positions column is treated "
+            f"as not populated so a real enrichment floor is not discarded. Under the reference formula "
+            f"Max(CPN_Floor, c0 - 3M(0) + 3M(q)) the floor is what holds a falling coupon up — if these "
+            f"counts are 0 the floor column is not being found."
+        )
     if tech_coupon_rows:
         warnings.append(f"{tech_coupon_rows} position(s): coupon taken from the positions-sheet coupon column (decimal; PID-SEC-9)")
     if indicator_disagree:
