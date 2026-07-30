@@ -34,6 +34,7 @@ import argparse
 from collections import Counter
 
 from scb_ppnr.ingestion import load_config, load_mev_scenario, load_securities_inputs
+from scb_ppnr.ingestion.normalize import apply_money_scale, to_float
 from scb_ppnr.ingestion.securities_loader import (
     _EXCEL_ERRORS,
     _POSITIONS_MDRM,
@@ -307,6 +308,74 @@ def _flows_for(position, scenario, sc, sink):
                          sc.a42_collapsed_categories)
 
 
+def run_reference_reconciliation(config, inputs, print_fn=print) -> None:
+    """Does our `ref` total equal the workbook's own II_PQ total?
+
+    Every ratio in this tool divides by `ref`, so if rows are being dropped before
+    compare sees them the denominator is wrong and every conclusion drawn from it
+    is suspect. This reads the positions sheet RAW — every data row, no filtering —
+    sums II_PQ1..9 per row, and buckets it by the sheet's own category, then sets
+    that beside what actually reached the models. Any difference is reference
+    income we are silently not accounting for."""
+    sc = config.firm_data.securities
+    path = config.resolve(sc.workbook)
+    workbook = _load_workbook(path)
+    try:
+        records, columns, _ = _positions_rows(
+            _sheet(workbook, sc.positions_sheet, path), path, sc.price_mdrm, _technical_columns(sc)
+        )
+    finally:
+        workbook.close()
+    if not any(f"reference_pq{q}" in columns for q in range(1, 10)):
+        print_fn("REF-RECON: no II_PQ columns on the sheet — nothing to reconcile")
+        return
+
+    sheet: dict[str, list] = {}                       # category -> [rows, total, rows_with_partial_ref]
+    for record in records:
+        category = "" if _blank(record.get("security_description_1")) else str(record["security_description_1"]).strip()
+        bucket = sheet.setdefault(category or "(blank)", [0, 0.0, 0])
+        bucket[0] += 1
+        values, partial = [], False
+        for q in range(1, 10):
+            cell = record.get(f"reference_pq{q}")
+            if _blank(cell):
+                partial = True
+                continue
+            try:
+                values.append(to_float(cell, context="II_PQ"))
+            except ValidationFailure:
+                partial = True
+        bucket[1] += apply_money_scale(sc.money_scale, sum(values), context="II_PQ") if values else 0.0
+        if partial:
+            bucket[2] += 1
+
+    loaded: dict[str, list] = {}                      # category -> [rows, total]
+    for group in (inputs.ust, inputs.mbs, inputs.other_sec):
+        for position in group:
+            bucket = loaded.setdefault(position.category, [0, 0.0])
+            bucket[0] += 1
+            if position.reference_income is not None:
+                bucket[1] += sum(position.reference_income.values())
+
+    print_fn("\nREF-RECON — the workbook's own II_PQ total vs what reached the models (USD millions).")
+    print_fn("  A non-zero difference is reference income we are DROPPING; every xr/ref ratio for that")
+    print_fn("  category is computed against too small a denominator until it is explained.")
+    print_fn(f"  {'category':42} {'sheet rows':>10} {'sheet II_PQ':>14} {'loaded rows':>11} "
+             f"{'loaded II_PQ':>14} {'difference':>12} {'partial':>8}")
+    total_sheet = total_loaded = 0.0
+    for category in sorted(set(sheet) | set(loaded)):
+        s_rows, s_total, s_partial = sheet.get(category, [0, 0.0, 0])
+        l_rows, l_total = loaded.get(category, [0, 0.0])
+        total_sheet += s_total
+        total_loaded += l_total
+        flag = "" if abs(s_total - l_total) < 0.005 else "   <-- "
+        print_fn(f"  {category[:42]:42} {s_rows:>10} {s_total:>14,.2f} {l_rows:>11} "
+                 f"{l_total:>14,.2f} {s_total - l_total:>12,.2f} {s_partial:>8}{flag}")
+    print_fn(f"  {'TOTAL':42} {sum(v[0] for v in sheet.values()):>10} {total_sheet:>14,.2f} "
+             f"{sum(v[0] for v in loaded.values()):>11} {total_loaded:>14,.2f} "
+             f"{total_sheet - total_loaded:>12,.2f}")
+
+
 def run_compare(config, args) -> None:
     """Per-security diff: our income vs the workbook's own II_PQ1..II_PQ9 columns.
 
@@ -321,6 +390,7 @@ def run_compare(config, args) -> None:
     scenario_id = args.scenario or next(iter(config.mev.scenarios))
     scenario = load_mev_scenario(config, scenario_id).interest_income_scenario_paths()
     inputs = load_securities_inputs(config)
+    run_reference_reconciliation(config, inputs)
 
     quarters = range(1, 10)
     bands = ((0.001, "<=0.1%"), (0.01, "<=1%"), (0.05, "<=5%"))
