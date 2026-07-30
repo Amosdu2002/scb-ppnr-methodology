@@ -458,6 +458,11 @@ def run_compare(config, args) -> None:
     # rows. High ⇒ another single-row data issue (--explain it); low ⇒ a rule
     # difference spread across a population (compare the category's rules).
     row_abs_gaps: list[float] = []
+    # FLOOR-CHECK: per category, back the reference's own coupon out and ask whether a
+    # FLOOR explains it. implied(q) = (ref(q) - our AA(q)) / (face_prior(q)/4); the rule
+    # without a floor is unfloored(q) = c0 + 3M(q) - 3M(0). Where implied is flat across
+    # PQ5-9 AND above unfloored, the floor is binding and implied IS the floor.
+    floor_check: dict[str, list] = {}
     worst_abs: list[tuple[float, str]] = []
     t3m = scenario.usd_3m_treasury
 
@@ -530,6 +535,25 @@ def run_compare(config, args) -> None:
             worst_abs.append((abs(diff), f"{_mask(position.security_id)} [{bucket_key}] "
                                          f"gap {diff:+.2f} rel {rel:6.1%} "
                                          f"{'OURS-HIGH' if diff > 0 else 'OURS-LOW'}"))
+
+            if position.rate_type == RATE_FLOATING and position.coupon_rate:
+                c0 = position.coupon_rate
+                implied_row = {}                       # NB: not `implied` — that name is the
+                for q in quarters:                     # category-level accumulator above
+                    fp = (position.face_path[q - 1] if position.face_path is not None
+                          else position.current_face)
+                    if fp:
+                        implied_row[q] = (ref[q] - flows.accretion.get(q, 0.0)) / (fp / 4.0)
+                late = [implied_row[q] for q in (5, 6, 7, 8, 9) if q in implied_row]
+                stats_f = floor_check.setdefault(position.category,
+                                                 [0, 0, [], [], 0])   # n, with_floor, imp/c0, unfl/c0, flat
+                stats_f[0] += 1
+                if position.coupon_floor:
+                    stats_f[1] += 1
+                if late and max(late) - min(late) <= 1e-4 * max(1.0, abs(late[0])):
+                    stats_f[4] += 1
+                    stats_f[2].append(late[0] / c0)
+                    stats_f[3].append((c0 + t3m[5] - t3m[0]) / c0)
 
             dead_but_referenced = [q for q in quarters
                                    if abs(flows.total.get(q, 0.0)) < 1e-9 and abs(ref[q]) > 1e-9]
@@ -810,6 +834,21 @@ def run_compare(config, args) -> None:
         print("COMPARE-TOTAL: no reference")
     print("COMPARE-BY-QUARTER ours/ref:",
           " ".join(f"PQ{q}={ours_q[q] / ref_q[q]:.3f}" if ref_q[q] else f"PQ{q}=n/a" for q in quarters))
+    if floor_check:
+        def _median(values):
+            ordered = sorted(values)
+            return ordered[len(ordered) // 2] if ordered else float("nan")
+        print("FLOOR-CHECK (floating rows with a reference). implied = the coupon the REFERENCE used,")
+        print("  backed out of its own income; unfloored = c0 + 3M(q) - 3M(0), the rule with NO floor.")
+        print("  Both shown as a multiple of the launch coupon c0. implied/c0 near 1.00 with unfloored/c0")
+        print("  far below it means a FLOOR is holding the coupon up and we are not reading it.")
+        for category, (n, with_floor, imp, unfl, flat) in sorted(floor_check.items()):
+            if not imp:
+                print(f"  FLOOR-CHECK {category}: n={n} flat-late-quarters=0 — implied coupon is NOT flat, "
+                      f"so a constant floor does not explain this category")
+                continue
+            print(f"  FLOOR-CHECK {category}: n={n} we-read-a-floor={with_floor} flat-late-quarters={flat} "
+                  f"median implied/c0={_median(imp):.3f} median unfloored/c0={_median(unfl):.3f}")
     if row_abs_gaps:
         ordered = sorted(row_abs_gaps, reverse=True)
         total_abs = sum(ordered)
