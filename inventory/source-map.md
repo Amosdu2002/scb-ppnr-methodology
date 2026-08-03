@@ -77,20 +77,20 @@ Mapped at model level; drill in only when a proposed model cites it. All are the
 | — (a) | Model Description | sec-151, line 3433 | 173–174 | Eq A32; constant balances; loss-rate dependency | ii_loans |
 | — (b) | Portfolio Segmentation | sec-152, line 3460 | 174–175 | Jump-off weighted-average rates; fixed/variable split | ii_loans |
 | — | Wholesale | sec-153, line 3471 | 175 | HFI vs. FVO/HFS; truncated "FR." sentence (SQ-5); footnotes 61–62 | ii_loans |
-| — | Corporate | sec-154, line 3479 | 175–176 | 11 portfolios; 16/22 rate-split; mixed-rate/demand→variable; fee-only excluded; NPML proxy | ii_loans |
-| — | CRE | sec-155, line 3492 | 176–177 | 6 loan types; 24 segments | ii_loans |
+| — | Corporate | sec-154, line 3479 | 175–176 | 11 portfolios; 16/22 rate-split (derivation unstated — OQ-034); mixed-rate/demand→variable and fee-only excluded (stated here only — OQ-035); NPML proxy | ii_loans |
+| — | CRE | sec-155, line 3492 | 176–177 | 6 loan types; 24 segments; applicability of the Corporate-stated rate-type/fee rules unstated (OQ-035) | ii_loans |
 | — | Retail | sec-156, line 3503 | 177 | 4 retail sections; segmentation drivers | ii_loans |
 | — | Mortgage | sec-157, line 3511 | 177–178 | HFI/FVO-HFS × FRM/ARM; rejected extra segmentation | ii_loans |
 | — | Auto Loan | sec-158, line 3520 | 178 | All fixed-rate; new/used; Prime-based spread | ii_loans |
 | — | Consumer and Small Business Credit Card | sec-159, line 3530 | 178–179 | Bank/charge cards; all variable; revolver classification; Prime + constant spread | ii_loans |
 | — | Other Consumer Products | sec-160, line 3545 | 179–180 | No segmentation; jump-off rate from Y-14Q PPNR line-item report; spread vs. Prime | ii_loans |
 | — | Projected Interest Income Rate | sec-161, line 3558 | 180 | Runoff/re-origination; rate floors | ii_loans |
-| — | Variable-rate products | sec-162, line 3566 | 180–181 | **Eq A33** | ii_loans |
+| — | Variable-rate products | sec-162, line 3566 | 180–181 | **Eq A33** (where-list omits the segment subscript — SQ-20) | ii_loans |
 | — | Base rate assumptions | sec-163, line 3585 | 181 | Prime / mortgage rate / 3M Treasury | ii_loans |
 | — | Spread Estimation | sec-164, line 3593 | 181–182 | Constant spreads; replacement of run-off | ii_loans |
-| — | Fixed-Rate Products | sec-165, line 3606 | 182–183 | **Eqs A34–A38**; median origination date (t−a); wt from default/prepay/maturity | ii_loans |
+| — | Fixed-Rate Products | sec-165, line 3606 | 182–183 | **Eqs A34–A38** (A34/A35/A36/A38 print no firm subscript — SQ-18/OQ-033); median origination date (t−a); wt from default/prepay/maturity | ii_loans |
 | — | Industry Scalar | sec-166, line 3648 | 183–184 | True-up scalar; footnote 63 | ii_loans |
-| — (c) | Model Assumptions and Limitations (+ Assumptions / Limitations / Retail / Wholesale) | sec-167…171, lines 3659–3729 | 184–186 | Assumptions (1)–(7) incl. quarterly compounding; NPML proxy; no revolver-draw growth | ii_loans |
+| — (c) | Model Assumptions and Limitations (+ Assumptions / Limitations / Retail / Wholesale) | sec-167…171, lines 3659–3729 | 184–186 | Assumptions (1)–(7) incl. quarterly compounding; NPML proxy ("farm" here vs. "farmland" p. 175 — SQ-19); no revolver-draw growth (stated under Wholesale) | ii_loans |
 | — (d) | Questions | sec-172, line 3735 | 186–188 | Questions A151–A160 (A159 = hedges not incorporated) | ii_loans |
 | v.a(2) | (2) II on Deposits with Banks and Other | sec-173, line 3765 | 188–190 | **Eq A39**; Sched G line 14; quirks SQ-3/SQ-4 in Questions | ii_dep_banks_other |
 | v.a(3) | (3) II on U.S. Treasuries | sec-177, line 3821 | 190–195 | **Eq A40**; Sched B.1 + vendor data; hedge income initially zero; reinvestment per Securities Model | ii_ust |

@@ -34,8 +34,9 @@ Dimension notation used throughout: `b` = firm, `p` = product, `i` = segment, `t
 | Upstream dependencies | Retail and Wholesale credit-loss models supply estimated loss/runoff rates for wt (PDF p. 174; OQ-001) |
 | Hedge treatment | **Not incorporated** — data limitations; proposed FR Y-14Q B.2 update would add it (Question A159, PDF p. 188) |
 | Assumptions (source-stated, PDF p. 184) | (1) flat balance; (2) delinquent loans accrue (impact immaterial); (3) **interest income quarterly compounded**; (4) constant spreads; (5) most variable rates reprice quarterly; (6) segment fixed rates unchanged except new originations; (7) products grouped by similar rate structure |
-| Integrity flags | SQ-5 (truncated "sourced from FR." p. 175), SQ-6/SQ-7 (A37/A38 notation), SQ-11 (Table A8 7 rows vs. footnote 63's 8 categories) |
-| Open questions | OQ-001, OQ-002, OQ-003, OQ-006, OQ-010, OQ-011, OQ-012, OQ-015 |
+| Integrity flags | SQ-5 (truncated "sourced from FR." p. 175), SQ-6/SQ-7 (A37/A38 notation), SQ-11 (Table A8 7 rows vs. footnote 63's 8 categories); **added 2026-07-30 (loans slice 1):** SQ-18 (A34/A35/A36/A38 print no firm subscript b), SQ-19 ("farm" p. 186 vs. "farmland" p. 175), SQ-20 (A33 where-list omits segment i) |
+| Open questions | OQ-001, OQ-002, OQ-003, OQ-006, OQ-010, OQ-011, OQ-012, OQ-014 (scalar granularity — this component; added to this record 2026-07-30), OQ-015; **filed 2026-07-30:** OQ-033 (fixed-rate firm dimension), OQ-034 (corporate 16-of-22 derivation; segment total unstated), OQ-035 (CRE applicability of the Corporate-stated mixed-rate/demand/fee-only rules) |
+| Artifacts (loans slice 1, 2026-07-30) | Source briefs `handbook/models/ii_loans_common.source-brief.md` (owns Eqs A32–A38 verbatim + the common-boundary register over PDF pp. 173–188) and `handbook/models/ii_loans_wholesale.source-brief.md` (Corporate∩CRE shared framework; cites equations, transcribes none) — both **DRAFT, awaiting user review**. Corporate and CRE briefs, and the Wholesale integration review, are deferred to the review gate; no chapter or spec exists yet (chapter granularity unchanged: one chapter, six portfolio sections per D-003) |
 
 ## 2. `ii_dep_banks_other` — Interest Income on Deposits with Banks and Other
 
