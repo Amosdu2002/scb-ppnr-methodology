@@ -77,7 +77,7 @@ Mapped at model level; drill in only when a proposed model cites it. All are the
 | — (a) | Model Description | sec-151, line 3433 | 173–174 | Eq A32; constant balances; loss-rate dependency | ii_loans |
 | — (b) | Portfolio Segmentation | sec-152, line 3460 | 174–175 | Jump-off weighted-average rates; fixed/variable split | ii_loans |
 | — | Wholesale | sec-153, line 3471 | 175 | HFI vs. FVO/HFS; truncated "FR." sentence (SQ-5); footnotes 61–62 | ii_loans |
-| — | Corporate | sec-154, line 3479 | 175–176 | 11 portfolios; 16/22 rate-split (derivation unstated — OQ-034); mixed-rate/demand→variable and fee-only excluded (stated here only — OQ-035); NPML proxy | ii_loans |
+| — | Corporate | sec-154, line 3479 | 175–176 | 11 portfolios (defining form unstated — OQ-038); 16/22 rate-split (derivation unstated — OQ-034); mixed-rate/demand→variable and fee-only excluded (stated here only — OQ-035); NPML bank-level proxy spread (data slice/granularity — OQ-037; farmland rate type unstated — OQ-036); "Schedule H.1 schedule" doubling (SQ-21); owner-occupied CRE modeled here, not in CRE (SQ-22) | ii_loans |
 | — | CRE | sec-155, line 3492 | 176–177 | 6 loan types; 24 segments; applicability of the Corporate-stated rate-type/fee rules unstated (OQ-035) | ii_loans |
 | — | Retail | sec-156, line 3503 | 177 | 4 retail sections; segmentation drivers | ii_loans |
 | — | Mortgage | sec-157, line 3511 | 177–178 | HFI/FVO-HFS × FRM/ARM; rejected extra segmentation | ii_loans |
