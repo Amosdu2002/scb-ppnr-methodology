@@ -221,10 +221,118 @@ class IngestionConfig:
     base_dir: Path
     mev: MevConfig | None = None
     firm_data: FirmDataConfig | None = None
+    provenance: Mapping[str, str] = field(default_factory=dict)
 
     def resolve(self, path: Path | str) -> Path:
         candidate = Path(path)
         return candidate if candidate.is_absolute() else self.base_dir / candidate
+
+
+INCLUDE_KEY = "include"
+_ALLOWED_TOP_LEVEL = frozenset({INCLUDE_KEY, "mev", "firm_data"})
+
+
+def _merge_into(
+    base: dict[str, object],
+    incoming: Mapping[str, object],
+    provenance: dict[str, str],
+    source: str,
+    prefix: str = "",
+) -> None:
+    """Deep-merge `incoming` into `base`, recording where every leaf came from.
+
+    Tables merge recursively so one logical table can be assembled from several
+    files — the methodology switches for `[firm_data.securities]` live in a
+    committed file while its workbook path lives in the gitignored local one.
+
+    A LEAF (scalar, array, or array-of-tables) defined in two files is a HARD
+    ERROR naming both, never a last-wins override. Silent precedence is the
+    failure mode this project keeps paying for: a value that looks set, is set,
+    and is not the one in effect."""
+    for key, value in incoming.items():
+        path = f"{prefix}{key}"
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            _merge_into(base[key], value, provenance, source, prefix=f"{path}.")  # type: ignore[arg-type]
+            continue
+        if key in base:
+            raise ValidationFailure(
+                f"config: {path!r} is defined in two files — {provenance.get(path, '<unknown>')} "
+                f"and {source}. Duplicate keys are refused rather than silently overridden; "
+                f"delete one of the two definitions."
+            )
+        base[key] = value
+        if isinstance(value, dict):
+            _record_subtree(value, provenance, source, prefix=f"{path}.")
+        provenance[path] = source
+
+
+def _record_subtree(
+    table: Mapping[str, object], provenance: dict[str, str], source: str, prefix: str
+) -> None:
+    for key, value in table.items():
+        path = f"{prefix}{key}"
+        provenance[path] = source
+        if isinstance(value, dict):
+            _record_subtree(value, provenance, source, prefix=f"{path}.")
+
+
+def _read_toml(path: Path) -> dict[str, object]:
+    if not path.exists():
+        raise ValidationFailure(f"config file not found: {path}")
+    with path.open("rb") as handle:
+        return tomllib.load(handle)
+
+
+def compose_config(path: Path) -> tuple[dict[str, object], dict[str, str]]:
+    """Read a config file, resolving an `include = [...]` manifest one level deep.
+
+    Returns the merged mapping plus a leaf-path -> source-file provenance map.
+    Included paths resolve against the manifest's own directory, and are merged
+    in listed order before the manifest's own keys. An included file may not
+    itself include: one level keeps the precedence story short enough to hold
+    in your head."""
+    raw = _read_toml(path)
+    includes = raw.pop(INCLUDE_KEY, None)
+    merged: dict[str, object] = {}
+    provenance: dict[str, str] = {}
+
+    if includes is not None:
+        if not isinstance(includes, list) or not all(isinstance(entry, str) for entry in includes):
+            raise ValidationFailure(f"config {path.name}: {INCLUDE_KEY!r} must be a list of file paths")
+        for entry in includes:
+            child_path = (path.parent / entry).resolve()
+            child = _read_toml(child_path)
+            if INCLUDE_KEY in child:
+                raise ValidationFailure(
+                    f"config {child_path.name}: nested {INCLUDE_KEY!r} is not supported — "
+                    f"list every file in the top-level manifest ({path.name}) instead"
+                )
+            _merge_into(merged, child, provenance, child_path.name)
+
+    _merge_into(merged, raw, provenance, path.name)
+
+    unknown = sorted(set(merged) - _ALLOWED_TOP_LEVEL)
+    if unknown:
+        raise ValidationFailure(
+            f"config: unknown top-level key(s) {unknown} — expected one of "
+            f"{sorted(_ALLOWED_TOP_LEVEL)}. A typo'd section is refused rather than ignored, "
+            f"so a setting can never look applied while doing nothing."
+        )
+    return merged, provenance
+
+
+def format_effective_config(config: IngestionConfig) -> str:
+    """Render the composed settings with their source file, one line per key.
+
+    Printed at the head of a run so the numbers in the output can always be tied
+    to the settings that produced them — the question the securities compare loop
+    had to answer by inspection more than once."""
+    if not config.provenance:
+        return "EFFECTIVE CONFIG: (single file; no provenance recorded)"
+    width = max(len(key) for key in config.provenance)
+    lines = ["EFFECTIVE CONFIG (key -> source file)"]
+    lines += [f"  {key:<{width}}  {source}" for key, source in sorted(config.provenance.items())]
+    return "\n".join(lines)
 
 
 def _require(section: Mapping[str, object], key: str, context: str) -> object:
@@ -259,10 +367,7 @@ def _reject_misplaced_key(table: str, key: str) -> None:
 
 def load_config(path: Path | str) -> IngestionConfig:
     path = Path(path)
-    if not path.exists():
-        raise ValidationFailure(f"config file not found: {path}")
-    with path.open("rb") as handle:
-        raw = tomllib.load(handle)
+    raw, provenance = compose_config(path)
 
     mev: MevConfig | None = None
     if "mev" in raw:
@@ -462,4 +567,9 @@ def load_config(path: Path | str) -> IngestionConfig:
             securities=securities,
         )
 
-    return IngestionConfig(base_dir=path.parent.resolve(), mev=mev, firm_data=firm_data)
+    return IngestionConfig(
+        base_dir=path.parent.resolve(),
+        mev=mev,
+        firm_data=firm_data,
+        provenance=MappingProxyType(dict(provenance)),
+    )

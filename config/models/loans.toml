@@ -1,0 +1,66 @@
+# Interest Income on Loans — METHODOLOGY SWITCHES (committed, non-confidential)
+#
+# This file carries only decisions. Every physical binding — workbook path, sheet
+# names, column header text, unit scales — belongs in the gitignored
+# `config/local/` copy, so this file can be reviewed in git alongside the PID
+# registry that justifies each value.
+#
+# Compose it with the local file through a manifest, e.g. config/runs/example.toml:
+#     include = ["../models/loans.toml", "../local/sources.toml"]
+# Duplicate keys across included files are a hard error, never a silent override,
+# and every run prints key -> source-file provenance.
+#
+# Full computation: specifications/interest-income/loans/ii_loans_corporate.spec.md
+# Decisions: PID-LOAN-1 … PID-LOAN-8 in handbook/open-questions.md
+#
+# The Federal Reserve model these settings implement is PROPOSED for the 2026
+# stress test (public-comment stage), NOT adopted.
+
+[firm_data.loans]
+
+# --------------------------------------------------------------------------
+# SCALAR SETTINGS FIRST. In TOML a bare key belongs to the most recent [table]
+# header, so a scalar written below a sub-table silently becomes a map entry.
+# The loader catches it and names the key, but keep the order right.
+# Every line is commented: the code default applies until you set one, and the
+# defaults are the PID-recommended values.
+# --------------------------------------------------------------------------
+
+# floor_collapse = "balance_weighted"   # PID-LOAN-7. CORP H.1 carries floors per
+                                        # facility while the model projects one rate per
+                                        # segment, so facility floors must be collapsed.
+                                        # "balance_weighted" (default) | "max" | "min".
+                                        # Within-segment dispersion is logged either way.
+                                        # FLAGGED — awaiting confirmation of what the
+                                        # workbook does.
+
+# base_rate_fallback = "zero"           # PID-LOAN-4 as amended 2026-08-03 (user-directed).
+                                        # When a segment's median-origination base rate
+                                        # cannot be found, the base rate is 0. NOT neutral:
+                                        # the spread then collapses to the full pool rate,
+                                        # so that segment's new-origination rate becomes
+                                        # 3M(t) + FixedPoolRate — overstated by the omitted
+                                        # base-rate level. Always censused by cause
+                                        # (outside MEV range | missing origination date).
+
+# wt_cap_action = "surface"             # PID-LOAN-6 guard. A quarter whose maturities
+                                        # exceed the launch-point Fixed balance gives
+                                        # wt > 1, making Equation A38 non-convex and
+                                        # (1 - wt) negative. "surface" (default) reports
+                                        # and continues; "stop" halts. Never silently
+                                        # clamped — a clamp would hide a data problem.
+
+# --------------------------------------------------------------------------
+# SUB-TABLES — NO SCALAR SETTING MAY APPEAR BELOW THIS LINE.
+# --------------------------------------------------------------------------
+
+# [firm_data.loans.variable_type_map]   # PID-LOAN-2/PID-LOAN-5. The CORP H.1 mapping's
+# 0 = "no_income"                       # variable-type code -> model treatment. Codes 0
+# 1 = "fixed"                           # and 4 count toward the total portfolio balance
+# 2 = "variable"                        # but earn NOTHING (a recorded divergence: the Fed
+# 3 = "variable"                        # excludes fee-only balances from the total-balances
+# 4 = "no_income"                       # calculation, PDF p. 176). There is no demand-loan
+                                        # code in this vocabulary, so the Fed's
+                                        # "demand loans are treated as variable-rate" rule
+                                        # has no counterpart here. An unmapped code is a
+                                        # HARD ERROR — never defaulted.

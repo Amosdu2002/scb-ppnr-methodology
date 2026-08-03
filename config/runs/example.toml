@@ -1,0 +1,30 @@
+# RUN MANIFEST — the one file that composes a run.
+#
+# Point the runner at this file. It merges every listed file in order, then its
+# own keys last. Rules that make the merge safe to reason about:
+#
+#   * tables merge recursively, so one logical table can be assembled from
+#     several files — [firm_data.securities] can take its methodology switches
+#     from a committed file and its workbook path from the gitignored local one;
+#   * a LEAF (scalar, array, array-of-tables) defined in two files is a HARD
+#     ERROR naming both files — never a last-wins override;
+#   * an unknown top-level section is refused rather than ignored, so a typo
+#     cannot leave a setting looking applied while doing nothing;
+#   * an included file may not itself include — one level only;
+#   * every run prints key -> source-file provenance, so the numbers in an
+#     output can always be tied to the settings that produced them.
+#
+# Copy this file, point the includes at your own local config, and archive the
+# copy alongside each run's results so a reconciliation can be reproduced.
+
+include = [
+    # Physical bindings and the securities settings as they stand today.
+    # Migrate these to config/local/sources.toml + config/models/securities.toml
+    # at a natural break between reconciliation runs — not mid-flight, since
+    # moving settings that are driving verified numbers is exactly the kind of
+    # change that makes "which value was active?" hard to answer.
+    "../company.template.toml",
+
+    # Loans methodology switches (committed, non-confidential).
+    "../models/loans.toml",
+]
