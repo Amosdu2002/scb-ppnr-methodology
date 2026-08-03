@@ -21,7 +21,7 @@ One workbook, multiple sheets. Layout is company-local configuration; only the l
 | **H.1 mapping** | The three-part reference key: Fed Category (1–11), Variable Type code (0–4), Lower-of-Cost-or-Market flag | §3 |
 | **M.1 Balance** | Portfolio balance by category — the Equation A32 multiplicand | §6 |
 | **FRB Scalars** | Table A8 industry scalars, applied constant every quarter | §6 |
-| **MEVs** | 3-month Treasury path for PQ1–PQ9 **and history** back to the earliest median origination quarter (§5.2) | §5 |
+| **MEVs** | 3-month Treasury path for PQ1–PQ9 **and history back to 1976 Q1** (§5.2) | §5 |
 | **FR Y-9C** | Category reconciliation at the launch point | validation |
 
 **Units — TO_BE_CONFIRMED, refuses to run while unconfirmed** (D-006 discipline): whether `Interest Rate` and `Interest Rate Floor` are percent or decimal, and the money scale of the exposure and balance columns. Never inferred from magnitude.
@@ -67,7 +67,16 @@ Mixed is deliberately hybrid: its exposures and rates feed the **Floating** pool
 
 A median origination **month** maps to its calendar quarter, and that quarter's 3M Treasury is used (e.g. May 2022 → 2022Q2). This is the project's operationalization of the Fed's Equation A37 `t−a`.
 
-**Input consequence:** origination dates can precede the launch point by many years, so the 3M Treasury series must extend historically far enough to cover the earliest median origination quarter across all segments. A projection-only MEV path is insufficient. A missing historical quarter is a **hard error**, never a fallback to PQ0.
+**History coverage and fallback [PID-LOAN-4, amended 2026-08-03 — user-directed].** The MEV sheet supplies the 3M Treasury back to **1976 Q1**. If a segment's median-origination base rate cannot be found, the base rate **defaults to 0**.
+
+Two distinct causes produce a lookup miss, and they are counted separately because 1976 Q1 coverage only addresses the first:
+
+| Cause | Expected frequency | Handling |
+|---|---|---|
+| Median origination quarter lies outside the MEV range | Near zero — a corporate book holds nothing originated before 1976, so this fires only on a corrupt or future-dated origination date | base rate = 0, counted |
+| The origination date itself is missing, unparseable, or the segment has no rows with dates | The realistic trigger | base rate = 0, counted; an entirely empty segment produces no income regardless |
+
+**Consequence, stated plainly because it is not neutral:** with the base rate at 0 the spread collapses to the full pool rate, `Spread = FixedPoolRate − 0 = FixedPoolRate`, so the projected new-origination rate becomes `3M(t) + FixedPoolRate` — higher than intended by roughly the level of the base rate that should have been subtracted. On a 6 % pool rate against a 4 % historical base, the new-origination rate is overstated by about 4 percentage points for that segment. The fallback is therefore implemented as specified but **never silently**: §8 requires a per-run census naming every affected segment, its cause, and the exposure behind it, so a fallback that fires on a material segment is visible on the first run rather than discovered in reconciliation.
 
 ## 6. Projection
 
@@ -130,7 +139,7 @@ Recorded so they are visible, never smoothed over. Each is a legitimate company 
 - **Segment shares** sum to 1 within each category over all five rate types; validated in [0,1], never clipped.
 - **Floor census by source** — counts of populated, zero, and NA/NULL/NONE floors, and how often a floor binds per segment-quarter. Direct lesson from PID-SEC-18, where a literal zero in a floor column silently overrode a real floor and cost several diagnostic rounds.
 - **Rows dropped from rate pools** for missing `Interest Rate`, counted per segment, with their exposure — so a large silent dropout is visible.
-- **Historical 3M coverage** — the earliest median origination quarter required versus the earliest MEV quarter available.
+- **Historical 3M coverage and base-rate fallback census** — the earliest median origination quarter required versus the earliest MEV quarter available (supplied from 1976 Q1), plus every segment that took the **base rate = 0** fallback, split by cause (outside MEV range · missing or unparseable origination date) with the exposure behind each. A fallback on a material segment overstates that segment's new-origination rate by the omitted base-rate level (§5.2), so this census is a required first-run output, not an optional log line.
 - **Unmapped Variable Type or Fed Category values** — hard error, surfaced, never defaulted.
 
 ## 9. Open items
