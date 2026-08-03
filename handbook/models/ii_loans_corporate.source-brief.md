@@ -4,14 +4,24 @@
 > Component: **Interest Income on Loans**, Section v.a(1) (PDF pp. 173–188; md sec-150–172); this brief covers the **Corporate** part of Wholesale (PDF pp. 175–176; md sec-154), plus the Corporate-relevant passages of the Wholesale Portfolio limitations (PDF p. 186; md sec-171), Question A153 (PDF p. 187; md sec-172), and Table A8 (PDF p. 220; md sec-209). Model type per Table A6: **Structural**.
 > Deliverable: loans workstream (asset-side Increment 3), slice 2 per the approved plan of 2026-08-03 — third of the sibling set {common, wholesale, **corporate**, CRE}. Review state: **DRAFT — awaiting user review.**
 > Scope: **Corporate only.** CRE and Retail appear solely where the source draws an explicit boundary against them (§2.3); neither is analyzed. Equations are **not** transcribed here — D-010(b) puts all of A32–A38 verbatim in `ii_loans_common.source-brief.md` §7; rules shared by Corporate and CRE live in `ii_loans_wholesale.source-brief.md`. This brief owns only what the source states for Corporate.
-> Integrity flags: SQ-5 (truncated "sourced from FR.", p. 175), SQ-18/OQ-033 (fixed-rate subscripts), SQ-19 ("farm"/"farmland", p. 186), footnotes 61–62; **filed with this brief:** SQ-21 ("Schedule H.1 schedule" doubling), SQ-22 (owner-occupancy naming variants). Open questions: OQ-001, OQ-002, OQ-003, OQ-010, OQ-033, OQ-034, OQ-035, and new **OQ-036/OQ-037/OQ-038**.
+> Integrity flags: SQ-5 (truncated "sourced from FR.", p. 175), SQ-18/OQ-033 (fixed-rate subscripts), SQ-19 ("farm"/"farmland", p. 186), footnotes 61–62; **filed with this brief:** SQ-21 ("Schedule H.1 schedule" doubling), SQ-22 (owner-occupancy naming variants). Open questions: OQ-001, OQ-002, OQ-003, OQ-010, OQ-033, OQ-034, OQ-035, OQ-037, OQ-038; **OQ-036 resolved for project implementation** by **PID-LOAN-1** (§0.1) — the first loans PID.
 > Verification: **PDF pp. 175–176 and 220 re-read as page images at high zoom 2026-08-03** for this brief (11-item enumeration, NPML paragraph, Table A8 row text, footnote 62); pp. 173–188 had a full image pass 2026-07-30. Citation format: (PDF p. N; md sec-M).
 
 ---
 
 ## 0. Classification legend and cross-reference discipline
 
-Labels [FACT] / [PID] / [INT] / [CODE] / [OQ] / [ALT] per `ii_loans_common.source-brief.md` §0. **No PIDs exist for the loans component yet** — no physical line-item, field, or scenario mapping has been user-confirmed.
+Labels [FACT] / [PID] / [INT] / [CODE] / [OQ] / [ALT] per `ii_loans_common.source-brief.md` §0.
+
+### 0.1 Project implementation decision register (user-confirmed)
+
+| ID | Decision | Fed-source status of the same point |
+|---|---|---|
+| **PID-LOAN-1** (2026-08-03) | **The three data-limited Corporate portfolios are treated as floating (variable) rate.** Loans for purchasing and carrying securities, domestic farmland loans, and international farmland loans — the portfolios with no loan-level FR Y-14Q H.1 data and therefore no rate-type split — are all projected on the **variable-rate path** (Equation A33: 3-month Treasury base rate + constant launch-point spread), each as a single undivided block | **Partially concurs.** The source states the variable-rate conclusion for **loans for purchasing and carrying securities only**: "The majority of NPMLs were variable-rate, so the Board assumes loans for purchasing and carrying securities have variable rates" (PDF p. 176; md sec-154) — [FACT], and the PID agrees there. For **domestic and international farmland loans the source states no rate type at all**; that absence is preserved as [FACT] and the PID supplies the project treatment. Resolves **OQ-036** for project implementation |
+
+Terminology note [FACT]: "floating" is the FR Y-14Q reported value corresponding to this document's "variable-rate" — footnote 62, "The wholesale FR Y-14Q interest rate variability value for variable-rate is floating" (PDF p. 175 footer; md 5352). PID-LOAN-1 is therefore stated in the source's own reporting vocabulary and means the variable-rate treatment throughout this brief.
+
+The PID register records a modeling treatment only; it contains no confidential workbook content, formulas, sheet names, or firm data. **No physical line-item or field mapping has been user-confirmed for loans yet.**
 
 Ownership rule for the sibling set (D-010):
 
@@ -33,7 +43,7 @@ Nothing owned above is restated here; §9 is the inheritance register that makes
 
 **Corporate's three classification rules.** [FACT] Mixed-rate and demand loans are treated as variable-rate; fee-only loans generate no interest income and are removed from **both** the average-rate calculation and the total-balances calculation; and the three data-limited portfolios inherit "the same bank-level interest rate spread as reported in their variable-rate lending to depository institutions," justified by non-purpose margin loan (NPML) analysis (PDF p. 176).
 
-**What is unresolved.** The variable-rate conclusion is stated for only one of the three data-limited portfolios (OQ-036); the data slice behind the proxy spread is ambiguous and its granularity is bank-level, unlike every other spread in the model (OQ-037); and unlike CRE, the source never names the form that defines the 11 Corporate categories (OQ-038).
+**What is unresolved.** The data slice behind the proxy spread is ambiguous and its granularity is bank-level, unlike every other spread in the model (OQ-037); and unlike CRE, the source never names the form that defines the 11 Corporate categories (OQ-038). A third gap — the source states a rate type for only one of the three data-limited portfolios (OQ-036) — is **resolved for project implementation** by PID-LOAN-1 (§0.1): all three are treated as floating. The Fed-side absence stands.
 
 ---
 
@@ -73,7 +83,7 @@ Recorded because the source draws them; neither neighbour is analyzed here.
 
 ### 3.2 Per-portfolio attribute register
 
-Coding-friendly names are this project's, not the Fed's. "Rate-split?" and "Loan-level data?" are [FACT] per §4; "Rate type if unsplit" carries the OQ-036 gap.
+Coding-friendly names are this project's, not the Fed's. "Rate-split?" and "Loan-level data?" are [FACT] per §4; "Rate type if unsplit" distinguishes the one portfolio the source assigns from the two it leaves unstated, both supplied by **PID-LOAN-1** (§0.1, §6.4).
 
 | # | Fed portfolio name | Coding-friendly name | Loan-level data on H.1? | Rate-split? | Rate type if unsplit |
 |---|---|---|---|---|---|
@@ -85,9 +95,9 @@ Coding-friendly names are this project's, not the Fed's. "Rate-split?" and "Loan
 | 6 | international owner-occupied CRE loans | `corp_oocre_intl` | Yes | Yes | — |
 | 7 | agricultural loans | `corp_agricultural` | Yes | Yes | — |
 | 8 | loans to financial institutions | `corp_fin_institutions` | Yes | Yes | — |
-| 9 | loans for purchasing and carrying securities | `corp_purch_carry_sec` | **No** [FACT] | **No** [FACT] | **variable** [FACT, stated] |
-| 10 | domestic farmland loans | `corp_farmland_dom` | **No** [FACT] | **No** [FACT] | **UNSTATED** — [INT] variable (OQ-036) |
-| 11 | international farmland loans | `corp_farmland_intl` | **No** [FACT] | **No** [FACT] | **UNSTATED** — [INT] variable (OQ-036) |
+| 9 | loans for purchasing and carrying securities | `corp_purch_carry_sec` | **No** [FACT] | **No** [FACT] | **variable/floating** — [FACT, stated]; **[PID-LOAN-1]** concurs |
+| 10 | domestic farmland loans | `corp_farmland_dom` | **No** [FACT] | **No** [FACT] | UNSTATED in source [FACT absence] → **variable/floating [PID-LOAN-1]** |
+| 11 | international farmland loans | `corp_farmland_intl` | **No** [FACT] | **No** [FACT] | UNSTATED in source [FACT absence] → **variable/floating [PID-LOAN-1]** |
 
 [INT] Rows 1–8 are marked "Yes" by elimination: the source names exactly three portfolios as lacking loan-level H.1 data, so the remaining eight have it. The source does not assert this positively for any individual portfolio.
 
@@ -187,7 +197,15 @@ Full treatment in §8.
 
 **The gap — OQ-036 [filed 2026-08-03].** The concluding sentence names **only** portfolio (9). Portfolios (10) and (11) are included in the *spread* assumption of the preceding sentence ("The Board assumes, for these portfolios…") and in the p. 186 NPML-proxy restatement, but no sentence assigns them a rate type. Since an unsegmented portfolio still needs one engine or the other, this is load-bearing.
 
-**Working assumption (flagged; user-approved 2026-08-03; never source-attributed):** all three data-limited portfolios are treated as **variable-rate**. Basis: the shared proxy spread is drawn from *variable-rate* lending; the p. 186 limitation groups all three under one NPML proxy; and the surrounding wholesale statement is that the majority of wholesale balances are variable-rate. Formally, the rate type of portfolios (10) and (11) is UNSTATED until OQ-036 resolves.
+**Project treatment — [PID-LOAN-1], user-confirmed 2026-08-03 (§0.1).** All three data-limited portfolios are treated as **floating (variable) rate** and projected on the Equation A33 path, each as a single undivided block. This **resolves OQ-036 for project implementation**; it is never presented as a Federal Reserve statement for portfolios (10) and (11), whose rate type the source leaves unstated — that absence stands as [FACT].
+
+Supporting reasoning, recorded so the decision is auditable rather than bare [INT]:
+
+- The borrowed spread is drawn from **variable-rate** lending, and in this model a "base rate + constant spread" construct **is** the variable-rate form (Eq A33). A fixed-rate treatment would instead require the Equation A37 wholesale spread — the all-loan jump-off average rate less the base rate at the median origination date — so running a variable-rate-derived spread through the fixed engine would be internally incoherent.
+- The p. 186 limitation groups all three portfolios under a single NPML proxy without distinguishing them (PDF p. 186; md sec-171).
+- The wholesale section states that "the majority of balances in wholesale are variable-rate" (PDF p. 181; md sec-163).
+
+[INT — countervailing consideration, recorded not resolved] Farmland and agricultural real-estate lending commonly carries a substantial fixed or long-reset component, so a fully-repricing treatment may overstate those balances' scenario sensitivity. The materiality of that effect depends on the firm's farmland balances and is UNKNOWN at handbook stage. The consideration does not change PID-LOAN-1; it is the reason the Fed-side absence is kept visible and OQ-036 remains open on the source side.
 
 ---
 
@@ -313,7 +331,7 @@ Nothing in this section is Fed methodology. No production Python.
 - **Rate-type mapping with a hard error.** Map the reported variability value to {fixed, variable, excluded}: *floating* → variable (fn 62), *mixed* → variable, *demand* → variable, *fee-only* → excluded. Any value outside the evidenced vocabulary must **surface and stop** — the value list is UNKNOWN (§5 item 4), so a default would be an invention (precedent: PID-SEC-5's unmapped-category hard error).
 - **Fee-only exclusion must run before share computation.** Removing fee-only balances after the denominator is formed silently understates the surviving segments' balances (§8). Worth an explicit invariant: the segment shares within a portfolio sum to one over the fee-only-excluded base.
 - **The proxy spread as a distinct input.** Give the bank-level spread its own named input rather than overloading the segment-spread container, so the OQ-037 granularity exception stays visible in the data model instead of being flattened into (b,p,i).
-- **Unsegmented portfolios still need an engine.** Portfolios (9)–(11) carry no rate-type dimension; under the §6.4 flagged assumption they route to the variable engine. Make that routing an explicitly labelled configuration decision that fails loudly if OQ-036 resolves otherwise.
+- **Unsegmented portfolios still need an engine.** Portfolios (9)–(11) carry no rate-type dimension; per **[PID-LOAN-1]** all three route to the variable/floating engine as single undivided blocks. Implement that routing as a **named, documented rule carrying the PID reference** — not a configurable switch and not an implicit default — so the decision stays visible in the code path (precedent: PID-6's treatment of the ÷4 conversion). The three portfolios should remain individually identifiable in outputs, since the source states the rate type for only one of them.
 - **Non-normative category cross-walk (unverified).** The FR Y-9C is **not** in `sources/`, so nothing below is verified against a form: the Corporate names track the loan-category language of the FR Y-9C loans-and-leases schedule (commercial and industrial; loans to foreign governments and official institutions; loans to depository institutions; agricultural production; loans secured by farmland; owner-occupied nonfarm nonresidential real estate). This is **name similarity only** — no item numbers or MDRM codes are asserted, and the mapping must be confirmed against the form instructions in the approved environment before any use. Recorded to speed that later mapping, never as methodology (OQ-038).
 
 ---
@@ -322,7 +340,7 @@ Nothing in this section is Fed methodology. No production Python.
 
 | ID | Status | Relevance |
 |---|---|---|
-| **OQ-036** | OPEN — **filed 2026-08-03** | Rate type of domestic and international farmland loans unstated; the variable-rate conclusion names only loans for purchasing and carrying securities (§6.4). Flagged working assumption: all three variable |
+| **OQ-036** | **RESOLVED FOR PROJECT IMPLEMENTATION 2026-08-03 (PID-LOAN-1)** — source-side absence preserved | Rate type of domestic and international farmland loans unstated; the variable-rate conclusion names only loans for purchasing and carrying securities (§6.4). Project treatment: all three floating/variable |
 | **OQ-037** | OPEN — **filed 2026-08-03** | NPML proxy spread: which data slice "variable-rate lending to depository institutions" denotes, and how a bank-level spread enters a (b,p,i) rate (§7.3) |
 | **OQ-038** | OPEN — **filed 2026-08-03** | The form defining the 11 Corporate disclosure categories is unstated, unlike CRE's "as defined in FR Y-9C"; "other non-consumer loans" and "other leases" undefined (§2.2, §3.3) |
 | **OQ-034** | OPEN — evidence strengthened 2026-08-03 | The 22-cell reconstruction now reconciles on both sides (16 and 6) exactly; still [INT], and no Corporate segment total is stated (§4.2) |
@@ -353,6 +371,7 @@ Nothing in this section is Fed methodology. No production Python.
 | 12 | Bank-level proxy spread from variable-rate lending to depository institutions | FACT | 176 | sec-154 | Page image 2026-08-03; OQ-037 |
 | 13 | "the FR Y-14Q Schedule H.1 schedule is able to identify NPMLs" | FACT (SQ-21) | 176 | sec-154 | Page image 2026-08-03 — doubling present in the PDF |
 | 14 | Variable-rate conclusion names only loans for purchasing and carrying securities | FACT | 176 | sec-154 | Page image 2026-08-03; OQ-036 |
+| 14a | All three data-limited portfolios treated as floating/variable | **PID-LOAN-1** | — | — | User confirmation 2026-08-03 — never attributable to the Fed for portfolios (10) and (11) |
 | 15 | NPML proxy restated for "domestic farm loans, and international farm loans" | FACT (SQ-19) | 186 | sec-171 | Page image 2026-07-30 |
 | 16 | Loan-level versus segment-level accuracy limitation | FACT | 185 | sec-171 | Page image 2026-07-30 |
 | 17 | Question A153 names corporate | FACT | 187 | sec-172 | Page image 2026-07-30 |

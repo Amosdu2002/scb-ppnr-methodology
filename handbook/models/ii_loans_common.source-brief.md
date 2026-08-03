@@ -24,7 +24,7 @@ Every material statement carries exactly one of six labels (per the ie_dom_time_
 
 ### 0.1 Project implementation decision register
 
-**No PIDs exist for the loans component yet.** No physical line-item, sheet, or scenario-column mapping has been user-confirmed for loans; every input's physical sourcing below is either source-stated [FACT] or UNKNOWN. The register will be populated at the coding/mapping stage following the pattern of the deposit and securities families (D-004/D-005/D-006 project-wide decisions apply as cited).
+**No PID affects this brief.** One loans PID exists — **PID-LOAN-1** (2026-08-03), a Corporate-scoped modeling treatment registered in `handbook/models/ii_loans_corporate.source-brief.md` §0.1 and the `handbook/open-questions.md` PID registry; it does not change any common-framework rule. **No physical line-item, sheet, or scenario-column mapping has been user-confirmed for loans**; every input's physical sourcing below is either source-stated [FACT] or UNKNOWN. The register will be populated at the coding/mapping stage following the pattern of the deposit and securities families (D-004/D-005/D-006 project-wide decisions apply as cited). *(Amended 2026-08-03 — the original text read "No PIDs exist for the loans component yet," which PID-LOAN-1 superseded; amendment recorded rather than made silently.)*
 
 **No new model is proposed anywhere in this brief.** The model documented is the Federal Reserve's proposed structural model under Equations A32–A38, unchanged.
 

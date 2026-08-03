@@ -11,7 +11,7 @@
 
 ## 0. Classification legend and scope
 
-Labels [FACT] / [PID] / [INT] / [CODE] / [OQ] / [ALT] per `ii_loans_common.source-brief.md` §0. **No PIDs exist for the loans component yet** (common brief §0.1).
+Labels [FACT] / [PID] / [INT] / [CODE] / [OQ] / [ALT] per `ii_loans_common.source-brief.md` §0. **No PID affects this brief** — the one loans PID, **PID-LOAN-1** (2026-08-03), is Corporate-scoped (`ii_loans_corporate.source-brief.md` §0.1); no physical mapping is user-confirmed for loans yet. *(Amended 2026-08-03 from "No PIDs exist for the loans component yet"; recorded, not silent.)*
 
 Scope discipline for this brief:
 
