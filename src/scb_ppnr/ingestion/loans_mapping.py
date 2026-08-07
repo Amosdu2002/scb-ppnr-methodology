@@ -218,6 +218,59 @@ def decode_segment(h1_code: object, variable_type: object, locom: object) -> Seg
     )
 
 
+# --- M.1 Balance roles ----------------------------------------------------
+# The M.1 sheet carries its own FRB NII model role per row: column A for the
+# domestic side, column B for the international one. That IS the wiring from an
+# FR Y-9C line to a Fed Category — nothing needs to be supplied separately.
+#
+# Only "Wholesale - Corp" rows belong to this model; the sheet's Retail and
+# "Wholesale - CRE" rows are other models' business and are skipped.
+M1_CORPORATE_ROLE_PREFIX = "wholesale - corp"
+
+# Normalized role suffix -> Fed Category. Matching is exact on the normalized
+# suffix, never a substring: "int farmland" and "farmland" are different
+# categories and a substring match would silently merge them.
+M1_ROLE_TO_FED_CATEGORY: Mapping[str, int] = MappingProxyType({
+    "c&i and others": 1,
+    "owned occupied cre": 2,
+    "other nonconsumer": 3,
+    "other leases": 4,
+    "foreign gov": 5,
+    "int owned occupied cre": 6,
+    "agricultural": 7,
+    "fi": 8,
+    "securities": 9,
+    "farmland": 10,
+    "int farmland": 11,
+})
+
+
+def normalize_role(label: object) -> str:
+    """Reduce an M.1 role label to a comparable form (case and spacing only)."""
+    return " ".join(str(label).strip().lower().split()) if label is not None else ""
+
+
+def m1_role_category(label: object) -> int | None:
+    """Map an M.1 role label to a Fed Category, or None if it is not Corporate.
+
+    Returns None for the sheet's Retail and Wholesale-CRE rows, which belong to
+    other models. Raises for a Corporate row whose suffix is unrecognized — the
+    label text is truncated in the workbook's display width, so an unmatched
+    Corporate role means the transcribed suffix is wrong and the run should say
+    so rather than drop that category's balance to zero."""
+    normalized = normalize_role(label)
+    if not normalized.startswith(M1_CORPORATE_ROLE_PREFIX):
+        return None
+    suffix = normalized[len(M1_CORPORATE_ROLE_PREFIX):].lstrip(" -")
+    if suffix not in M1_ROLE_TO_FED_CATEGORY:
+        raise ValidationFailure(
+            f"M.1 role {label!r} is a Corporate row but its suffix {suffix!r} is not one of "
+            f"{sorted(M1_ROLE_TO_FED_CATEGORY)}. Refused rather than skipped — skipping would "
+            f"silently zero that category's balance."
+        )
+    return M1_ROLE_TO_FED_CATEGORY[suffix]
+
+
 def is_depository_institution_row(h1_code: object) -> bool:
     """Whether a row belongs to the proxy-spread slice for the merged bucket."""
     return parse_h1_code(h1_code) in DEPOSITORY_INSTITUTION_H1_CODES

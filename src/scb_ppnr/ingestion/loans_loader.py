@@ -21,11 +21,18 @@ import datetime as _dt
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Iterable, Mapping, Sequence
 
 from ..core.schemas import ValidationFailure
 from ..interest_income.loans_schemas import LoanFacility, check_quarter_label
-from .loans_mapping import decode_segment, parse_h1_code, reference_key
+from .loans_mapping import (
+    FED_CATEGORY_NAMES,
+    decode_segment,
+    m1_role_category,
+    parse_h1_code,
+    reference_key,
+)
 from .normalize import (
     SCALE_DOLLARS,
     SCALE_PERCENT,
@@ -46,10 +53,11 @@ MDRM_PURCHASING_CARRYING_SECURITIES = "BHCK1545"
 MDRM_FARMLAND = "BHDM1420"
 MERGED_BUCKET_MDRMS = (MDRM_PURCHASING_CARRYING_SECURITIES, MDRM_FARMLAND)
 
-# The sheet's spelling is "Interest Rate Variablility" (sic). The correct
-# spelling is accepted too, because which one a given extract carries is not
-# worth a failed run — but the substitution is reported rather than silent.
-_VARIABILITY_ALIASES = ("Interest Rate Variablility", "Interest Rate Variability")
+# The sheet spells this correctly (user-confirmed 2026-08-07 — the misspelling
+# was in the message, not the workbook). The variant is still accepted second,
+# because an extract that does carry it is not worth a failed run, and any
+# substitution is reported rather than applied silently.
+_VARIABILITY_ALIASES = ("Interest Rate Variability", "Interest Rate Variablility")
 
 
 @dataclass(frozen=True)
@@ -63,6 +71,13 @@ class LoansSheetSpec:
     fry9c_header_row: int = 8
     fry9c_id_column: str = "ID_RSSD"
     fry9c_value_column_index: int = 3       # 1-based; "the third column"
+    m1_sheet: str = "M.1 Balance"
+    m1_first_data_row: int = 11
+    m1_domestic_role_column_index: int = 1    # 1-based; column A carries the domestic role
+    m1_international_role_column_index: int = 2               # column B, the international role
+    m1_domestic_value_column_indices: tuple[int, ...] = (5, 7)    # E = HFI at AC, G = HFS/FVO
+    m1_international_value_column_indices: tuple[int, ...] = (9, 11)   # I = HFI at AC, K = HFS/FVO
+    m1_scale: str = "millions"
     mev_sheet: str = "MEV"
     mev_header_row: int = 1
     mev_scenario_column: str = "Scenario Name"
@@ -356,6 +371,71 @@ def load_merged_bucket_balance(spec: LoansSheetSpec) -> tuple[float, Mapping[str
             f"treated as a zero balance."
         )
     return sum(parts.values()), parts
+
+
+def load_category_balances(spec: LoansSheetSpec) -> tuple[Mapping[str, float], LoaderCensus]:
+    """Read the per-Fed-Category portfolio balance from `M.1 Balance`.
+
+    The sheet carries its own FRB NII model role per row — column A for the
+    domestic side, column B for the international one — so the FR Y-9C line to
+    Fed Category wiring is in the workbook and nothing has to be supplied.
+
+    Domestic value columns are attributed to column A's role and international
+    ones to column B's, which is how a single FR Y-9C line feeds two categories:
+    "c. Secured by farmland" sends its domestic balance to Domestic farmland and
+    its international balance to International farmland. Retail and Wholesale-CRE
+    rows belong to other models and are skipped.
+
+    Cross-check available to the reader: these totals should reproduce the
+    `Sch M bal` column on the FRB SCALARS sheet."""
+    workbook = _open(spec.workbook)
+    try:
+        rows = [list(row) for row in _sheet(workbook, spec.m1_sheet, spec.workbook).values]
+    finally:
+        workbook.close()
+
+    context = f"{spec.workbook.name}:{spec.m1_sheet}"
+    census = LoaderCensus()
+    totals: dict[int, float] = {}
+    skipped = 0
+
+    sides = (
+        (spec.m1_domestic_role_column_index - 1, spec.m1_domestic_value_column_indices),
+        (spec.m1_international_role_column_index - 1, spec.m1_international_value_column_indices),
+    )
+
+    for offset, row in enumerate(rows[spec.m1_first_data_row - 1:], start=spec.m1_first_data_row):
+        for role_index, value_indices in sides:
+            if role_index >= len(row) or _is_missing(row[role_index]):
+                continue
+            category = m1_role_category(row[role_index])
+            if category is None:
+                skipped += 1
+                continue
+            for value_index in value_indices:
+                cell = row[value_index - 1] if value_index - 1 < len(row) else None
+                if _is_missing(cell):
+                    continue
+                where = f"{context} row {offset} col {value_index}"
+                totals[category] = totals.get(category, 0.0) + apply_money_scale(
+                    spec.m1_scale, to_float(cell, context=where), context=where
+                )
+
+    if not totals:
+        raise ValidationFailure(
+            f"{context}: no 'Wholesale - Corp' roles found from row {spec.m1_first_data_row}. "
+            f"Check m1_first_data_row and the role column indices before trusting a zero balance."
+        )
+
+    missing = sorted(set(FED_CATEGORY_NAMES) - set(totals))
+    if missing:
+        census.warnings.append(
+            f"M.1 supplied no balance for Fed Category {missing} "
+            f"({[FED_CATEGORY_NAMES[c] for c in missing]}) — those categories project zero income"
+        )
+    census.rows_read = len(totals)
+    census.warnings.append(f"skipped {skipped} non-Corporate role cells (Retail and Wholesale-CRE)")
+    return MappingProxyType({FED_CATEGORY_NAMES[c]: v for c, v in totals.items()}), census
 
 
 def load_3m_treasury(

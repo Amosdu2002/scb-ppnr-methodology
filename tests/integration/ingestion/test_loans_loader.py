@@ -17,24 +17,27 @@ from scb_ppnr.core.schemas import ValidationFailure
 from scb_ppnr.ingestion.loans_loader import (
     LoansSheetSpec,
     load_3m_treasury,
+    load_category_balances,
     load_facilities,
     load_merged_bucket_balance,
 )
 from scb_ppnr.interest_income.loans_schemas import VT_DO_NOT_USE, VT_FIXED, VT_FLOATING
 
+_VARIABILITY_HEADER = "Interest Rate Variability"
+
 H1_HEADERS = [
-    "Customer ID", "Line Reported on FR Y9C", "Interest Rate Variablility",
+    "Customer ID", "Line Reported on FR Y9C", _VARIABILITY_HEADER,
     "Lower of Cost or Market Flag", "Interest Rate", "Committed Exposure Global",
     "Utilized Exposure Global", "Interest Rate Floor", "Origination Date", "Maturity Date",
 ]
 
 
 def _workbook(tmp_path: Path, h1_rows, fry9c_rows=None, mev_rows=None,
-              variability_header="Interest Rate Variablility") -> Path:
+              variability_header="Interest Rate Variability") -> Path:
     book = openpyxl.Workbook()
     sheet = book.active
     sheet.title = "CORP H.1"
-    headers = [variability_header if h == "Interest Rate Variablility" else h for h in H1_HEADERS]
+    headers = [variability_header if h == _VARIABILITY_HEADER else h for h in H1_HEADERS]
     for _ in range(3):                       # headers sit on row 4
         sheet.append([None] * len(headers))
     sheet.append(headers)
@@ -145,13 +148,25 @@ def test_a_missing_column_names_what_is_available(tmp_path):
         load_facilities(spec)
 
 
-def test_the_corrected_spelling_is_accepted_and_the_substitution_reported(tmp_path):
+def test_the_sheets_spelling_is_primary_and_needs_no_substitution(tmp_path):
+    """User-confirmed 2026-08-07: the workbook spells it correctly."""
     path = _workbook(tmp_path, [_row("F1", 4, 1, 3)],
                      variability_header="Interest Rate Variability")
     facilities, census = load_facilities(LoansSheetSpec(workbook=path))
 
     assert facilities[0].segment.variable_type == VT_FIXED
-    assert any("Variability" in note for note in census.column_substitutions)
+    assert census.column_substitutions == []
+
+
+def test_a_misspelled_variant_still_loads_but_is_reported(tmp_path):
+    """An extract that does carry the typo is not worth a failed run — but the
+    substitution is named rather than applied silently."""
+    path = _workbook(tmp_path, [_row("F1", 4, 1, 3)],
+                     variability_header="Interest Rate Variablility")
+    facilities, census = load_facilities(LoansSheetSpec(workbook=path))
+
+    assert facilities[0].segment.variable_type == VT_FIXED
+    assert any("Variablility" in note for note in census.column_substitutions)
 
 
 def test_blank_rows_are_skipped_and_the_census_renders(tmp_path):
@@ -288,3 +303,84 @@ def test_merged_bucket_refuses_to_default_a_borrowed_spread(tmp_path):
         merged_bucket_launch_point(
             facilities, 100.0, 0.044, DEPOSITORY_INSTITUTION_H1_CODES, "merged"
         )
+
+
+# --- M.1 Balance: the sheet carries its own role wiring -------------------
+
+def _m1_workbook(tmp_path: Path, m1_rows) -> Path:
+    """M.1 layout: col A domestic role, col B international role, col C the
+    FR Y-9C line, then MDRM/value pairs for domestic HFI, domestic HFS/FVO,
+    international HFI, international HFS/FVO."""
+    path = _workbook(tmp_path, [_row("F1", 4, 1, 3)])
+    book = openpyxl.load_workbook(path)
+    sheet = book.create_sheet("M.1 Balance")
+    for _ in range(10):                      # data starts on row 11
+        sheet.append([None] * 11)
+    for row in m1_rows:
+        sheet.append(row)
+    book.save(path)
+    return path
+
+
+def _m1_row(dom_role, int_role, dom_hfi=None, dom_hfs=None, int_hfi=None, int_hfs=None):
+    return [dom_role, int_role, "some FR Y-9C line",
+            "MDRM", dom_hfi, "MDRM", dom_hfs, "MDRM", int_hfi, "MDRM", int_hfs]
+
+
+def test_category_balances_come_from_the_sheets_own_role_columns(tmp_path):
+    path = _m1_workbook(tmp_path, [
+        _m1_row("Wholesale - Corp - C&I and others", "Wholesale - Corp - C&I and others",
+                dom_hfi=135_038.0, dom_hfs=3_441.0, int_hfi=31_956.0, int_hfs=3_848.0),
+    ])
+    balances, census = load_category_balances(LoansSheetSpec(workbook=path))
+
+    assert balances["Commercial and industrial"] == pytest.approx(174_283.0)
+    assert "LOANS LOADER CENSUS" in census.render()
+
+
+def test_one_fr_y9c_line_can_feed_two_categories(tmp_path):
+    """'c. Secured by farmland' sends its domestic balance to Domestic farmland
+    and its international balance to International farmland — which is exactly
+    what the two role columns are for."""
+    path = _m1_workbook(tmp_path, [
+        _m1_row("Wholesale - Corp - farmland", "Wholesale - Corp - int farmland",
+                dom_hfi=130.0, dom_hfs=0.0, int_hfi=721.0),
+    ])
+    balances, _ = load_category_balances(LoansSheetSpec(workbook=path))
+
+    assert balances["Domestic farmland"] == pytest.approx(130.0)
+    assert balances["International farmland"] == pytest.approx(721.0)
+
+
+def test_retail_and_cre_rows_are_skipped(tmp_path):
+    path = _m1_workbook(tmp_path, [
+        _m1_row("Retail - mortgage - first lien", "Retail - noncore", dom_hfi=291_627.0),
+        _m1_row("Wholesale - CRE - construction", "Wholesale - CRE - international",
+                dom_hfi=13_656.0),
+        _m1_row("Wholesale - Corp - agricultural", "Wholesale - Corp - agricultural",
+                dom_hfi=114.0),
+    ])
+    balances, census = load_category_balances(LoansSheetSpec(workbook=path))
+
+    assert set(balances) == {"Agriculture Loans"}
+    assert balances["Agriculture Loans"] == pytest.approx(114.0)
+    assert any("non-Corporate role cells" in note for note in census.warnings)
+
+
+def test_an_unrecognized_corporate_role_is_refused_not_dropped(tmp_path):
+    """The labels are truncated by column width in the workbook's display, so a
+    role that does not match means the transcription is wrong — and dropping it
+    would silently zero that category's balance."""
+    path = _m1_workbook(tmp_path, [
+        _m1_row("Wholesale - Corp - something new", None, dom_hfi=100.0),
+    ])
+    with pytest.raises(ValidationFailure, match="not one of"):
+        load_category_balances(LoansSheetSpec(workbook=path))
+
+
+def test_categories_absent_from_m1_are_warned_about(tmp_path):
+    path = _m1_workbook(tmp_path, [
+        _m1_row("Wholesale - Corp - agricultural", None, dom_hfi=114.0),
+    ])
+    _, census = load_category_balances(LoansSheetSpec(workbook=path))
+    assert any("project zero income" in note for note in census.warnings)
