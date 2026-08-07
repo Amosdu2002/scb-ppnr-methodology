@@ -24,6 +24,7 @@ from typing import Iterable, Mapping, Sequence
 from ..core.schemas import ValidationFailure
 from .loans_schemas import (
     BASE_AT_LAUNCH_POINT,
+    CLASS_MERGED,
     BASE_AT_MEDIAN_ORIGINATION,
     EXPOSURE_COMMITTED,
     EXPOSURE_UTILIZED,
@@ -38,6 +39,7 @@ from .loans_schemas import (
     SPREAD_POOL_BY_CODE,
     TREATMENT_FIXED,
     TREATMENT_NO_INCOME,
+    VT_FLOATING,
     LoanFacility,
     PoolRate,
     SegmentKey,
@@ -258,6 +260,73 @@ def compute_reorigination_weights(
             diagnostics.wt_over_one.append((segment, quarter, value))
         weights[quarter] = value
     return MappingProxyType(weights)
+
+
+def merged_bucket_launch_point(
+    facilities: Iterable[LoanFacility],
+    balance: float,
+    launch_point_3m: float,
+    depository_h1_codes: Sequence[int],
+    merged_category_name: str,
+    floor_collapse: str = FLOOR_COLLAPSE_BALANCE_WEIGHTED,
+) -> SegmentLaunchPoint:
+    """Fed Categories 9, 10 and 11 as one floating bucket (PID-LOAN-10).
+
+    Those portfolios carry no H.1 code — the physical form of the Board's own
+    statement that they "have no loan-level data on the FR Y-14Q H.1 schedule"
+    (PDF p. 176) — so their balance comes from FR Y-9C and their rate is borrowed.
+
+    The lender is the **depository-institutions** slice, H.1 codes 1 and 2 only.
+    That is strictly narrower than Fed Category 8, which also holds code 7,
+    nondepository financial institutions: the Board writes "their variable-rate
+    lending to depository institutions" while its portfolio list says "financial
+    institutions", and this is what that gap resolves to. Only the FLOATING rows
+    of that slice price the bucket, per the workbook's own label.
+
+    The result is one variable-rate segment holding the whole merged balance;
+    `share` is left at 0 because the bucket is sized from FR Y-9C directly rather
+    than as a fraction of an H.1 category."""
+    codes = set(depository_h1_codes)
+    donors = [
+        f for f in facilities
+        if f.h1_code in codes
+        and f.segment.variable_type == VT_FLOATING
+        and f.interest_rate is not None
+    ]
+    if not donors:
+        raise ValidationFailure(
+            f"the merged 9/10/11 bucket is priced off floating lending to depository "
+            f"institutions (H.1 codes {sorted(codes)}), and no such rows carry an interest "
+            f"rate. Refused rather than defaulted — a borrowed spread that silently became "
+            f"zero would reprice the whole bucket to the base rate."
+        )
+
+    weight = sum(f.exposure(EXPOSURE_COMMITTED) for f in donors)
+    if weight <= 0.0:
+        raise ValidationFailure(
+            "the depository-institutions floating rows carry no committed exposure, so no "
+            "balance-weighted rate can be formed for the merged 9/10/11 bucket"
+        )
+    pool_rate = sum(f.exposure(EXPOSURE_COMMITTED) * f.interest_rate for f in donors) / weight
+
+    segment = SegmentKey(
+        category=merged_category_name, locom=CLASS_MERGED, variable_type=VT_FLOATING
+    )
+    floor, dispersion = collapse_floor(donors, floor_collapse, EXPOSURE_COMMITTED)
+    return SegmentLaunchPoint(
+        segment=segment,
+        share=0.0,
+        balance=balance,
+        spread=SegmentSpread(
+            segment=segment,
+            spread=pool_rate - launch_point_3m,
+            pool_rate=pool_rate,
+            base_rate=launch_point_3m,
+            base_quarter=None,
+        ),
+        floor=floor,
+        floor_dispersion=dispersion,
+    )
 
 
 def build_launch_point(

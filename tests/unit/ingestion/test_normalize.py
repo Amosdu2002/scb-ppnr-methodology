@@ -70,7 +70,13 @@ def test_apply_money_scale_refuses_undeclared(scale):
 
 def test_apply_money_scale_rejects_unknown_unit():
     with pytest.raises(ValidationFailure, match="millions.*billions"):
-        apply_money_scale("thousands", 1.0, context="t")
+        apply_money_scale("furlongs", 1.0, context="t")
+
+
+def test_apply_money_scale_converts_thousands():
+    """PID-LOAN-10: the FR Y-9C extract reports in thousands. (This unit was the
+    example of an UNKNOWN one until the loans work needed it.)"""
+    assert apply_money_scale("thousands", 1_500_000.0, context="t") == pytest.approx(1_500.0)
 
 
 def test_to_float():

@@ -21,6 +21,7 @@ SCALE_DECIMAL = "decimal"
 SCALE_MILLIONS = "millions"
 SCALE_BILLIONS = "billions"
 SCALE_DOLLARS = "dollars"   # securities workbook amounts (PID-SEC-6): whole USD → millions
+SCALE_THOUSANDS = "thousands"   # FR Y-9C extract amounts (PID-LOAN-10): USD thousands → millions
 
 
 @dataclass(frozen=True, order=True)
@@ -111,6 +112,9 @@ def apply_money_scale(scale: object, value: float, *, context: str) -> float:
         return value * 1000.0
     if declared == SCALE_DOLLARS:
         return value / 1_000_000.0
+    if declared == SCALE_THOUSANDS:
+        return value / 1_000.0
     raise ValidationFailure(
-        f"{context}: scale must be '{SCALE_MILLIONS}', '{SCALE_BILLIONS}', or '{SCALE_DOLLARS}', got {scale!r}"
+        f"{context}: scale must be '{SCALE_MILLIONS}', '{SCALE_BILLIONS}', '{SCALE_DOLLARS}', "
+        f"or '{SCALE_THOUSANDS}', got {scale!r}"
     )

@@ -73,6 +73,11 @@ SPREAD_BASE_BY_CODE: Mapping[int, str] = MappingProxyType({
     VT_MIXED: BASE_AT_MEDIAN_ORIGINATION,
 })
 
+# The asset-class marker for the merged 9/10/11 bucket (PID-LOAN-10). Those
+# portfolios come from FR Y-9C rather than H.1, so they carry no LOCOM flag and
+# must not be mistaken for either real class.
+CLASS_MERGED = "MERGED"
+
 # --- Floor collapse (PID-LOAN-7) ------------------------------------------
 FLOOR_COLLAPSE_BALANCE_WEIGHTED = "balance_weighted"
 FLOOR_COLLAPSE_MAX = "max"
@@ -169,6 +174,10 @@ class LoanFacility:
     interest_rate_floor: float | None = None
     origination_date: date | None = None
     maturity_date: date | None = None
+    h1_code: int | None = None   # retained after decoding: the Fed Category collapses
+                                 # codes 1, 2 and 7 together, but the merged 9/10/11
+                                 # bucket is priced off codes 1 and 2 ONLY — the
+                                 # depository-institutions slice (PID-LOAN-10)
 
     def __post_init__(self) -> None:
         require_id("facility_id", self.facility_id)
