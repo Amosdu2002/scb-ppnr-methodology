@@ -247,25 +247,24 @@ TABLE_A8_RETAIL_ROWS = ("Auto", "Credit Card", "Mortgage", "Noncore")
 
 # Fed Category -> Table A8 row.
 #
-# [INT] — NOT a Federal Reserve statement. Table A8 has seven portfolio rows
-# while the model works in eleven Fed Categories, and the source never states the
-# correspondence; footnote 63 even lists EIGHT categories against the table's
-# seven (SQ-11). This is the project's reading, and it is reported per run so it
-# is never invisible. OQ-010 stays open.
+# [PID-LOAN-11, amended — USER-CONFIRMED 2026-08-07]. NOT a Federal Reserve
+# statement: Table A8 has seven portfolio rows while the model works in eleven
+# Fed Categories, and the source states no correspondence (footnote 63 even
+# lists EIGHT categories against the table's seven — SQ-11). The assignment
+# below is the project's, confirmed by the user, and OQ-010 remains open on the
+# source side and for the CRE and Retail portfolios.
 #
-# Only three rows are wholesale-relevant. Category 1 takes the row that names it.
-# Everything with no better home takes "Rest of wholesale". The one genuinely
-# uncertain assignment is Category 2, Domestic owner-occupied CRE: it is domestic
-# CRE by name, but the Fed's "Domestic CRE" row may be intended for the separate
-# CRE model's non-owner-occupied portfolios. Category 6 cannot take a DOMESTIC
-# row at all, which is why it sits in "Rest of wholesale" regardless.
+# Only three rows are wholesale-relevant: Category 1 takes the row that names
+# it, Category 2 takes Domestic CRE, and every remaining Corporate category
+# takes "Rest of wholesale" — including Category 6, since a DOMESTIC row cannot
+# apply to international owner-occupied CRE, and the merged 9/10/11 bucket.
 TABLE_A8_BY_FED_CATEGORY: Mapping[int, str] = MappingProxyType({
     1: "C&I, noncore SME loan and card",
-    2: "Domestic CRE",            # <- the uncertain one (OQ-010)
+    2: "Domestic CRE",
     3: "Rest of wholesale",
     4: "Rest of wholesale",
     5: "Rest of wholesale",
-    6: "Rest of wholesale",       # international: a "Domestic CRE" row cannot apply
+    6: "Rest of wholesale",
     7: "Rest of wholesale",
     8: "Rest of wholesale",
     9: "Rest of wholesale",
@@ -273,9 +272,10 @@ TABLE_A8_BY_FED_CATEGORY: Mapping[int, str] = MappingProxyType({
     11: "Rest of wholesale",
 })
 
-# Assignments the source does not support and the project cannot verify. Reported
-# with the scalar census so a reviewer sees the soft spot without reading code.
-UNCERTAIN_SCALAR_CATEGORIES = (2,)
+# Assignments the project has NOT had confirmed. Empty for Corporate since
+# 2026-08-07; the machinery stays because CRE and Retail reach the same table
+# with the same seven rows and the same unstated correspondence.
+UNCERTAIN_SCALAR_CATEGORIES: tuple[int, ...] = ()
 
 
 def scalars_by_category_name(

@@ -152,22 +152,30 @@ def test_every_fed_category_gets_a_scalar_and_none_lands_in_a_retail_row():
     assert not set(TABLE_A8_BY_FED_CATEGORY.values()) & set(TABLE_A8_RETAIL_ROWS)
 
 
-def test_the_uncertain_assignment_warns_on_every_run():
-    """OQ-010 is unresolved, so the interpretation announces itself rather than
-    passing as a fact."""
+def test_the_user_confirmed_assignment():
+    """PID-LOAN-11 as amended 2026-08-07: C&I takes the row that names it,
+    Domestic owner-occupied CRE takes Domestic CRE, everything else takes Rest
+    of wholesale. Confirmed, so the run no longer flags it as interpretation."""
     from scb_ppnr.ingestion.loans_mapping import scalars_by_category_name
 
     mapping, warnings = scalars_by_category_name()
+
+    assert mapping["Commercial and industrial"] == pytest.approx(1.033)
     assert mapping["Domestic owner-occupied CRE"] == pytest.approx(1.081)
-    assert any("OQ-010" in w and "Domestic owner-occupied CRE" in w for w in warnings)
+    rest = {name for name, value in mapping.items() if value == pytest.approx(1.113)}
+    assert rest == set(FED_CATEGORY_NAMES.values()) - {
+        "Commercial and industrial", "Domestic owner-occupied CRE"
+    }
+    assert warnings == ()
 
 
-def test_an_override_settles_the_assignment_and_silences_its_warning():
+def test_an_override_still_works_for_the_portfolios_yet_to_be_confirmed():
+    """CRE and Retail reach the same seven rows with the same unstated
+    correspondence, so the override path stays live."""
     from scb_ppnr.ingestion.loans_mapping import scalars_by_category_name
 
-    mapping, warnings = scalars_by_category_name({2: "Rest of wholesale"})
+    mapping, _ = scalars_by_category_name({2: "Rest of wholesale"})
     assert mapping["Domestic owner-occupied CRE"] == pytest.approx(1.113)
-    assert not any("OQ-010" in w for w in warnings)
 
 
 def test_a_bad_override_is_refused():
