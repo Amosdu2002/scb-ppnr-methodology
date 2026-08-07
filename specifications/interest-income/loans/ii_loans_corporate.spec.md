@@ -147,12 +147,27 @@ Recorded so they are visible, never smoothed over. Each is a legitimate company 
 | Item | Status |
 |---|---|
 | Floors are per facility; the model projects one rate per segment | Working treatment: balance-weighted floor per segment with within-segment dispersion logged — **flagged, awaiting confirmation** |
+| **Which rate carries forward through the Equation A38 recursion when a floor binds** | §6.2 says only "floor applied after blending". Implemented so the **floored** rate carries forward — a binding floor means the portfolio really is earning its floor, so the next quarter's carried component is that rate rather than a shadow value the loans never earned. The unfloored path is returned alongside so the cost of a bind is measurable. **Flagged decision, awaiting confirmation** |
+| **Which exposure measure weights segment shares** | The Fed says "percentage of **outstanding** balance" (PDF p. 174), which points at utilized; the rate pools use committed. Implemented as a parameter defaulting to **committed**, for consistency with the pools. **Flagged, awaiting confirmation** |
+| **Median origination date weighting** | Implemented as an unweighted row median (`median_low`, so the quarter is one a loan was really originated in). The Fed says only "the median origination date … for that portfolio" (PDF p. 182) — a balance-weighted median is the other defensible reading |
 | Rows with NA `Interest Rate` leave the rate pool; their balances remain in the portfolio balance and so implicitly earn the segment rate | Flagged working assumption; the §8 dropout census quantifies it |
 | Rate and money unit scales | TO_BE_CONFIRMED — refuses to run |
 | OQ-037 (NPML proxy data slice) | May be moot for this project — see divergence 4 |
 | OQ-010 (scalar row → category mapping) | Open; the FRB Scalars sheet may resolve it physically |
 
-## 10. PID index
+## 10. Implementation status
+
+| Layer | Module | State |
+|---|---|---|
+| Canonical containers | `interest_income/loans_schemas.py` | **Landed** — Variable Type vocabulary, pool membership, the two differing spread lookups, facility and segment containers |
+| Launch point (§3–§5, §6.2 wt, floors) | `interest_income/loans_launchpoint.py` | **Landed** — pool rates, spreads, median-origination lookup with the zero fallback censused by cause, shares, floor collapse, wt |
+| Projection (§6.1–§6.4) | `interest_income/loans_projection.py` | **Landed** — A33 variable engine, A34/A38 fixed engine, no-income routing, scalar roll-up |
+| Diagnostics (§8) | both modules | **Landed** — base-rate fallbacks by cause, dropped rate rows by pool, floor dispersion, wt > 1, floor binds, negative rates, dormant balance, scalars applied |
+| Workbook binding (§2) | `ingestion/loans_loader.py` | **Not started** — waits on the sheet layout and column headers |
+
+Tests: `tests/unit/interest_income/test_loans_launchpoint.py`, `test_loans_projection.py`, and `tests/integration/interest_income/test_loans_corporate_end_to_end.py` — synthetic inputs only, arithmetic worked by hand in the assertions.
+
+## 11. PID index
 
 | ID | Covers |
 |---|---|
