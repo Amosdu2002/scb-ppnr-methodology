@@ -221,3 +221,99 @@ def decode_segment(h1_code: object, variable_type: object, locom: object) -> Seg
 def is_depository_institution_row(h1_code: object) -> bool:
     """Whether a row belongs to the proxy-spread slice for the merged bucket."""
     return parse_h1_code(h1_code) in DEPOSITORY_INSTITUTION_H1_CODES
+
+
+# --- Industry scalars: Table A8 (PID-LOAN-11) -----------------------------
+# Federal Reserve published values, Table A8 "Scalars for Proposed Interest
+# Income on Loans Model" (PDF p. 220; md sec-209). Image-verified 2026-07-16 and
+# re-verified 2026-08-03; identical to the workbook's FRB scalar column, which is
+# why the values are taken from the source directly rather than parsed.
+#
+# [FACT] These seven values are the Fed's. Everything below about WHICH loan
+# portfolio each one multiplies is [INT] — see TABLE_A8_BY_FED_CATEGORY.
+TABLE_A8_SCALARS: Mapping[str, float] = MappingProxyType({
+    "Auto": 0.865,
+    "C&I, noncore SME loan and card": 1.033,
+    "Credit Card": 0.969,
+    "Domestic CRE": 1.081,
+    "Mortgage": 1.014,
+    "Noncore": 1.072,
+    "Rest of wholesale": 1.113,
+})
+
+# The four retail rows are out of Corporate's scope and are listed only so the
+# census can show that nothing silently fell into them.
+TABLE_A8_RETAIL_ROWS = ("Auto", "Credit Card", "Mortgage", "Noncore")
+
+# Fed Category -> Table A8 row.
+#
+# [INT] — NOT a Federal Reserve statement. Table A8 has seven portfolio rows
+# while the model works in eleven Fed Categories, and the source never states the
+# correspondence; footnote 63 even lists EIGHT categories against the table's
+# seven (SQ-11). This is the project's reading, and it is reported per run so it
+# is never invisible. OQ-010 stays open.
+#
+# Only three rows are wholesale-relevant. Category 1 takes the row that names it.
+# Everything with no better home takes "Rest of wholesale". The one genuinely
+# uncertain assignment is Category 2, Domestic owner-occupied CRE: it is domestic
+# CRE by name, but the Fed's "Domestic CRE" row may be intended for the separate
+# CRE model's non-owner-occupied portfolios. Category 6 cannot take a DOMESTIC
+# row at all, which is why it sits in "Rest of wholesale" regardless.
+TABLE_A8_BY_FED_CATEGORY: Mapping[int, str] = MappingProxyType({
+    1: "C&I, noncore SME loan and card",
+    2: "Domestic CRE",            # <- the uncertain one (OQ-010)
+    3: "Rest of wholesale",
+    4: "Rest of wholesale",
+    5: "Rest of wholesale",
+    6: "Rest of wholesale",       # international: a "Domestic CRE" row cannot apply
+    7: "Rest of wholesale",
+    8: "Rest of wholesale",
+    9: "Rest of wholesale",
+    10: "Rest of wholesale",
+    11: "Rest of wholesale",
+})
+
+# Assignments the source does not support and the project cannot verify. Reported
+# with the scalar census so a reviewer sees the soft spot without reading code.
+UNCERTAIN_SCALAR_CATEGORIES = (2,)
+
+
+def scalars_by_category_name(
+    overrides: Mapping[int, str] | None = None,
+) -> tuple[Mapping[str, float], tuple[str, ...]]:
+    """Build the {Fed Category name -> scalar} map the projection consumes.
+
+    `overrides` replaces individual Category -> Table A8 row assignments once the
+    correspondence is settled. Returns the map plus warning lines naming every
+    assignment the source does not support, so the run reports its own soft spots
+    rather than presenting an interpretation as a fact."""
+    assignments = dict(TABLE_A8_BY_FED_CATEGORY)
+    if overrides:
+        for category, row in overrides.items():
+            if category not in FED_CATEGORY_NAMES:
+                raise ValidationFailure(
+                    f"scalar override names Fed Category {category}, which does not exist "
+                    f"(expected {sorted(FED_CATEGORY_NAMES)})"
+                )
+            if row not in TABLE_A8_SCALARS:
+                raise ValidationFailure(
+                    f"scalar override for Fed Category {category} names Table A8 row {row!r}, "
+                    f"which is not one of {sorted(TABLE_A8_SCALARS)}"
+                )
+            assignments[category] = row
+
+    mapping = {FED_CATEGORY_NAMES[c]: TABLE_A8_SCALARS[row] for c, row in assignments.items()}
+
+    warnings: list[str] = []
+    for category in UNCERTAIN_SCALAR_CATEGORIES:
+        if overrides and category in overrides:
+            continue
+        warnings.append(
+            f"OQ-010: Fed Category {category} ({FED_CATEGORY_NAMES[category]}) is assigned "
+            f"Table A8 row {assignments[category]!r} by interpretation — the source states no "
+            f"category-to-row correspondence. Confirm or override."
+        )
+    retail = sorted({row for row in assignments.values()} & set(TABLE_A8_RETAIL_ROWS))
+    if retail:
+        warnings.append(f"a Corporate category is mapped to a RETAIL Table A8 row: {retail}")
+    return MappingProxyType(mapping), tuple(warnings)

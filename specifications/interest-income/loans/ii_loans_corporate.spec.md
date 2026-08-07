@@ -20,7 +20,7 @@ One workbook, multiple sheets. Layout is company-local configuration; only the l
 | **CORP H.1** | Facility-level records: `Interest Rate`, `Committed Exposure Global`, `Utilized Exposure Global`, `Interest Rate Floor`, `Maturity Date`, origination date, and the three mapping columns | §4, §5, §6 |
 | **H.1 mapping** | The three-part reference key: Fed Category (1–11), Variable Type code (0–4), Lower-of-Cost-or-Market flag | §3 |
 | **M.1 Balance** | Portfolio balance by category — the Equation A32 multiplicand | §6 |
-| **FRB Scalars** | Table A8 industry scalars, applied constant every quarter | §6 |
+| ~~**FRB Scalars**~~ | **No longer a workbook input** (user-directed 2026-08-07): the scalars are taken from the Federal Reserve's **Table A8** directly (PDF p. 220), whose seven values are identical to the sheet's FRB column. Removes a parsing dependency and a chance to drift from the published values | §6 |
 | **MEVs** | 3-month Treasury path for PQ1–PQ9 **and history back to 1976 Q1** (§5.2) | §5 |
 | **FR Y-9C** | Category reconciliation at the launch point | validation |
 

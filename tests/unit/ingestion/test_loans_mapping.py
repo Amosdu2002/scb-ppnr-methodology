@@ -119,3 +119,61 @@ def test_depository_slice_is_narrower_than_loans_to_financial_institutions():
     assert not is_depository_institution_row(7)
     # ... yet all three sit inside the same Fed Category
     assert {H1_CODE_TO_FED_CATEGORY[c] for c in (1, 2, 7)} == {8}
+
+
+# --- Table A8 scalars (PID-LOAN-11) ---------------------------------------
+
+def test_table_a8_values_match_the_published_table():
+    """PDF p. 220, image-verified. The workbook's FRB column is identical, which
+    is why the values come from the source rather than being parsed."""
+    from scb_ppnr.ingestion.loans_mapping import TABLE_A8_SCALARS
+
+    assert TABLE_A8_SCALARS == {
+        "Auto": 0.865,
+        "C&I, noncore SME loan and card": 1.033,
+        "Credit Card": 0.969,
+        "Domestic CRE": 1.081,
+        "Mortgage": 1.014,
+        "Noncore": 1.072,
+        "Rest of wholesale": 1.113,
+    }
+
+
+def test_every_fed_category_gets_a_scalar_and_none_lands_in_a_retail_row():
+    from scb_ppnr.ingestion.loans_mapping import (
+        TABLE_A8_BY_FED_CATEGORY,
+        TABLE_A8_RETAIL_ROWS,
+        scalars_by_category_name,
+    )
+
+    assert sorted(TABLE_A8_BY_FED_CATEGORY) == list(range(1, 12))
+    mapping, _ = scalars_by_category_name()
+    assert set(mapping) == set(FED_CATEGORY_NAMES.values())
+    assert not set(TABLE_A8_BY_FED_CATEGORY.values()) & set(TABLE_A8_RETAIL_ROWS)
+
+
+def test_the_uncertain_assignment_warns_on_every_run():
+    """OQ-010 is unresolved, so the interpretation announces itself rather than
+    passing as a fact."""
+    from scb_ppnr.ingestion.loans_mapping import scalars_by_category_name
+
+    mapping, warnings = scalars_by_category_name()
+    assert mapping["Domestic owner-occupied CRE"] == pytest.approx(1.081)
+    assert any("OQ-010" in w and "Domestic owner-occupied CRE" in w for w in warnings)
+
+
+def test_an_override_settles_the_assignment_and_silences_its_warning():
+    from scb_ppnr.ingestion.loans_mapping import scalars_by_category_name
+
+    mapping, warnings = scalars_by_category_name({2: "Rest of wholesale"})
+    assert mapping["Domestic owner-occupied CRE"] == pytest.approx(1.113)
+    assert not any("OQ-010" in w for w in warnings)
+
+
+def test_a_bad_override_is_refused():
+    from scb_ppnr.ingestion.loans_mapping import scalars_by_category_name
+
+    with pytest.raises(ValidationFailure, match="does not exist"):
+        scalars_by_category_name({99: "Rest of wholesale"})
+    with pytest.raises(ValidationFailure, match="not one of"):
+        scalars_by_category_name({2: "Not A Row"})
