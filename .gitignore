@@ -11,3 +11,4 @@ config/local/
 # Local run outputs — carry security identifiers and firm amounts; never commit.
 securities_report*.txt
 *gaps*.csv
+loans_report*.txt

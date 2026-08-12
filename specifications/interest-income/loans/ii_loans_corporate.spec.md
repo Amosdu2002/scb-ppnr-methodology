@@ -151,7 +151,8 @@ Recorded so they are visible, never smoothed over. Each is a legitimate company 
 | **Which exposure measure weights segment shares** | The Fed says "percentage of **outstanding** balance" (PDF p. 174), which points at utilized; the rate pools use committed. Implemented as a parameter defaulting to **committed**, for consistency with the pools. **Flagged, awaiting confirmation** |
 | **Median origination date weighting** | Implemented as an unweighted row median (`median_low`, so the quarter is one a loan was really originated in). The Fed says only "the median origination date … for that portfolio" (PDF p. 182) — a balance-weighted median is the other defensible reading |
 | Rows with NA `Interest Rate` leave the rate pool; their balances remain in the portfolio balance and so implicitly earn the segment rate | Flagged working assumption; the §8 dropout census quantifies it |
-| Rate and money unit scales | TO_BE_CONFIRMED — refuses to run |
+| Rate and money unit scales | **CONFIRMED 2026-08-07** (user-stated): H.1 rates/floors decimal; H.1 exposures whole dollars; M.1 millions; FR Y-9C thousands; MEV percent — all declared in `LoansSheetSpec` |
+| **Mixed segment with no Fixed siblings in its category/LOCOM cell** | Mixed borrows the Fixed pool's rate (PID-LOAN-4); a cell holding Mixed rows but **no Fixed rows** has no pool to borrow, and the run **stops with a named error** rather than defaulting. What the workbook itself does in that case is UNKNOWN — surfaced by the synthetic demo 2026-08-12; ask if the first real run hits it |
 | OQ-037 (NPML proxy data slice) | May be moot for this project — see divergence 4 |
 | OQ-010 (scalar row → category mapping) | Open; the FRB Scalars sheet may resolve it physically |
 
@@ -163,7 +164,10 @@ Recorded so they are visible, never smoothed over. Each is a legitimate company 
 | Launch point (§3–§5, §6.2 wt, floors) | `interest_income/loans_launchpoint.py` | **Landed** — pool rates, spreads, median-origination lookup with the zero fallback censused by cause, shares, floor collapse, wt |
 | Projection (§6.1–§6.4) | `interest_income/loans_projection.py` | **Landed** — A33 variable engine, A34/A38 fixed engine, no-income routing, scalar roll-up |
 | Diagnostics (§8) | both modules | **Landed** — base-rate fallbacks by cause, dropped rate rows by pool, floor dispersion, wt > 1, floor binds, negative rates, dormant balance, scalars applied |
-| Workbook binding (§2) | `ingestion/loans_loader.py` | **Not started** — waits on the sheet layout and column headers |
+| Reference-key decoding + Table A8 (PID-LOAN-9/11) | `ingestion/loans_mapping.py` | **Landed** — the two collapses (H.1 code→Fed Category many-to-one; LOCOM 3→2), `[NULL]` = DO NOT USE, the depository slice, the user-confirmed scalar assignment |
+| Workbook binding (§2, PID-LOAN-8/10) | `ingestion/loans_loader.py` | **Landed** — CORP H.1 (header row 4), M.1 Balance (role columns A/B wire FR Y-9C lines to categories), FR-Y9C merged-bucket MDRMs, MEV history/projection split; four declared unit scales |
+| Runner | `examples/run_loans.py` | **Landed** — synthetic demo + company run; censuses print before results; `--report` (gitignored `loans_report*.txt`) |
+| Reference comparison | — | **Not started** — waits on whether the workbook carries reference results for loans (the securities `II_PQ` pattern) |
 
 Tests: `tests/unit/interest_income/test_loans_launchpoint.py`, `test_loans_projection.py`, and `tests/integration/interest_income/test_loans_corporate_end_to_end.py` — synthetic inputs only, arithmetic worked by hand in the assertions.
 

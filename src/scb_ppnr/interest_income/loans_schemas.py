@@ -127,6 +127,18 @@ def quarter_label(when: date) -> str:
     return f"{when.year}Q{(when.month - 1) // 3 + 1}"
 
 
+def projection_quarter_index(when: date, launch_point: str, horizon: int = 9) -> int | None:
+    """Map a calendar date to its projection-quarter index, or None outside PQ1..PQn.
+
+    With launch point '2024Q4' (PQ0), 2025Q1 is PQ1 and 2027Q1 is PQ9. Feeds the
+    wt maturity bucketing (PID-LOAN-6): a maturity in the launch quarter or
+    earlier, or beyond the horizon, contributes to no wt."""
+    label = check_quarter_label("launch_point", launch_point)
+    launch_year, launch_quarter = int(label[:4]), int(label[5])
+    index = (when.year - launch_year) * 4 + ((when.month - 1) // 3 + 1 - launch_quarter)
+    return index if 1 <= index <= horizon else None
+
+
 @dataclass(frozen=True)
 class SegmentKey:
     """The CORP H.1 three-part reference key (PID-LOAN-2).
