@@ -653,3 +653,27 @@ def test_reference_engine_reproduces_the_workbook_construction(tmp_path):
     assert fixed.floor == 0.0
     # no separate mixed segment survives
     assert SegmentKey("Commercial and industrial", "HFI", 3) not in launch
+
+
+def test_reference_merged_bucket_donor_pool_includes_mixed(tmp_path):
+    """The reference's float-pool convention includes MIXED rows; under
+    include_mixed the depository donor pool does too, pulling the borrowed
+    rate up when mixed carries higher (past-set) rates."""
+    from scb_ppnr.ingestion.loans_mapping import DEPOSITORY_INSTITUTION_H1_CODES
+    from scb_ppnr.interest_income.loans_launchpoint import merged_bucket_launch_point
+
+    path = _workbook(tmp_path, [
+        _row("D-FLT", 1, 2, 3, rate=0.054, committed=800e6),
+        _row("D-MIX", 1, 3, 3, rate=0.062, committed=200e6),
+    ])
+    facilities, _ = load_facilities(LoansSheetSpec(workbook=path))
+
+    floating_only = merged_bucket_launch_point(
+        facilities, 100.0, 0.044, DEPOSITORY_INSTITUTION_H1_CODES, "merged"
+    )
+    with_mixed = merged_bucket_launch_point(
+        facilities, 100.0, 0.044, DEPOSITORY_INSTITUTION_H1_CODES, "merged", include_mixed=True
+    )
+
+    assert floating_only.spread.pool_rate == pytest.approx(0.054)
+    assert with_mixed.spread.pool_rate == pytest.approx(0.8 * 0.054 + 0.2 * 0.062)

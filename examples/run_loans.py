@@ -113,9 +113,23 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         engine=engine,
         side_balances=side_balances,
     )
+    if engine == "reference":
+        # The reference bucket's balance is the M.1 sum of categories 9/10/11
+        # (92,637-style), not the FR Y-9C MDRMs; its donor pool is the float
+        # pool convention, which includes MIXED rows.
+        m1_merged = sum(
+            balances.get(FED_CATEGORY_NAMES[c], 0.0) for c in (9, 10, 11)
+        )
+        if m1_merged > 0.0:
+            emit(
+                f"MERGED BUCKET BALANCE (reference engine): {m1_merged:,.1f} from M.1 "
+                f"categories 9/10/11 (FR Y-9C alternative: {merged_balance:,.1f})"
+            )
+            merged_balance = m1_merged
     merged = merged_bucket_launch_point(
         facilities, merged_balance, launch_3m, DEPOSITORY_INSTITUTION_H1_CODES,
         FED_CATEGORY_NAMES[9], floor_collapse=floor_collapse,
+        include_mixed=(engine == "reference"),
     )
     emit(launch_diagnostics.render())
 

@@ -270,6 +270,7 @@ def merged_bucket_launch_point(
     depository_h1_codes: Sequence[int],
     merged_category_name: str,
     floor_collapse: str = FLOOR_COLLAPSE_BALANCE_WEIGHTED,
+    include_mixed: bool = False,
 ) -> SegmentLaunchPoint:
     """Fed Categories 9, 10 and 11 as one floating bucket (PID-LOAN-10).
 
@@ -288,10 +289,11 @@ def merged_bucket_launch_point(
     `share` is left at 0 because the bucket is sized from FR Y-9C directly rather
     than as a fraction of an H.1 category."""
     codes = set(depository_h1_codes)
+    donor_types = {VT_FLOATING, VT_MIXED} if include_mixed else {VT_FLOATING}
     donors = [
         f for f in facilities
         if f.h1_code in codes
-        and f.segment.variable_type == VT_FLOATING
+        and f.segment.variable_type in donor_types
         and f.interest_rate is not None
     ]
     if not donors:
