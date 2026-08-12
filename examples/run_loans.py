@@ -58,7 +58,7 @@ from scb_ppnr.interest_income.loans_schemas import projection_quarter_index
 def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
          floor_collapse: str = "balance_weighted", apply_scalar: bool = True,
          share_basis: str = "committed", balance_source: str = "m1",
-         collected: list[str] | None = None) -> str:
+         engine: str = "pid", collected: list[str] | None = None) -> str:
     """Each section PRINTS the moment it is produced (the securities-loop
     lesson): a failure deep in the run must never hide the censuses that
     explain it. `collected` receives the sections for the report file even
@@ -72,7 +72,7 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
     quarters = PROJECTION_QUARTERS
 
     facilities, load_census = load_facilities(spec)
-    balances, m1_census = load_category_balances(spec)
+    balances, side_balances, m1_census = load_category_balances(spec)
     merged_balance, merged_parts = load_merged_bucket_balance(spec)
     history, base_path, launch_3m = load_3m_treasury(spec, scenario, quarters, launch_point)
 
@@ -83,7 +83,7 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         f"  launch point  : {launch_point} (PQ0); PQ1..PQ9 follow\n"
         f"  3M at PQ0     : {launch_3m:.4%}   history quarters: {len(history)} "
         f"(earliest {min(history)})\n"
-        f"  floor collapse: {floor_collapse}   share basis: {share_basis}"
+        f"  engine: {engine}   floor collapse: {floor_collapse}   share basis: {share_basis}"
         f"   balance source: {balance_source}\n"
         f"  units         : USD millions; annualized decimal rates"
     )
@@ -110,6 +110,8 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         share_measure=share_basis,
         floor_collapse=floor_collapse,
         balance_source=balance_source,
+        engine=engine,
+        side_balances=side_balances,
     )
     merged = merged_bucket_launch_point(
         facilities, merged_balance, launch_3m, DEPOSITORY_INSTITUTION_H1_CODES,
@@ -208,24 +210,28 @@ def _compare(reference, projections, base_path, quarters, scalars) -> str:
         VT_FIXED, VT_FLOATING, VT_MIXED,
     )
 
+    from scb_ppnr.ingestion.loans_mapping import scalars_by_category_name
+
+    # The reference's row structure (settled 2026-08-12): Fixed and Variable rows
+    # are UNSCALED, and Total = (Fixed + Variable) x the Table A8 scalar — verified
+    # exact on every transcribed block. So: our fixed/variable streams compare RAW
+    # (mixed folds into variable — the reference carries no separate mixed row),
+    # and our total compares with the scalar applied.
+    a8, _ = scalars_by_category_name()
     ours: dict[tuple[str, str], dict[str, dict[int, float]]] = {}
-    stream_of = {VT_FIXED: "fixed", VT_FLOATING: "variable", VT_MIXED: "mixed"}
+    stream_of = {VT_FIXED: "fixed", VT_FLOATING: "variable", VT_MIXED: "variable"}
     for key, projection in projections.items():
         stream = stream_of.get(key.variable_type)
         if key.locom == "MERGED":
             stream = "variable"                     # the merged bucket is one floating block
         if stream is None:
             continue
-        # Ours follows the run's scalar basis: with apply_scalar=true both sides
-        # carry the industry scalar (they cancel in the ratio IF the reference
-        # used the same per-category values); with apply_scalar=false ours is raw.
-        factor = scalars.get(key.category, 1.0) if scalars else 1.0
         block = ours.setdefault((key.category, key.locom), {})
         path = block.setdefault(stream, {q: 0.0 for q in quarters})
         for q in quarters:
-            path[q] += projection.income_path[q] * factor
-    basis = "scaled x Table A8, matching the reference's stated basis" if scalars else "UNSCALED"
-    lines = [f"LOANS COMPARE (ours {basis}; USD millions; ratio = ours/theirs)"]
+            path[q] += projection.income_path[q]
+    lines = ["LOANS COMPARE (fixed/variable UNSCALED both sides; total = ours x Table A8 vs "
+             "theirs Total; ratio = ours/theirs)"]
     lines.append("  block                                     stream       PQ1 o/t          PQ2 o/t          9Q o/t            ratio")
 
     def fmt(pair):
@@ -242,14 +248,11 @@ def _compare(reference, projections, base_path, quarters, scalars) -> str:
         total_theirs = streams.get("total", {})
         if all(total_theirs.get(q, 0.0) == 0.0 for q in quarters):
             continue
-        mixed_theirs = {
-            q: total_theirs.get(q, 0.0) - streams.get("fixed", {}).get(q, 0.0)
-               - streams.get("variable", {}).get(q, 0.0)
-            for q in quarters
-        }
         block_ours = ours.get(key, {})
+        scalar = a8.get(category, 1.0)
         totals_ours = {
-            q: sum(block_ours.get(name, {}).get(q, 0.0) for name in ("fixed", "variable", "mixed"))
+            q: (block_ours.get("fixed", {}).get(q, 0.0)
+                + block_ours.get("variable", {}).get(q, 0.0)) * scalar
             for q in quarters
         }
         for q in quarters:
@@ -259,8 +262,7 @@ def _compare(reference, projections, base_path, quarters, scalars) -> str:
         rows = [
             ("fixed", block_ours.get("fixed", {}), streams.get("fixed", {})),
             ("variable", block_ours.get("variable", {}), streams.get("variable", {})),
-            ("mixed", block_ours.get("mixed", {}), mixed_theirs),
-            ("total", totals_ours, total_theirs),
+            ("total*A8", totals_ours, total_theirs),
         ]
         label = f"{category[:32]}/{klass}"
         for name, mine, theirs in rows:
@@ -276,7 +278,7 @@ def _compare(reference, projections, base_path, quarters, scalars) -> str:
                 f"  {fmt((nine_mine, nine_theirs))}  {ratio}"
             )
             label = ""
-            if name in ("variable", "mixed"):
+            if name == "variable":
                 implied = []
                 for side, path in (("ours", mine), ("theirs", theirs)):
                     m1, m2 = base_path[1], base_path[2]
@@ -413,6 +415,7 @@ def main(argv: list[str] | None = None) -> int:
                 loans.apply_scalar,
                 loans.share_basis,
                 loans.balance_source,
+                loans.engine,
                 collected=collected,
             )
         failed = None

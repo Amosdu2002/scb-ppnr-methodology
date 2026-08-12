@@ -323,12 +323,17 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # + a "9, 10, 11" block; Fixed/Variable/Total
 #                                           # rows over PQ0..PQ9, raw dollars). Set it and
 #                                           # the run prints ours/theirs per block.
-# balance_source = "h1_sum"                 # Eq A32 multiplicand: "m1" (share x M.1
-#                                           # category balance, the original) | "h1_sum"
-#                                           # (the segment's own H.1 exposure sum, no M.1
-#                                           # normalization — the workbook's income rows
-#                                           # sum Committed Exposure Global per reference
-#                                           # key directly, user cell-reading 2026-08-12)
+# engine = "reference"                      # the workbook's own construction (cell
+#                                           # formulas, 2026-08-12): per LOCOM side,
+#                                           # Fixed = M.1(side) x out-share(v1) x A38
+#                                           # floored at 0; Variable = M.1(side) x
+#                                           # out-share(floating+mixed) x max(floor,
+#                                           # base + FLOATING spread), floor =
+#                                           # out-weighted incl blanks-as-zero;
+#                                           # Total = (F + V) x Table A8. Needs
+#                                           # share_basis = "outstanding" and the two
+#                                           # col_outstanding / col_value headers below.
+#                                           # Default "pid" = the PID-registered form.
 # share_basis = "outstanding"               # segment shares/balances weighted by the
 #                                           # Launchpoint Outstanding Balance (HFI) /
 #                                           # Value (HFS) columns — the reference

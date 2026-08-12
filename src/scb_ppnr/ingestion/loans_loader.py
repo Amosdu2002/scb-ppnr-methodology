@@ -481,7 +481,9 @@ def load_merged_bucket_balance(spec: LoansSheetSpec) -> tuple[float, Mapping[str
     return sum(parts.values()), parts
 
 
-def load_category_balances(spec: LoansSheetSpec) -> tuple[Mapping[str, float], LoaderCensus]:
+def load_category_balances(
+    spec: LoansSheetSpec,
+) -> tuple[Mapping[str, float], Mapping[tuple[str, str], float], LoaderCensus]:
     """Read the per-Fed-Category portfolio balance from `M.1 Balance`.
 
     The sheet carries its own FRB NII model role per row — column A for the
@@ -494,6 +496,12 @@ def load_category_balances(spec: LoansSheetSpec) -> tuple[Mapping[str, float], L
     its international balance to International farmland. Retail and Wholesale-CRE
     rows belong to other models and are skipped.
 
+    Returns (per-category totals, per-(category, side) balances, census). The
+    side split matters because the reference results are per category x LOCOM
+    block and each block's balance base is the M.1 balance of ITS side: within
+    each dom/int column pair, the FIRST value column is HFI-at-AC and the
+    SECOND is HFS/FVO (observed layout, 2026-08-07 screenshot).
+
     Cross-check available to the reader: these totals should reproduce the
     `Sch M bal` column on the FRB SCALARS sheet."""
     workbook = _open(spec.workbook)
@@ -505,6 +513,8 @@ def load_category_balances(spec: LoansSheetSpec) -> tuple[Mapping[str, float], L
     context = f"{spec.workbook.name}:{spec.m1_sheet}"
     census = LoaderCensus()
     totals: dict[int, float] = {}
+    by_side: dict[tuple[int, str], float] = {}
+    _SIDE_BY_POSITION = ("HFI", "FVO_HFS")   # first column of each pair = HFI at AC
     skipped = 0
 
     sides = (
@@ -520,14 +530,17 @@ def load_category_balances(spec: LoansSheetSpec) -> tuple[Mapping[str, float], L
             if category is None:
                 skipped += 1
                 continue
-            for value_index in value_indices:
+            for position, value_index in enumerate(value_indices):
                 cell = row[value_index - 1] if value_index - 1 < len(row) else None
                 if _is_missing(cell):
                     continue
                 where = f"{context} row {offset} col {value_index}"
-                totals[category] = totals.get(category, 0.0) + apply_money_scale(
+                amount = apply_money_scale(
                     spec.m1_scale, to_float(cell, context=where), context=where
                 )
+                totals[category] = totals.get(category, 0.0) + amount
+                side = _SIDE_BY_POSITION[min(position, 1)]
+                by_side[(category, side)] = by_side.get((category, side), 0.0) + amount
 
     if not totals:
         raise ValidationFailure(
@@ -543,7 +556,11 @@ def load_category_balances(spec: LoansSheetSpec) -> tuple[Mapping[str, float], L
         )
     census.rows_read = len(totals)
     census.warnings.append(f"skipped {skipped} non-Corporate role cells (Retail and Wholesale-CRE)")
-    return MappingProxyType({FED_CATEGORY_NAMES[c]: v for c, v in totals.items()}), census
+    return (
+        MappingProxyType({FED_CATEGORY_NAMES[c]: v for c, v in totals.items()}),
+        MappingProxyType({(FED_CATEGORY_NAMES[c], side): v for (c, side), v in by_side.items()}),
+        census,
+    )
 
 
 def load_3m_treasury(

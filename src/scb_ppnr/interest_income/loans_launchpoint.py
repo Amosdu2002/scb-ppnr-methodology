@@ -40,6 +40,7 @@ from .loans_schemas import (
     TREATMENT_FIXED,
     TREATMENT_NO_INCOME,
     VT_FLOATING,
+    VT_MIXED,
     LoanFacility,
     PoolRate,
     SegmentKey,
@@ -339,6 +340,8 @@ def build_launch_point(
     share_measure: str = EXPOSURE_COMMITTED,
     floor_collapse: str = FLOOR_COLLAPSE_BALANCE_WEIGHTED,
     balance_source: str = "m1",
+    engine: str = "pid",
+    side_balances: Mapping[tuple[str, str], float] | None = None,
 ) -> tuple[Mapping[SegmentKey, SegmentLaunchPoint], LaunchPointDiagnostics]:
     """Assemble every segment's launch-point quantities.
 
@@ -351,11 +354,42 @@ def build_launch_point(
 
     `balance_source` selects the Equation A32 multiplicand: "m1" (share x the
     M.1 category balance — the original construction) or "h1_sum" (the segment's
-    own H.1 exposure sum under `share_measure`, with no M.1 normalization —
-    the reference workbook's construction per the user's cell reading of
-    2026-08-12: the income rows sum Committed Exposure Global per reference
-    key directly). Under h1_sum the reported share is informational."""
+    own H.1 exposure sum under `share_measure`, with no M.1 normalization).
+
+    `engine` = "reference" reproduces the workbook's income construction
+    (user-supplied formulas, 2026-08-12):
+
+        Fixed row    = M.1(side) x out-share(v1 | side) x A38 rate, floored at 0
+        Variable row = M.1(side) x out-share(v2+v3 | side)
+                       x max(floor, base + FLOATING spread)
+        floor        = sum(out x floor, blanks counting as ZERO, over v2+v3)
+                       / sum(out over v2+v3), then max(.., 0)
+
+    Mechanically: v3 rows are merged into the v2 segment (mixed carries the
+    floating spread — the user's earlier separate-mixed-spread description is
+    superseded by the cell formulas); balances come from `side_balances`
+    (the M.1 balance of the block's own LOCOM side); the fixed segment's floor
+    is exactly 0; the wt denominator uses `share_measure` instead of utilized.
+    Shares within a side span ALL rate types, so codes 0/4 still dilute."""
+    if engine not in ("pid", "reference"):
+        raise ValidationFailure(f"engine must be 'pid' or 'reference', got {engine!r}")
+    if engine == "reference" and side_balances is None:
+        raise ValidationFailure(
+            "engine='reference' needs the per-(category, side) M.1 balances — pass side_balances"
+        )
+
     rows = list(facilities)
+    if engine == "reference":
+        # Mixed merges into the floating segment: same balance bucket, same
+        # (floating) spread. The rate pools are computed from the ORIGINAL
+        # facilities below, so the float pool already contains v2+v3 (its
+        # committed-weighted rate matched the reference to four decimals).
+        from dataclasses import replace as _replace
+        rows = [
+            _replace(f, segment=SegmentKey(f.segment.category, f.segment.locom, VT_FLOATING))
+            if f.segment.variable_type == VT_MIXED else f
+            for f in rows
+        ]
     diagnostics = LaunchPointDiagnostics()
 
     by_segment: dict[SegmentKey, list[LoanFacility]] = defaultdict(list)
@@ -363,8 +397,12 @@ def build_launch_point(
         by_segment[facility.segment].append(facility)
 
     category_exposure: dict[str, float] = defaultdict(float)
+    side_exposure: dict[tuple[str, str], float] = defaultdict(float)
     for facility in rows:
         category_exposure[facility.segment.category] += facility.exposure(share_measure)
+        side_exposure[(facility.segment.category, facility.segment.locom)] += (
+            facility.exposure(share_measure)
+        )
 
     pool_rates = compute_pool_rates(rows, diagnostics)
     for (category, locom, pool), rate in pool_rates.items():
@@ -373,26 +411,32 @@ def build_launch_point(
                 (category, locom, pool, rate.rows_dropped, rate.exposure_dropped)
             )
 
+    wt_denominator_measure = share_measure if engine == "reference" else EXPOSURE_UTILIZED
     fixed_launch_balances: dict[tuple[str, str], float] = defaultdict(float)
     for facility in rows:
         if facility.segment.treatment == TREATMENT_FIXED:
             fixed_launch_balances[_pool_of(facility.segment.category, facility.segment.locom)] += (
-                facility.exposure(EXPOSURE_UTILIZED)
+                facility.exposure(wt_denominator_measure)
             )
 
     result: dict[SegmentKey, SegmentLaunchPoint] = {}
     for segment, segment_rows in by_segment.items():
-        total = category_exposure.get(segment.category, 0.0)
         exposure = sum(f.exposure(share_measure) for f in segment_rows)
-        share = exposure / total if total > 0.0 else 0.0
-        if balance_source == "h1_sum":
-            balance = exposure
-        elif balance_source == "m1":
-            balance = share * category_balances.get(segment.category, 0.0)
+        if engine == "reference":
+            side_total = side_exposure.get((segment.category, segment.locom), 0.0)
+            share = exposure / side_total if side_total > 0.0 else 0.0
+            balance = share * side_balances.get((segment.category, segment.locom), 0.0)
         else:
-            raise ValidationFailure(
-                f"balance_source must be 'm1' or 'h1_sum', got {balance_source!r}"
-            )
+            total = category_exposure.get(segment.category, 0.0)
+            share = exposure / total if total > 0.0 else 0.0
+            if balance_source == "h1_sum":
+                balance = exposure
+            elif balance_source == "m1":
+                balance = share * category_balances.get(segment.category, 0.0)
+            else:
+                raise ValidationFailure(
+                    f"balance_source must be 'm1' or 'h1_sum', got {balance_source!r}"
+                )
 
         spread: SegmentSpread | None = None
         if segment.treatment != TREATMENT_NO_INCOME:
@@ -416,7 +460,31 @@ def build_launch_point(
                 base_rate_fallback=fallback,
             )
 
-        floor, dispersion = collapse_floor(segment_rows, floor_collapse, share_measure)
+        if engine == "reference":
+            if segment.treatment == TREATMENT_FIXED:
+                # the workbook floors the fixed path at exactly zero
+                floor, dispersion = 0.0, 0.0
+            elif segment.treatment == TREATMENT_NO_INCOME:
+                floor, dispersion = None, 0.0
+            else:
+                # outstanding-weighted floor over ALL v2+v3 rows, blanks counting
+                # as ZERO in the numerator (dilutive), then floored at 0 — the
+                # user-supplied formula. Deliberately different from the PID
+                # collapse, which averages populated floors only.
+                weight = sum(f.exposure(share_measure) for f in segment_rows)
+                if weight > 0.0:
+                    weighted = sum(
+                        f.exposure(share_measure) * (f.interest_rate_floor or 0.0)
+                        for f in segment_rows
+                    )
+                    floor = max(weighted / weight, 0.0)
+                else:
+                    floor = None
+                populated = [f.interest_rate_floor for f in segment_rows
+                             if f.interest_rate_floor is not None]
+                dispersion = (max(populated) - min(populated)) if populated else 0.0
+        else:
+            floor, dispersion = collapse_floor(segment_rows, floor_collapse, share_measure)
         if dispersion > 0.0:
             diagnostics.floor_dispersion.append((segment, dispersion))
 

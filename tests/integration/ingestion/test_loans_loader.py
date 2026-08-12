@@ -397,7 +397,7 @@ def test_category_balances_come_from_the_sheets_own_role_columns(tmp_path):
         _m1_row("Wholesale - Corp - C&I and others", "Wholesale - Corp - C&I and others",
                 dom_hfi=135_038.0, dom_hfs=3_441.0, int_hfi=31_956.0, int_hfs=3_848.0),
     ])
-    balances, census = load_category_balances(LoansSheetSpec(workbook=path))
+    balances, _, census = load_category_balances(LoansSheetSpec(workbook=path))
 
     assert balances["Commercial and industrial"] == pytest.approx(174_283.0)
     assert "LOANS LOADER CENSUS" in census.render()
@@ -411,7 +411,7 @@ def test_one_fr_y9c_line_can_feed_two_categories(tmp_path):
         _m1_row("Wholesale - Corp - farmland", "Wholesale - Corp - int farmland",
                 dom_hfi=130.0, dom_hfs=0.0, int_hfi=721.0),
     ])
-    balances, _ = load_category_balances(LoansSheetSpec(workbook=path))
+    balances, _, _ = load_category_balances(LoansSheetSpec(workbook=path))
 
     assert balances["Domestic farmland"] == pytest.approx(130.0)
     assert balances["International farmland"] == pytest.approx(721.0)
@@ -425,7 +425,7 @@ def test_retail_and_cre_rows_are_skipped(tmp_path):
         _m1_row("Wholesale - Corp - agricultural", "Wholesale - Corp - agricultural",
                 dom_hfi=114.0),
     ])
-    balances, census = load_category_balances(LoansSheetSpec(workbook=path))
+    balances, _, census = load_category_balances(LoansSheetSpec(workbook=path))
 
     assert set(balances) == {"Agriculture Loans"}
     assert balances["Agriculture Loans"] == pytest.approx(114.0)
@@ -447,7 +447,7 @@ def test_categories_absent_from_m1_are_warned_about(tmp_path):
     path = _m1_workbook(tmp_path, [
         _m1_row("Wholesale - Corp - agricultural", None, dom_hfi=114.0),
     ])
-    _, census = load_category_balances(LoansSheetSpec(workbook=path))
+    _, _, census = load_category_balances(LoansSheetSpec(workbook=path))
     assert any("project zero income" in note for note in census.warnings)
 
 
@@ -593,3 +593,63 @@ def test_absent_share_columns_produce_a_configuration_hint(tmp_path):
 
     assert census.missing_outstanding == 1
     assert any("col_outstanding / col_value" in note for note in census.warnings)
+
+
+def test_m1_balances_split_by_side(tmp_path):
+    """The reference blocks are per LOCOM side; each block's balance base is the
+    M.1 balance of ITS side: first column of each dom/int pair = HFI at AC,
+    second = HFS/FVO."""
+    path = _m1_workbook(tmp_path, [
+        _m1_row("Wholesale - Corp - C&I and others", "Wholesale - Corp - C&I and others",
+                dom_hfi=135_038.0, dom_hfs=3_441.0, int_hfi=31_956.0, int_hfs=3_848.0),
+    ])
+    total, by_side, _ = load_category_balances(LoansSheetSpec(workbook=path))
+
+    assert total["Commercial and industrial"] == pytest.approx(174_283.0)
+    assert by_side[("Commercial and industrial", "HFI")] == pytest.approx(166_994.0)
+    assert by_side[("Commercial and industrial", "FVO_HFS")] == pytest.approx(7_289.0)
+
+
+def test_reference_engine_reproduces_the_workbook_construction(tmp_path):
+    """engine='reference' (the user-supplied cell formulas, 2026-08-12):
+    v3 merges into the variable segment at the FLOATING spread; balances are
+    M.1(side) x outstanding-share within the side; the variable floor is
+    outstanding-weighted with blank floors counting as ZERO; fixed floors at 0."""
+    from scb_ppnr.interest_income.loans_launchpoint import build_launch_point
+    from scb_ppnr.interest_income.loans_schemas import SegmentKey, VT_FIXED, VT_FLOATING
+
+    headers = H1_HEADERS + ["Launchpoint Outstanding Balance", "Value"]
+    rows = [
+        # committed equal, outstanding very different -> shares must follow outstanding
+        _row("FIX", 4, 1, 3, rate=0.055, committed=100e6,
+             originated="15-Jan-2020") + [30_000_000.0, None],
+        _row("FLT", 4, 2, 3, rate=0.060, committed=100e6, floor=0.04) + [50_000_000.0, None],
+        _row("MIX", 4, 3, 3, rate=0.050, committed=100e6,
+             originated="17-May-2022") + [20_000_000.0, None],
+    ]
+    path = _workbook(tmp_path, rows, h1_headers=headers)
+    facilities, _ = load_facilities(LoansSheetSpec(workbook=path))
+    side_balances = {("Commercial and industrial", "HFI"): 200.0}
+    history = {"2020Q1": 0.015, "2022Q2": 0.008, "2024Q4": 0.044}
+
+    launch, _ = build_launch_point(
+        facilities, {}, 0.044, history, (1, 2, 3), lambda when: None,
+        share_measure="outstanding", engine="reference", side_balances=side_balances,
+    )
+
+    variable = launch[SegmentKey("Commercial and industrial", "HFI", VT_FLOATING)]
+    fixed = launch[SegmentKey("Commercial and industrial", "HFI", VT_FIXED)]
+
+    # v3 merged into the variable segment: outstanding share (50+20)/100 of M.1(side)
+    assert variable.share == pytest.approx(0.7)
+    assert variable.balance == pytest.approx(140.0)
+    # spread = FLOATING pool (committed-weighted over v2+v3): (0.060+0.050)/2 - 0.044
+    assert variable.spread.pool_rate == pytest.approx(0.055)
+    assert variable.spread.base_quarter is None
+    # floor: out-weighted with the MIX row's blank floor counting as zero
+    assert variable.floor == pytest.approx((50 * 0.04 + 20 * 0.0) / 70)
+    # fixed: out-share 30/100 of the side balance, floored at exactly zero
+    assert fixed.balance == pytest.approx(60.0)
+    assert fixed.floor == 0.0
+    # no separate mixed segment survives
+    assert SegmentKey("Commercial and industrial", "HFI", 3) not in launch

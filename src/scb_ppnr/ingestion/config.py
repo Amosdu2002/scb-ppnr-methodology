@@ -237,6 +237,13 @@ class LoansConfig:
     apply_scalar: bool = True   # false = reference-matching runs: the workbook's own
                                 # results carry NO industry scalar (verified 2026-08-12:
                                 # the grand total is the plain sum of the blocks)
+    engine: str = "pid"              # "pid" = the PID-registered construction; "reference" =
+                                # the workbook's cell formulas (2026-08-12): per LOCOM side,
+                                # Fixed = M.1(side) x out-share(v1) x A38 floored at 0;
+                                # Variable = M.1(side) x out-share(v2+v3) x max(floor, base +
+                                # FLOATING spread), floor = out-weighted incl blanks-as-zero;
+                                # Total = (F + V) x Table A8. Requires share_basis
+                                # = "outstanding" columns (col_outstanding / col_value)
     balance_source: str = "m1"       # Equation A32 multiplicand: "m1" (share x M.1 category
                                 # balance) or "h1_sum" (the segment's own H.1 exposure sum,
                                 # no M.1 normalization — the reference workbook sums
@@ -249,7 +256,7 @@ class LoansConfig:
                                 # "percentage of OUTSTANDING balance", PDF p. 174)
 
 
-_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar", "share_basis", "balance_source")
+_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar", "share_basis", "balance_source", "engine")
 
 
 def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
@@ -268,6 +275,11 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
     apply_scalar = section.get("apply_scalar", True)
     if not isinstance(apply_scalar, bool):
         raise ValidationFailure(f"config {context}: apply_scalar must be true or false, got {apply_scalar!r}")
+    engine = str(section.get("engine", "pid")).strip().lower()
+    if engine not in ("pid", "reference"):
+        raise ValidationFailure(
+            f"config {context}: engine must be 'pid' or 'reference', got {section.get('engine')!r}"
+        )
     balance_source = str(section.get("balance_source", "m1")).strip().lower()
     if balance_source not in ("m1", "h1_sum"):
         raise ValidationFailure(
@@ -320,6 +332,7 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
         apply_scalar=bool(apply_scalar),
         share_basis=share_basis,
         balance_source=balance_source,
+        engine=engine,
     )
 
 
