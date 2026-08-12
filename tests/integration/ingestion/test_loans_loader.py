@@ -33,11 +33,12 @@ H1_HEADERS = [
 
 
 def _workbook(tmp_path: Path, h1_rows, fry9c_rows=None, mev_rows=None,
-              variability_header="Interest Rate Variability") -> Path:
+              variability_header="Interest Rate Variability", h1_headers=None) -> Path:
     book = openpyxl.Workbook()
     sheet = book.active
     sheet.title = "CORP H.1"
-    headers = [variability_header if h == _VARIABILITY_HEADER else h for h in H1_HEADERS]
+    headers = [variability_header if h == _VARIABILITY_HEADER else h
+               for h in (h1_headers if h1_headers is not None else H1_HEADERS)]
     for _ in range(3):                       # headers sit on row 4
         sheet.append([None] * len(headers))
     sheet.append(headers)
@@ -135,10 +136,48 @@ def test_a_populated_zero_floor_is_kept_not_treated_as_absent(tmp_path):
     assert census.missing_floor == 0
 
 
-def test_an_unidentified_row_is_refused(tmp_path):
-    path = _workbook(tmp_path, [_row(None, 4, 1, 3)])
-    with pytest.raises(ValidationFailure, match="no row may be unidentified"):
-        load_facilities(LoansSheetSpec(workbook=path))
+def test_an_unidentified_row_is_labeled_and_kept_with_its_balances(tmp_path):
+    """PID-LOAN-12: rows with [NULL] in every ID column still carry real
+    balances — dropping them would silently understate segment shares, pool
+    rates, and wt denominators. They get a synthesized row label instead."""
+    path = _workbook(tmp_path, [
+        _row("F1", 4, 1, 3, committed=1_000_000.0),
+        _row("[NULL]", 4, 2, 3, committed=2_000_000.0),
+    ])
+    facilities, census = load_facilities(LoansSheetSpec(workbook=path))
+
+    assert len(facilities) == 2                              # kept, not dropped
+    labeled = facilities[1]
+    assert labeled.facility_id == "UNIDENTIFIED-ROW-6"       # header row 4 -> data rows 5, 6
+    assert labeled.committed_exposure == pytest.approx(2.0)  # balances intact
+    assert census.id_sources == {"customer_id": 1, "synthesized": 1}
+    assert census.unidentified_rows == [6]
+    assert census.unidentified_exposure == pytest.approx(2.0)
+    assert "unidentified rows (labeled) : 1" in census.render()
+    # the fallback columns are absent from this fixture, so the census says so
+    assert any("col_internal_id" in note for note in census.warnings)
+
+
+def test_the_id_chain_prefers_real_identifiers_over_synthesis(tmp_path):
+    """Customer ID -> Internal ID -> Original Internal ID -> synthesized."""
+    headers = H1_HEADERS + ["Internal ID", "Original Internal ID"]
+    rows = [
+        _row("CUST-1", 4, 1, 3) + ["INT-1", "ORIG-1"],       # customer wins
+        _row("[NULL]", 4, 2, 3) + ["INT-2", "ORIG-2"],       # internal next
+        _row("[NULL]", 4, 2, 3) + ["[NULL]", "ORIG-3"],      # then original
+        _row("[NULL]", 4, 2, 3) + ["[NULL]", "[NULL]"],      # then the label
+    ]
+    path = _workbook(tmp_path, rows, h1_headers=headers)
+    facilities, census = load_facilities(LoansSheetSpec(workbook=path))
+
+    assert [f.facility_id for f in facilities] == [
+        "CUST-1", "INT-2", "ORIG-3", "UNIDENTIFIED-ROW-8",
+    ]
+    assert census.id_sources == {
+        "customer_id": 1, "internal_id": 1, "original_internal_id": 1, "synthesized": 1,
+    }
+    # fallback columns exist here, so no configuration hint is emitted
+    assert not any("col_internal_id" in note for note in census.warnings)
 
 
 def test_a_missing_column_names_what_is_available(tmp_path):

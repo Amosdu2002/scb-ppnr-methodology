@@ -100,6 +100,11 @@ class LoansSheetSpec:
     col_floor: str = "Interest Rate Floor"
     col_origination: str = "Origination Date"
     col_maturity: str = "Maturity Date"
+    # Optional fallback identifier columns (PID-LOAN-12). A row whose Customer ID
+    # is [NULL] tries these in order; a row where all three are [NULL] gets a
+    # synthesized row-number label — its balances are real and must not be dropped.
+    col_internal_id: str = "Internal ID"
+    col_original_internal_id: str = "Original Internal ID"
 
 
 @dataclass
@@ -115,6 +120,9 @@ class LoaderCensus:
     missing_floor: int = 0
     missing_origination_date: int = 0
     missing_maturity_date: int = 0
+    id_sources: Counter = field(default_factory=Counter)
+    unidentified_rows: list[int] = field(default_factory=list)
+    unidentified_exposure: float = 0.0
     reference_keys: Counter = field(default_factory=Counter)
     column_substitutions: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -129,6 +137,18 @@ class LoaderCensus:
         lines.append(f"  no floor on file            : {self.missing_floor}")
         lines.append(f"  missing Origination Date    : {self.missing_origination_date}")
         lines.append(f"  missing Maturity Date       : {self.missing_maturity_date}")
+        if self.id_sources:
+            lines.append(
+                "  facility-ID sources         : "
+                + ", ".join(f"{name} {count}" for name, count in sorted(self.id_sources.items()))
+            )
+        if self.unidentified_rows:
+            shown = ", ".join(str(r) for r in self.unidentified_rows[:15])
+            more = f", ... {len(self.unidentified_rows) - 15} more" if len(self.unidentified_rows) > 15 else ""
+            lines.append(
+                f"  unidentified rows (labeled) : {len(self.unidentified_rows)}"
+                f"  (committed exposure {self.unidentified_exposure:,.2f})  sheet rows: {shown}{more}"
+            )
         lines.append(f"  distinct reference keys     : {len(self.reference_keys)}")
         for key, count in sorted(self.reference_keys.items()):
             lines.append(f"      {key:<14} {count}")
@@ -253,6 +273,10 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
     header = _header_index(rows, spec.h1_header_row, context)
 
     idx_id = _column(header, spec.col_facility_id, context)
+    # Fallback identifier columns are OPTIONAL: looked up if present, no error if
+    # the sheet lacks them (their absence is reported only if it ends up mattering).
+    idx_internal = header.get(spec.col_internal_id)
+    idx_original = header.get(spec.col_original_internal_id)
     idx_code = _column(header, spec.col_h1_code, context)
     idx_var = _resolve_variability_column(header, spec, census, context)
     idx_locom = _column(header, spec.col_locom, context)
@@ -271,9 +295,28 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
         if all(_is_missing(value) for value in row):
             continue
         where = f"{context} row {offset}"
-        facility_id = cell(row, idx_id)
-        if _is_missing(facility_id):
-            raise ValidationFailure(f"{where}: {spec.col_facility_id!r} is empty — no row may be unidentified")
+        # Identifier chain (PID-LOAN-12): Customer ID -> Internal ID -> Original
+        # Internal ID -> synthesized row label. Rows with [NULL] in all three
+        # still carry real balances, so they are LABELED and kept, never dropped —
+        # dropping would silently understate segment shares, pool rates, and wt
+        # denominators. The synthesized label is unmistakably not a customer ID
+        # and names the sheet row, so the record is findable in Excel.
+        facility_id: str | None = None
+        id_source = "synthesized"
+        for candidate_index, source in (
+            (idx_id, "customer_id"),
+            (idx_internal, "internal_id"),
+            (idx_original, "original_internal_id"),
+        ):
+            if candidate_index is None:
+                continue
+            candidate = cell(row, candidate_index)
+            if not _is_missing(candidate):
+                facility_id, id_source = str(candidate).strip(), source
+                break
+        if facility_id is None:
+            facility_id = f"UNIDENTIFIED-ROW-{offset}"
+        census.id_sources[id_source] += 1
 
         raw_code, raw_var, raw_locom = cell(row, idx_code), cell(row, idx_var), cell(row, idx_locom)
         segment = decode_segment(raw_code, raw_var, raw_locom)
@@ -293,6 +336,9 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
         matures = _optional_date(cell(row, idx_mat), context=f"{where}: maturity date")
 
         census.rows_read += 1
+        if id_source == "synthesized":
+            census.unidentified_rows.append(offset)
+            census.unidentified_exposure += committed
         if rate is None:
             census.missing_interest_rate += 1
             census.missing_interest_rate_exposure += committed
@@ -305,7 +351,7 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
 
         facilities.append(
             LoanFacility(
-                facility_id=str(facility_id).strip(),
+                facility_id=facility_id,
                 segment=segment,
                 committed_exposure=committed,
                 utilized_exposure=utilized,
@@ -319,6 +365,18 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
 
     if not facilities:
         raise ValidationFailure(f"{context}: no data rows found below header row {spec.h1_header_row}")
+    if census.unidentified_rows:
+        absent = [
+            name for name, index in
+            ((spec.col_internal_id, idx_internal), (spec.col_original_internal_id, idx_original))
+            if index is None
+        ]
+        if absent:
+            census.warnings.append(
+                f"{len(census.unidentified_rows)} row(s) took a synthesized label while fallback "
+                f"ID column(s) {absent} are not on the header row — if the sheet carries them "
+                f"under different names, configure col_internal_id / col_original_internal_id"
+            )
     return facilities, census
 
 
