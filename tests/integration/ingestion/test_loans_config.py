@@ -238,5 +238,8 @@ def test_share_basis_is_config_and_validated(tmp_path):
     config = load_config(_config(tmp_path, LOANS_BLOCK + 'share_basis = "outstanding"\n'))
     assert config.firm_data.loans.share_basis == "outstanding"
 
+    config = load_config(_config(tmp_path, LOANS_BLOCK + 'share_basis = "utilized"\n'))
+    assert config.firm_data.loans.share_basis == "utilized"
+
     with pytest.raises(ValidationFailure, match="share_basis must be"):
         load_config(_config(tmp_path, LOANS_BLOCK + 'share_basis = "drawn"\n'))

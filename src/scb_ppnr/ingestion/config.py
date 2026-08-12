@@ -242,18 +242,20 @@ class LoansConfig:
                                 # Fixed = M.1(side) x out-share(v1) x A38 floored at 0;
                                 # Variable = M.1(side) x out-share(v2+v3) x max(floor, base +
                                 # FLOATING spread), floor = out-weighted incl blanks-as-zero;
-                                # Total = (F + V) x Table A8. Requires share_basis
-                                # = "outstanding" columns (col_outstanding / col_value)
+                                # Total = (F + V) x Table A8. Use share_basis =
+                                # "utilized" (no extra columns needed)
     balance_source: str = "m1"       # Equation A32 multiplicand: "m1" (share x M.1 category
                                 # balance) or "h1_sum" (the segment's own H.1 exposure sum,
                                 # no M.1 normalization — the reference workbook sums
                                 # Committed Exposure Global per reference key directly,
                                 # user cell-reading 2026-08-12)
-    share_basis: str = "committed"   # which column weights segment shares and balances:
-                                # "committed" (the original flagged choice) or
-                                # "outstanding" (Launchpoint Outstanding Balance / Value —
-                                # the reference workbook's basis, and the Fed's own words:
-                                # "percentage of OUTSTANDING balance", PDF p. 174)
+    share_basis: str = "committed"   # which column weights segment shares, balances, floors
+                                # and the wt denominator: "committed" (the original flagged
+                                # choice), "utilized" (Utilized Exposure Global — the
+                                # workbook's "Launchpoint Outstanding Balance" IS the sum
+                                # of this column over a segment's reference keys,
+                                # user-clarified 2026-08-12), or "outstanding" (a separate
+                                # per-row column, if an extract ever carries one)
 
 
 _LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar", "share_basis", "balance_source", "engine")
@@ -287,9 +289,9 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
             f"got {section.get('balance_source')!r}"
         )
     share_basis = str(section.get("share_basis", "committed")).strip().lower()
-    if share_basis not in ("committed", "outstanding"):
+    if share_basis not in ("committed", "utilized", "outstanding"):
         raise ValidationFailure(
-            f"config {context}: share_basis must be 'committed' or 'outstanding', "
+            f"config {context}: share_basis must be 'committed', 'utilized', or 'outstanding', "
             f"got {section.get('share_basis')!r}"
         )
     floor_collapse = str(section.get("floor_collapse", "balance_weighted")).strip().lower()

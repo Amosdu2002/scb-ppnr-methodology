@@ -330,19 +330,23 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # out-share(floating+mixed) x max(floor,
 #                                           # base + FLOATING spread), floor =
 #                                           # out-weighted incl blanks-as-zero;
-#                                           # Total = (F + V) x Table A8. Needs
-#                                           # share_basis = "outstanding" and the two
-#                                           # col_outstanding / col_value headers below.
+#                                           # Total = (F + V) x Table A8. Pair with
+#                                           # share_basis = "utilized" — the workbook's
+#                                           # "Launchpoint Outstanding Balance" IS the
+#                                           # sum of Utilized Exposure Global over a
+#                                           # segment's reference keys (user-clarified
+#                                           # 2026-08-12); no extra columns needed.
 #                                           # Default "pid" = the PID-registered form.
-# share_basis = "outstanding"               # segment shares/balances weighted by the
-#                                           # Launchpoint Outstanding Balance (HFI) /
-#                                           # Value (HFS) columns — the reference
-#                                           # workbook's mix, and the Fed's own words
-#                                           # ("percentage of OUTSTANDING balance").
-#                                           # Default "committed" (the original choice;
-#                                           # REFUTED against the reference 2026-08-12).
-#                                           # Rate pools stay committed-weighted either
-#                                           # way — they matched the reference exactly.
+# share_basis = "utilized"                  # weights segment shares, balances, floors and
+#                                           # the wt denominator by Utilized Exposure
+#                                           # Global — the reference workbook's basis
+#                                           # ("Launchpoint Outstanding Balance" = the sum
+#                                           # of this column per segment; also the Fed's
+#                                           # own words, "percentage of OUTSTANDING
+#                                           # balance"). Default "committed" (REFUTED
+#                                           # against the reference 2026-08-12). Rate
+#                                           # pools stay committed-weighted either way —
+#                                           # they matched the reference exactly.
 # apply_scalar = false                      # reference-matching runs: the workbook's
 #                                           # results carry NO industry scalar (verified
 #                                           # 2026-08-12 — the grand total is the plain
