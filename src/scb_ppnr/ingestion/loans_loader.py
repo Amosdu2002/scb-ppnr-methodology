@@ -459,8 +459,15 @@ def load_3m_treasury(
     idx_date = _column(header, spec.mev_date_column, context)
     idx_rate = _column(header, spec.mev_3m_column, context)
 
+    launch_label = check_quarter_label(f"{context}: launch point", launch_point)
+    launch_year, launch_quarter = int(launch_label[:4]), int(launch_label[5])
+
+    def quarters_since_launch(label: str) -> int:
+        return (int(label[:4]) - launch_year) * 4 + int(label[5]) - launch_quarter
+
     history: dict[str, float] = {}
-    projection_values: list[float] = []
+    projection: dict[int, float] = {}
+    seen_scenario_labels: set[str] = set()
     for row in rows[spec.mev_header_row:]:
         if max(idx_scenario, idx_date, idx_rate) >= len(row):
             continue
@@ -470,21 +477,47 @@ def load_3m_treasury(
         rate = apply_rate_scale(
             spec.mev_rate_scale, to_float(raw_rate, context=f"{context}: 3M"), context=f"{context}: 3M"
         )
-        label = str(raw_date).strip().replace(" ", "").upper()
+        label = check_quarter_label(
+            f"{context}: date", str(raw_date).strip().replace(" ", "").upper()
+        )
         if str(name).strip() == spec.mev_history_scenario:
-            history[check_quarter_label(f"{context}: date", label)] = rate
+            # A duplicated history quarter with a DIFFERENT value is the silent-bug
+            # case: dict assignment would keep whichever came last with no trace.
+            if label in history and history[label] != rate:
+                raise ValidationFailure(
+                    f"{context}: {spec.mev_history_scenario!r} carries {label} twice with "
+                    f"different values ({history[label]!r} vs {rate!r})"
+                )
+            history[label] = rate
         elif str(name).strip() == scenario:
-            projection_values.append(rate)
+            # Projection rows are mapped to PQ indices BY THEIR DATE, never by
+            # sheet order: the sheet says which quarter each row is, so use it.
+            # Rows outside PQ1..PQn (a 13-quarter supervisory path has a tail we
+            # do not need) are simply out of horizon, not errors.
+            if label in seen_scenario_labels:
+                raise ValidationFailure(f"{context}: scenario {scenario!r} carries {label} twice")
+            seen_scenario_labels.add(label)
+            index = quarters_since_launch(label)
+            if index in quarters:
+                projection[index] = rate
 
     if not history:
         raise ValidationFailure(
             f"{context}: no rows under scenario {spec.mev_history_scenario!r} — the fixed-rate "
             f"spread needs the 3M history back to the earliest median origination quarter"
         )
-    if len(projection_values) < len(quarters):
+    missing = [q for q in quarters if q not in projection]
+    if missing:
+        expected = [
+            f"PQ{q} ({launch_year + (launch_quarter + q - 1) // 4}"
+            f"Q{(launch_quarter + q - 1) % 4 + 1})"
+            for q in missing
+        ]
+        available = sorted(seen_scenario_labels) or ["<none>"]
         raise ValidationFailure(
-            f"{context}: scenario {scenario!r} supplies {len(projection_values)} quarters but "
-            f"{len(quarters)} are required"
+            f"{context}: scenario {scenario!r} is missing {', '.join(expected)} relative to "
+            f"launch point {launch_label}; scenario rows found: {', '.join(available)}. "
+            f"Check the --scenario spelling against the sheet and the launch point."
         )
     if launch_point not in history:
         raise ValidationFailure(
@@ -492,5 +525,4 @@ def load_3m_treasury(
             f"history — the floating spread is measured against it"
         )
 
-    projection = {q: projection_values[i] for i, q in enumerate(quarters)}
     return history, projection, history[launch_point]

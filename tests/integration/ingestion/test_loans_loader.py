@@ -217,12 +217,38 @@ def test_quarter_labels_lose_the_space(tmp_path):
     assert all(" " not in label for label in history)
 
 
-def test_a_short_scenario_path_is_refused(tmp_path):
+def test_a_short_scenario_path_names_the_missing_quarters(tmp_path):
     path = _workbook(tmp_path, [_row("F1", 4, 1, 3)])
-    with pytest.raises(ValidationFailure, match="supplies 3 quarters but 9 are required"):
+    with pytest.raises(ValidationFailure, match=r"missing PQ4 \(2025Q4\)"):
         load_3m_treasury(
             LoansSheetSpec(workbook=path), "Severely Adverse", tuple(range(1, 10)), "2024Q4"
         )
+
+
+def test_a_misspelled_scenario_name_says_what_it_found(tmp_path):
+    """The real sheet's projection block is named 'Supervisory Severely Adverse';
+    a near-miss name should point at the spelling, not just fail."""
+    path = _workbook(tmp_path, [_row("F1", 4, 1, 3)])
+    with pytest.raises(ValidationFailure, match="scenario rows found: <none>.*spelling"):
+        load_3m_treasury(
+            LoansSheetSpec(workbook=path), "Severly Adverse", (1, 2, 3), "2024Q4"
+        )
+
+
+def test_projection_rows_map_by_date_not_sheet_order(tmp_path):
+    """A scenario block sorted oddly, or carrying a tail beyond the horizon,
+    must land each value on the quarter its Date names."""
+    path = _workbook(tmp_path, [_row("F1", 4, 1, 3)], mev_rows=[
+        ["Actual", "2024 Q4", 4.4],
+        ["Supervisory Severely Adverse", "2025 Q3", 0.1],     # out of order
+        ["Supervisory Severely Adverse", "2025 Q1", 3.0],
+        ["Supervisory Severely Adverse", "2025 Q2", 1.8],
+        ["Supervisory Severely Adverse", "2026 Q1", 9.9],     # beyond the 3Q horizon
+    ])
+    _, projection, _ = load_3m_treasury(
+        LoansSheetSpec(workbook=path), "Supervisory Severely Adverse", (1, 2, 3), "2024Q4"
+    )
+    assert projection == {1: pytest.approx(0.030), 2: pytest.approx(0.018), 3: pytest.approx(0.001)}
 
 
 def test_a_launch_point_absent_from_history_is_refused(tmp_path):

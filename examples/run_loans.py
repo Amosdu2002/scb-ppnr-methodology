@@ -2,8 +2,15 @@
 
     PYTHONPATH=src python3 examples/run_loans.py                            # synthetic demo
     PYTHONPATH=src python3 examples/run_loans.py \
-        --workbook config/local/corp.xlsx --scenario "Severely Adverse" \
-        --launch-point 2024Q4 --report loans_report.txt                     # company run
+        --workbook config/local/corp.xlsx --launch-point 2024Q4 \
+        --report loans_report.txt                                           # company run
+
+Scenario names: history rows are matched under `Actual` (through PQ0); projection
+rows under --scenario, which defaults to `Supervisory Severely Adverse` — the
+sheet's own block name, so a standard run needs no scenario flag at all.
+Projection rows are mapped to PQ1..PQ9 BY THEIR Date column relative to
+--launch-point, never by sheet order; a wrong scenario spelling errors with the
+row names actually found.
 
 Sheet names and column headers default to the user-described layout of 2026-08-07
 (CORP H.1 header row 4; FR-Y9C 4Q 2024 header row 8; M.1 Balance data from row 11;
@@ -174,7 +181,7 @@ def _synthetic_workbook(directory: Path) -> Path:
     path_3m = [3.0, 1.8, 0.6, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
     for index, rate in enumerate(path_3m):
         year, quarter = 2025 + index // 4, index % 4 + 1
-        mev.append(["Severely Adverse", f"{year} Q{quarter}", rate])
+        mev.append(["Supervisory Severely Adverse", f"{year} Q{quarter}", rate])
 
     target = directory / "synthetic_loans.xlsx"
     book.save(target)
@@ -185,8 +192,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--workbook", type=Path, default=None,
                         help="company workbook; omit for the synthetic demo")
-    parser.add_argument("--scenario", default="Severely Adverse",
-                        help="MEV scenario name exactly as the sheet spells it")
+    parser.add_argument("--scenario", default="Supervisory Severely Adverse",
+                        help="MEV scenario name exactly as the sheet spells it "
+                             "(history rows are matched separately, under 'Actual')")
     parser.add_argument("--launch-point", default="2024Q4",
                         help="PQ0 calendar quarter, e.g. 2024Q4")
     parser.add_argument("--h1-sheet", default=None)
