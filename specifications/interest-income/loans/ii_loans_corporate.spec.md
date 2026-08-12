@@ -148,13 +148,41 @@ Recorded so they are visible, never smoothed over. Each is a legitimate company 
 |---|---|
 | Floors are per facility; the model projects one rate per segment | Working treatment: balance-weighted floor per segment with within-segment dispersion logged — **flagged, awaiting confirmation** |
 | **Which rate carries forward through the Equation A38 recursion when a floor binds** | §6.2 says only "floor applied after blending". Implemented so the **floored** rate carries forward — a binding floor means the portfolio really is earning its floor, so the next quarter's carried component is that rate rather than a shadow value the loans never earned. The unfloored path is returned alongside so the cost of a bind is measurable. **Flagged decision, awaiting confirmation** |
-| **Which exposure measure weights segment shares** | The Fed says "percentage of **outstanding** balance" (PDF p. 174), which points at utilized; the rate pools use committed. Implemented as a parameter defaulting to **committed**, for consistency with the pools. **Flagged, awaiting confirmation** |
+| **Which exposure measure weights segment shares** | **RESOLVED 2026-08-12 (PID-LOAN-13): utilized** — the committed default was refuted against the reference (fixed underweighted ~3×, mixed ~5×); rate pools stay committed-weighted (they matched exactly). See §9a |
 | **Median origination date weighting** | Implemented as an unweighted row median (`median_low`, so the quarter is one a loan was really originated in). The Fed says only "the median origination date … for that portfolio" (PDF p. 182) — a balance-weighted median is the other defensible reading |
 | Rows with NA `Interest Rate` leave the rate pool; their balances remain in the portfolio balance and so implicitly earn the segment rate | Flagged working assumption; the §8 dropout census quantifies it |
 | Rate and money unit scales | **CONFIRMED 2026-08-07** (user-stated): H.1 rates/floors decimal; H.1 exposures whole dollars; M.1 millions; FR Y-9C thousands; MEV percent — all declared in `LoansSheetSpec` |
 | **Mixed segment with no Fixed siblings in its category/LOCOM cell** | Mixed borrows the Fixed pool's rate (PID-LOAN-4); a cell holding Mixed rows but **no Fixed rows** has no pool to borrow, and the run **stops with a named error** rather than defaulting. What the workbook itself does in that case is UNKNOWN — surfaced by the synthetic demo 2026-08-12; ask if the first real run hits it |
 | OQ-037 (NPML proxy data slice) | May be moot for this project — see divergence 4 |
 | OQ-010 (scalar row → category mapping) | Open; the FRB Scalars sheet may resolve it physically |
+
+## 9a. Reference engine — CONVERGED against the company workbook (2026-08-12)
+
+`engine = "reference"` reproduces the workbook's own income construction; with
+`share_basis = "utilized"` and `apply_scalar = false` the compare run landed at
+**grand 0.9979 with most blocks 1.0000 per stream**, and every floating stream's
+implied balance and spread identical to the digit on both sides. User-confirmed
+working. Registered as **PID-LOAN-13..17**; construction per LOCOM side:
+
+```
+Fixed    = M.1(side) x utilized-share(v1 | side) x A38 rate, floored at 0
+Variable = M.1(side) x utilized-share(v2+v3 | side)
+           x max(floor, base + FLOATING spread)
+floor    = sum(utilized x floor, blanks as ZERO, over v2+v3)
+           / sum(utilized over v2+v3), then max(.., 0)
+Total    = (Fixed + Variable) x Table A8          [the PID-LOAN-11 mapping]
+merged   = M.1(cats 9+10+11) at the depository (codes 1-2) floating+mixed
+           committed-weighted rate
+```
+
+"Launchpoint Outstanding Balance" = the sum of `Utilized Exposure Global` over a
+segment's reference keys — a derived quantity, not a column (PID-LOAN-13).
+Consequences for earlier flagged items: the **committed share basis is refuted**;
+the **PID-LOAN-4 mixed hybrid spread and the v3 median machinery are unused** in
+this engine; the **PID-LOAN-7 populated-only floor collapse is superseded** by the
+zeros-included utilized-weighted floor; the **A38 floored-carry question is moot
+here** (the fixed floor is 0). `engine = "pid"` retains the original registered
+construction for A/B. Accepted residual: C&I fixed legs +0.4–0.6%.
 
 ## 10. Implementation status
 
@@ -167,7 +195,8 @@ Recorded so they are visible, never smoothed over. Each is a legitimate company 
 | Reference-key decoding + Table A8 (PID-LOAN-9/11) | `ingestion/loans_mapping.py` | **Landed** — the two collapses (H.1 code→Fed Category many-to-one; LOCOM 3→2), `[NULL]` = DO NOT USE, the depository slice, the user-confirmed scalar assignment |
 | Workbook binding (§2, PID-LOAN-8/10) | `ingestion/loans_loader.py` | **Landed** — CORP H.1 (header row 4), M.1 Balance (role columns A/B wire FR Y-9C lines to categories), FR-Y9C merged-bucket MDRMs, MEV history/projection split; four declared unit scales |
 | Runner | `examples/run_loans.py` | **Landed** — synthetic demo + company run; censuses print before results; `--report` (gitignored `loans_report*.txt`) |
-| Reference comparison | — | **Not started** — waits on whether the workbook carries reference results for loans (the securities `II_PQ` pattern) |
+| Reference comparison | `loans_loader.load_reference_results` + the runner's LOANS COMPARE | **Landed and CONVERGED 2026-08-12** (§9a) — per-block fixed/variable/total×A8 ratios, implied balance+spread from the PQ1→PQ2 slope on both sides |
+| Reference engine (§9a, PID-LOAN-13..17) | `loans_launchpoint.build_launch_point(engine="reference")` + per-side M.1 loader | **Landed** — grand 0.9979, user-confirmed |
 
 Tests: `tests/unit/interest_income/test_loans_launchpoint.py`, `test_loans_projection.py`, and `tests/integration/interest_income/test_loans_corporate_end_to_end.py` — synthetic inputs only, arithmetic worked by hand in the assertions.
 
