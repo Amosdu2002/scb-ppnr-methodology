@@ -177,12 +177,12 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
 
     if spec.results_sheet is not None:
         reference = load_reference_results(spec)
-        sections.append(_compare(reference, projections, base_path, quarters))
+        sections.append(_compare(reference, projections, base_path, quarters, scalars))
 
     return "\n\n".join(sections)
 
 
-def _compare(reference, projections, base_path, quarters) -> str:
+def _compare(reference, projections, base_path, quarters, scalars) -> str:
     """Ours (UNSCALED, per segment) against the workbook's results blocks.
 
     Their block Total exceeds Fixed + Variable: the workbook sums a third stream
@@ -203,12 +203,16 @@ def _compare(reference, projections, base_path, quarters) -> str:
             stream = "variable"                     # the merged bucket is one floating block
         if stream is None:
             continue
+        # Ours follows the run's scalar basis: with apply_scalar=true both sides
+        # carry the industry scalar (they cancel in the ratio IF the reference
+        # used the same per-category values); with apply_scalar=false ours is raw.
+        factor = scalars.get(key.category, 1.0) if scalars else 1.0
         block = ours.setdefault((key.category, key.locom), {})
         path = block.setdefault(stream, {q: 0.0 for q in quarters})
         for q in quarters:
-            path[q] += projection.income_path[q]
-
-    lines = ["LOANS COMPARE (ours UNSCALED vs the workbook's results sheet; USD millions; ratio = ours/theirs)"]
+            path[q] += projection.income_path[q] * factor
+    basis = "scaled x Table A8, matching the reference's stated basis" if scalars else "UNSCALED"
+    lines = [f"LOANS COMPARE (ours {basis}; USD millions; ratio = ours/theirs)"]
     lines.append("  block                                     stream       PQ1 o/t          PQ2 o/t          9Q o/t            ratio")
 
     def fmt(pair):
