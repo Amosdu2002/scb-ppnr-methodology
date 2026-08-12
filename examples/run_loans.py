@@ -57,8 +57,18 @@ from scb_ppnr.interest_income.loans_schemas import projection_quarter_index
 
 def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
          floor_collapse: str = "balance_weighted", apply_scalar: bool = True,
-         share_basis: str = "committed") -> str:
-    sections: list[str] = []
+         share_basis: str = "committed", balance_source: str = "m1",
+         collected: list[str] | None = None) -> str:
+    """Each section PRINTS the moment it is produced (the securities-loop
+    lesson): a failure deep in the run must never hide the censuses that
+    explain it. `collected` receives the sections for the report file even
+    when a later step raises."""
+    sections: list[str] = collected if collected is not None else []
+
+    def emit(text: str) -> None:
+        print(text, end="\n\n", flush=True)
+        sections.append(text)
+
     quarters = PROJECTION_QUARTERS
 
     facilities, load_census = load_facilities(spec)
@@ -66,23 +76,24 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
     merged_balance, merged_parts = load_merged_bucket_balance(spec)
     history, base_path, launch_3m = load_3m_treasury(spec, scenario, quarters, launch_point)
 
-    sections.append(
+    emit(
         f"RUN SETTINGS\n"
         f"  workbook      : {spec.workbook}\n"
         f"  scenario      : {scenario}\n"
         f"  launch point  : {launch_point} (PQ0); PQ1..PQ9 follow\n"
         f"  3M at PQ0     : {launch_3m:.4%}   history quarters: {len(history)} "
         f"(earliest {min(history)})\n"
-        f"  floor collapse: {floor_collapse}   share basis: {share_basis}\n"
+        f"  floor collapse: {floor_collapse}   share basis: {share_basis}"
+        f"   balance source: {balance_source}\n"
         f"  units         : USD millions; annualized decimal rates"
     )
-    sections.append(
+    emit(
         "SCENARIO 3M PATH\n  PQ0 " + f"{launch_3m:7.4%}  "
         + "  ".join(f"PQ{q} {base_path[q]:7.4%}" for q in quarters)
     )
-    sections.append(load_census.render())
+    emit(load_census.render())
     if m1_census.warnings:
-        sections.append("M.1 NOTES\n" + "\n".join(f"  {note}" for note in m1_census.warnings))
+        emit("M.1 NOTES\n" + "\n".join(f"  {note}" for note in m1_census.warnings))
 
     m1_lines = ["M.1 CATEGORY BALANCES (cross-check: the FRB SCALARS sheet's 'Sch M bal' column)"]
     for name, value in sorted(balances.items(), key=lambda kv: -kv[1]):
@@ -91,19 +102,20 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         f"  {merged_balance:>12,.1f}  merged 9/10/11 bucket from FR Y-9C "
         f"({', '.join(f'{k} {v:,.1f}' for k, v in sorted(merged_parts.items()))})"
     )
-    sections.append("\n".join(m1_lines))
+    emit("\n".join(m1_lines))
 
     launch, launch_diagnostics = build_launch_point(
         facilities, balances, launch_3m, history, quarters,
         lambda when: projection_quarter_index(when, launch_point),
         share_measure=share_basis,
         floor_collapse=floor_collapse,
+        balance_source=balance_source,
     )
     merged = merged_bucket_launch_point(
         facilities, merged_balance, launch_3m, DEPOSITORY_INSTITUTION_H1_CODES,
         FED_CATEGORY_NAMES[9], floor_collapse=floor_collapse,
     )
-    sections.append(launch_diagnostics.render())
+    emit(launch_diagnostics.render())
 
     register = ["LAUNCH-POINT REGISTER (compare each line against the workbook's own cells)"]
     register.append(
@@ -134,9 +146,9 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         f"  {merged.spread.spread:8.4%}  "
         + (f"{merged.floor:7.4%}" if merged.floor is not None else "      -") + "        -"
     )
-    sections.append("\n".join(register))
+    emit("\n".join(register))
 
-    sections.append(
+    emit(
         f"MERGED 9/10/11 BUCKET\n"
         f"  donor pool rate (depository floating) : {merged.spread.pool_rate:.4%}\n"
         f"  spread vs 3M(PQ0)                     : {merged.spread.spread:.4%}\n"
@@ -154,9 +166,9 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         {**dict(launch), merged.segment: merged}, base_path, quarters, scalars,
         require_scalar=apply_scalar,
     )
-    sections.append(projection_diagnostics.render())
+    emit(projection_diagnostics.render())
     for warning in scalar_warnings:
-        sections.append(f"WARN: {warning}")
+        emit(f"WARN: {warning}")
 
     scaling_note = "scaled" if apply_scalar else "UNSCALED — apply_scalar = false"
     result_lines = [f"PROJECTED CORPORATE LOAN INTEREST INCOME ({scaling_note}, USD millions)"]
@@ -174,11 +186,11 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         + f"{sum(grand.values()):>9,.1f}"
     )
     result_lines.append(f"  segments projected: {len(projections)}")
-    sections.append("\n".join(result_lines))
+    emit("\n".join(result_lines))
 
     if spec.results_sheet is not None:
         reference = load_reference_results(spec)
-        sections.append(_compare(reference, projections, base_path, quarters, scalars))
+        emit(_compare(reference, projections, base_path, quarters, scalars))
 
     return "\n\n".join(sections)
 
@@ -370,40 +382,53 @@ def main(argv: list[str] | None = None) -> int:
                         help="also write the output to this file (keep it local)")
     args = parser.parse_args(argv)
 
-    if args.config is None:
-        with tempfile.TemporaryDirectory() as scratch:
-            workbook = _synthetic_workbook(Path(scratch))
-            banner = ("SYNTHETIC DEMO — invented data, hand-checkable numbers. "
-                      "Point --config at the company config for a real run.\n\n")
-            output = banner + _run(
-                LoansSheetSpec(workbook=workbook),
-                args.scenario or "Supervisory Severely Adverse",
-                args.launch_point or "2024Q4",
+    collected: list[str] = []
+    try:
+        if args.config is None:
+            with tempfile.TemporaryDirectory() as scratch:
+                workbook = _synthetic_workbook(Path(scratch))
+                print("SYNTHETIC DEMO — invented data, hand-checkable numbers. "
+                      "Point --config at the company config for a real run.\n", flush=True)
+                _run(
+                    LoansSheetSpec(workbook=workbook),
+                    args.scenario or "Supervisory Severely Adverse",
+                    args.launch_point or "2024Q4",
+                    collected=collected,
+                )
+        else:
+            config = load_config(args.config)
+            if config.firm_data is None or config.firm_data.loans is None:
+                raise ValidationFailure(
+                    f"{args.config}: no [firm_data.loans] section — the loans run is configured "
+                    f"there (workbook path, sheet names, launch point; see "
+                    f"config/company.template.toml)"
+                )
+            loans = config.firm_data.loans
+            print(format_effective_config(config) + "\n", flush=True)
+            _run(
+                loans.spec,
+                args.scenario or loans.scenario,
+                args.launch_point or loans.launch_point,
+                loans.floor_collapse,
+                loans.apply_scalar,
+                loans.share_basis,
+                loans.balance_source,
+                collected=collected,
             )
-    else:
-        config = load_config(args.config)
-        if config.firm_data is None or config.firm_data.loans is None:
-            raise ValidationFailure(
-                f"{args.config}: no [firm_data.loans] section — the loans run is configured "
-                f"there (workbook path, sheet names, launch point; see "
-                f"config/company.template.toml)"
-            )
-        loans = config.firm_data.loans
-        output = format_effective_config(config) + "\n\n" + _run(
-            loans.spec,
-            args.scenario or loans.scenario,
-            args.launch_point or loans.launch_point,
-            loans.floor_collapse,
-            loans.apply_scalar,
-            loans.share_basis,
-        )
+        failed = None
+    except ValidationFailure as error:
+        failed = str(error)
+        print("\nVALIDATION FAILURE — the run stopped here; every section above "
+              "already printed:\n  " + failed, flush=True)
 
-    print(output)
     if args.report is not None:
-        args.report.write_text(output + f"\n\ngenerated {dt.datetime.now():%Y-%m-%d %H:%M}\n",
+        body = "\n\n".join(collected)
+        if failed is not None:
+            body += f"\n\nVALIDATION FAILURE\n  {failed}"
+        args.report.write_text(body + f"\n\ngenerated {dt.datetime.now():%Y-%m-%d %H:%M}\n",
                                encoding="utf-8")
         print(f"\nreport written to {args.report} — carries firm amounts; keep it local")
-    return 0
+    return 0 if failed is None else 1
 
 
 if __name__ == "__main__":

@@ -136,13 +136,54 @@ launch_point = "2024Q4"
     assert "scenario      : Supervisory Severely Adverse" in printed
 
 
-def test_runner_without_a_loans_section_points_at_the_template(tmp_path):
+def test_runner_without_a_loans_section_points_at_the_template(tmp_path, capsys):
+    """main() no longer raises: a ValidationFailure prints AFTER the sections
+    that already emitted (so a deep failure can never hide the censuses that
+    explain it), and the exit code is 1."""
     sys.path.insert(0, str(ROOT / "examples"))
     import run_loans
 
     config = _config(tmp_path, '[firm_data]\nfirm_id = "S"\n')
-    with pytest.raises(ValidationFailure, match=r"no \[firm_data.loans\] section"):
-        run_loans.main(["--config", str(config)])
+    assert run_loans.main(["--config", str(config)]) == 1
+    printed = capsys.readouterr().out
+    assert "VALIDATION FAILURE" in printed
+    assert "no [firm_data.loans] section" in printed
+
+
+def test_a_mid_run_failure_still_prints_the_census_and_writes_the_report(tmp_path, capsys):
+    """The bug that hid the diagnostics on the company machine: sections used to
+    print only at the very end, so a launch-point refusal showed nothing. Every
+    section now prints as produced and lands in the report even on failure."""
+    sys.path.insert(0, str(ROOT / "examples"))
+    import run_loans
+
+    workbook = run_loans._synthetic_workbook(tmp_path)   # lacks the outstanding columns
+    report = tmp_path / "loans_report.txt"
+    config = _config(tmp_path, f"""
+[firm_data]
+firm_id = "SYNTH"
+
+[firm_data.loans]
+workbook = "{workbook.name}"
+launch_point = "2024Q4"
+share_basis = "outstanding"
+""")
+    assert run_loans.main(["--config", str(config), "--report", str(report)]) == 1
+
+    printed = capsys.readouterr().out
+    assert "LOANS LOADER CENSUS" in printed                  # emitted BEFORE the failure
+    assert "col_outstanding / col_value" in printed          # the configuration hint
+    assert "VALIDATION FAILURE" in printed
+    body = report.read_text()
+    assert "LOANS LOADER CENSUS" in body and "VALIDATION FAILURE" in body
+
+
+def test_balance_source_is_config_and_validated(tmp_path):
+    config = load_config(_config(tmp_path, LOANS_BLOCK + 'balance_source = "h1_sum"\n'))
+    assert config.firm_data.loans.balance_source == "h1_sum"
+
+    with pytest.raises(ValidationFailure, match="balance_source must be"):
+        load_config(_config(tmp_path, LOANS_BLOCK + 'balance_source = "schM"\n'))
 
 
 def test_apply_scalar_and_results_sheet_are_config(tmp_path):

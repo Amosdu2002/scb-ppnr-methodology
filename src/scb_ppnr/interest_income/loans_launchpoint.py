@@ -338,6 +338,7 @@ def build_launch_point(
     quarter_of_maturity,
     share_measure: str = EXPOSURE_COMMITTED,
     floor_collapse: str = FLOOR_COLLAPSE_BALANCE_WEIGHTED,
+    balance_source: str = "m1",
 ) -> tuple[Mapping[SegmentKey, SegmentLaunchPoint], LaunchPointDiagnostics]:
     """Assemble every segment's launch-point quantities.
 
@@ -346,7 +347,14 @@ def build_launch_point(
     exposure across all five rate types, so the no-income codes 0 and 4 dilute
     the income-earning segments exactly as PID-LOAN-5 specifies (a recorded
     divergence: the Fed excludes fee-only balances from that denominator, which
-    means this treatment produces LOWER income than a literal reading)."""
+    means this treatment produces LOWER income than a literal reading).
+
+    `balance_source` selects the Equation A32 multiplicand: "m1" (share x the
+    M.1 category balance — the original construction) or "h1_sum" (the segment's
+    own H.1 exposure sum under `share_measure`, with no M.1 normalization —
+    the reference workbook's construction per the user's cell reading of
+    2026-08-12: the income rows sum Committed Exposure Global per reference
+    key directly). Under h1_sum the reported share is informational."""
     rows = list(facilities)
     diagnostics = LaunchPointDiagnostics()
 
@@ -377,7 +385,14 @@ def build_launch_point(
         total = category_exposure.get(segment.category, 0.0)
         exposure = sum(f.exposure(share_measure) for f in segment_rows)
         share = exposure / total if total > 0.0 else 0.0
-        balance = share * category_balances.get(segment.category, 0.0)
+        if balance_source == "h1_sum":
+            balance = exposure
+        elif balance_source == "m1":
+            balance = share * category_balances.get(segment.category, 0.0)
+        else:
+            raise ValidationFailure(
+                f"balance_source must be 'm1' or 'h1_sum', got {balance_source!r}"
+            )
 
         spread: SegmentSpread | None = None
         if segment.treatment != TREATMENT_NO_INCOME:

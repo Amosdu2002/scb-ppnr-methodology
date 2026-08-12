@@ -323,6 +323,12 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # + a "9, 10, 11" block; Fixed/Variable/Total
 #                                           # rows over PQ0..PQ9, raw dollars). Set it and
 #                                           # the run prints ours/theirs per block.
+# balance_source = "h1_sum"                 # Eq A32 multiplicand: "m1" (share x M.1
+#                                           # category balance, the original) | "h1_sum"
+#                                           # (the segment's own H.1 exposure sum, no M.1
+#                                           # normalization — the workbook's income rows
+#                                           # sum Committed Exposure Global per reference
+#                                           # key directly, user cell-reading 2026-08-12)
 # share_basis = "outstanding"               # segment shares/balances weighted by the
 #                                           # Launchpoint Outstanding Balance (HFI) /
 #                                           # Value (HFS) columns — the reference

@@ -237,6 +237,11 @@ class LoansConfig:
     apply_scalar: bool = True   # false = reference-matching runs: the workbook's own
                                 # results carry NO industry scalar (verified 2026-08-12:
                                 # the grand total is the plain sum of the blocks)
+    balance_source: str = "m1"       # Equation A32 multiplicand: "m1" (share x M.1 category
+                                # balance) or "h1_sum" (the segment's own H.1 exposure sum,
+                                # no M.1 normalization — the reference workbook sums
+                                # Committed Exposure Global per reference key directly,
+                                # user cell-reading 2026-08-12)
     share_basis: str = "committed"   # which column weights segment shares and balances:
                                 # "committed" (the original flagged choice) or
                                 # "outstanding" (Launchpoint Outstanding Balance / Value —
@@ -244,7 +249,7 @@ class LoansConfig:
                                 # "percentage of OUTSTANDING balance", PDF p. 174)
 
 
-_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar", "share_basis")
+_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar", "share_basis", "balance_source")
 
 
 def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
@@ -263,6 +268,12 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
     apply_scalar = section.get("apply_scalar", True)
     if not isinstance(apply_scalar, bool):
         raise ValidationFailure(f"config {context}: apply_scalar must be true or false, got {apply_scalar!r}")
+    balance_source = str(section.get("balance_source", "m1")).strip().lower()
+    if balance_source not in ("m1", "h1_sum"):
+        raise ValidationFailure(
+            f"config {context}: balance_source must be 'm1' or 'h1_sum', "
+            f"got {section.get('balance_source')!r}"
+        )
     share_basis = str(section.get("share_basis", "committed")).strip().lower()
     if share_basis not in ("committed", "outstanding"):
         raise ValidationFailure(
@@ -308,6 +319,7 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
         floor_collapse=floor_collapse,
         apply_scalar=bool(apply_scalar),
         share_basis=share_basis,
+        balance_source=balance_source,
     )
 
 
