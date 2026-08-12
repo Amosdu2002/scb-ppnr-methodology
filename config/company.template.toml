@@ -266,3 +266,55 @@ wal_column = "<WAL_COLUMN>"                     # years (decimal)
 #                                NII = income − expense identity is checked as a
 #                                wiring guard before any model runs
 # Confirm the physical file mapping of these paths before reliance.
+
+# ---------------------------------------------------------------------------
+# Corporate wholesale loans (PID-LOAN-8..11) — ONE workbook carrying CORP H.1,
+# H.1 Mapping, M.1 Balance, FR-Y9C 4Q 2024, and MEV. Sheet names, header
+# geometry and unit scales are all config; the runner takes NO file paths.
+#   PYTHONPATH=src python3 examples/run_loans.py --config <this file, filled>
+# The one methodology switch (floor_collapse, PID-LOAN-7) lives in
+# config/models/loans.toml — do not ALSO set it here when composing both files
+# through a run manifest: a key defined in two files is a hard error.
+# ---------------------------------------------------------------------------
+[firm_data.loans]
+workbook = "<PATH_TO_LOANS_WORKBOOK>.xlsx"
+launch_point = "2024Q4"                  # PQ0 vintage — REQUIRED (data-tied, no default);
+                                         # PQ1..PQ9 are the nine following quarters
+scenario = "Supervisory Severely Adverse"    # MEV projection-block name, exactly as the
+                                         # sheet spells it; history rows are matched
+                                         # separately under mev_history_scenario
+h1_sheet = "CORP H.1"
+h1_header_row = 4                        # column titles sit on row 4
+fry9c_sheet = "FR-Y9C 4Q 2024"
+fry9c_header_row = 8                     # ID_RSSD on row 8
+fry9c_id_column = "ID_RSSD"
+fry9c_value_column_index = 3             # 1-based; BHCK1545/BHDM1420 values (thousands)
+m1_sheet = "M.1 Balance"
+m1_first_data_row = 11
+m1_domestic_role_column_index = 1        # col A: FRB NII model role, domestic side
+m1_international_role_column_index = 2   # col B: international side
+m1_domestic_value_column_indices = [5, 7]      # E = HFI at AC, G = HFS/FVO
+m1_international_value_column_indices = [9, 11] # I = HFI at AC, K = HFS/FVO
+m1_scale = "millions"
+mev_sheet = "MEV"
+mev_header_row = 1
+mev_scenario_column = "Scenario Name"
+mev_date_column = "Date"
+mev_3m_column = "3-month Treasury rate"
+mev_history_scenario = "Actual"          # history through PQ0, incl. the launch quarter
+rate_scale = "decimal"                   # H.1 Interest Rate / Floor: 0.075-style
+exposure_scale = "dollars"               # H.1 exposures: whole USD -> canonical millions
+fry9c_scale = "thousands"                # FR Y-9C extract: USD thousands -> millions
+mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
+# H.1 column headers — the defaults below match the sheet; set only what differs.
+# col_facility_id = "Customer ID"
+# col_h1_code = "Line Reported on FR Y9C"
+# col_variability = "Interest Rate Variability"   # unset -> correct spelling first,
+#                                                 # known misspelling accepted + reported
+# col_locom = "Lower of Cost or Market Flag"
+# col_interest_rate = "Interest Rate"
+# col_committed = "Committed Exposure Global"
+# col_utilized = "Utilized Exposure Global"
+# col_floor = "Interest Rate Floor"
+# col_origination = "Origination Date"
+# col_maturity = "Maturity Date"

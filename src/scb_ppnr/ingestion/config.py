@@ -16,6 +16,8 @@ from types import MappingProxyType
 from typing import Mapping
 
 from ..core.schemas import ValidationFailure
+from ..interest_income.loans_schemas import FLOOR_COLLAPSES, check_quarter_label
+from .loans_loader import LoansSheetSpec
 
 SERIES_KIND_RATE = "rate"    # scale-normalized to annualized decimal (scale required)
 SERIES_KIND_LEVEL = "level"  # taken as-is, e.g. an index level (scale must be absent)
@@ -210,10 +212,84 @@ class FirmDataConfig:
     PID-SEC-6 securities workbook (Increment 2, asset side)."""
 
     firm_id: str
-    spot: TableSource
-    quarterly: TableSource
+    spot: TableSource | None = None
+    quarterly: TableSource | None = None
     frb_expense_sign: str = EXPENSE_SIGN_POSITIVE
     securities: SecuritiesConfig | None = None
+    loans: "LoansConfig | None" = None
+
+
+@dataclass(frozen=True)
+class LoansConfig:
+    """The `[firm_data.loans]` section: one workbook, every sheet name, header
+    row and column header in config (PID-LOAN-8) — nothing is passed as a CLI
+    path. `spec` carries the physical binding; `scenario` names the MEV
+    projection block exactly as the sheet spells it (history rows are matched
+    separately, under the spec's `mev_history_scenario`, default `Actual`);
+    `launch_point` is the PQ0 calendar quarter and is REQUIRED because it is
+    tied to the data vintage, not a stable default; `floor_collapse` is the one
+    methodology switch (PID-LOAN-7)."""
+
+    spec: LoansSheetSpec
+    scenario: str
+    launch_point: str
+    floor_collapse: str
+
+
+_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse")
+
+
+def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
+    context = "[firm_data.loans]"
+    spec_fields = {f.name: f for f in fields(LoansSheetSpec)}
+
+    workbook = Path(str(_require(section, "workbook", context)))
+    if not workbook.is_absolute():
+        workbook = base_dir / workbook
+
+    launch_point = check_quarter_label(
+        f"config {context}: launch_point",
+        str(_require(section, "launch_point", context)),
+    )
+    scenario = str(section.get("scenario", "Supervisory Severely Adverse"))
+    floor_collapse = str(section.get("floor_collapse", "balance_weighted")).strip().lower()
+    if floor_collapse not in FLOOR_COLLAPSES:
+        raise ValidationFailure(
+            f"config {context}: floor_collapse must be one of {FLOOR_COLLAPSES} "
+            f"(PID-LOAN-7), got {section.get('floor_collapse')!r}"
+        )
+
+    spec_kwargs: dict[str, object] = {"workbook": workbook}
+    for key, value in section.items():
+        if key in _LOANS_RUN_KEYS:
+            continue
+        if key not in spec_fields or key == "workbook":
+            raise ValidationFailure(
+                f"config {context}: unknown key {key!r}. Valid keys: "
+                f"{sorted((*_LOANS_RUN_KEYS, *(n for n in spec_fields if n != 'workbook')))}. "
+                f"Refused rather than ignored, so a typo'd sheet name can never look "
+                f"configured while the default quietly loads instead."
+            )
+        default = spec_fields[key].default
+        if isinstance(default, bool):
+            raise ValidationFailure(f"config {context}: {key!r} is not configurable")
+        if isinstance(default, int):
+            spec_kwargs[key] = int(value)  # type: ignore[call-overload]
+        elif isinstance(default, tuple):
+            if not isinstance(value, (list, tuple)):
+                raise ValidationFailure(
+                    f"config {context}: {key} must be an array of 1-based column numbers"
+                )
+            spec_kwargs[key] = tuple(int(v) for v in value)
+        else:
+            spec_kwargs[key] = str(value)
+
+    return LoansConfig(
+        spec=LoansSheetSpec(**spec_kwargs),  # type: ignore[arg-type]
+        scenario=scenario,
+        launch_point=launch_point,
+        floor_collapse=floor_collapse,
+    )
 
 
 @dataclass(frozen=True)
@@ -418,13 +494,17 @@ def load_config(path: Path | str) -> IngestionConfig:
     firm_data: FirmDataConfig | None = None
     if "firm_data" in raw:
         section = raw["firm_data"]
-        for sub in ("spot", "quarterly"):
-            if sub not in section:
-                raise ValidationFailure(
-                    f"config [firm_data]: missing [firm_data.{sub}] — the firm-input contract is "
-                    f"two sheets (D-007): 'spot' for launch-point scalars, 'quarterly' for wide "
-                    f"PQ1..PQ9 paths"
-                )
+        # The D-007 two-sheet contract is a PAIR: one of spot/quarterly without the
+        # other is almost certainly a mistake and stays an error. BOTH absent is a
+        # legitimate loans-/securities-only config; the expense-family loader guards
+        # at the point of use instead.
+        if ("spot" in section) != ("quarterly" in section):
+            missing = "quarterly" if "spot" in section else "spot"
+            raise ValidationFailure(
+                f"config [firm_data]: missing [firm_data.{missing}] — the firm-input contract is "
+                f"two sheets (D-007): 'spot' for launch-point scalars, 'quarterly' for wide "
+                f"PQ1..PQ9 paths. Declare both, or neither for a loans-/securities-only config."
+            )
         frb_expense_sign = str(section.get("frb_expense_sign", EXPENSE_SIGN_POSITIVE)).strip().lower()
         if frb_expense_sign not in (EXPENSE_SIGN_POSITIVE, EXPENSE_SIGN_NEGATIVE):
             raise ValidationFailure(
@@ -559,12 +639,17 @@ def load_config(path: Path | str) -> IngestionConfig:
                     f"config [firm_data.securities]: on_security_error must be 'stop' or 'skip', "
                     f"got {sec.get('on_security_error')!r}"
                 )
+        loans = _parse_loans(section["loans"], path.parent.resolve()) if "loans" in section else None
         firm_data = FirmDataConfig(
             firm_id=str(_require(section, "firm_id", "[firm_data]")),
-            spot=_table_source(section["spot"], "[firm_data.spot]"),
-            quarterly=_table_source(section["quarterly"], "[firm_data.quarterly]"),
+            spot=_table_source(section["spot"], "[firm_data.spot]") if "spot" in section else None,
+            quarterly=(
+                _table_source(section["quarterly"], "[firm_data.quarterly]")
+                if "quarterly" in section else None
+            ),
             frb_expense_sign=frb_expense_sign,
             securities=securities,
+            loans=loans,
         )
 
     return IngestionConfig(

@@ -206,6 +206,12 @@ def _parse_quarterly_rows(rows: list[dict[str, object]], path: Path) -> dict[tup
 def load_family_inputs(config: IngestionConfig) -> FamilyInputs:
     if config.firm_data is None:
         raise ValidationFailure("config has no [firm_data] section")
+    if config.firm_data.spot is None or config.firm_data.quarterly is None:
+        raise ValidationFailure(
+            "config [firm_data] declares neither [firm_data.spot] nor [firm_data.quarterly] — "
+            "the expense-family run needs the D-007 two-sheet contract (a loans-/securities-only "
+            "config legitimately omits it, but then this loader cannot run)"
+        )
     spot_path, spot_rows = _read_sheet(
         config, config.firm_data.spot, role="spot", required_columns={"model", "field", "value"}
     )
@@ -285,6 +291,12 @@ def load_income_inputs(config: IngestionConfig) -> IncomeFamilyInputs:
     `frb_total_interest_income` as its monitor target)."""
     if config.firm_data is None:
         raise ValidationFailure("config has no [firm_data] section")
+    if config.firm_data.spot is None:
+        raise ValidationFailure(
+            "config [firm_data] declares no [firm_data.spot] — the calculator-income run needs "
+            "the D-007 spot sheet (a loans-/securities-only config legitimately omits it, but "
+            "then this loader cannot run)"
+        )
     spot_path, spot_rows = _read_sheet(
         config, config.firm_data.spot, role="spot", required_columns={"model", "field", "value"}
     )

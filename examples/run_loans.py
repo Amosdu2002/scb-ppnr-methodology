@@ -2,20 +2,19 @@
 
     PYTHONPATH=src python3 examples/run_loans.py                            # synthetic demo
     PYTHONPATH=src python3 examples/run_loans.py \
-        --workbook config/local/corp.xlsx --launch-point 2024Q4 \
-        --report loans_report.txt                                           # company run
+        --config config/local/company.toml --report loans_report.txt        # company run
+
+Everything physical lives in the config's [firm_data.loans] section — workbook
+path, every sheet name, header row and column header, the launch point, and the
+scenario name (see config/company.template.toml). Nothing is passed as a CLI
+path. --scenario and --launch-point exist only as one-off OVERRIDES of the
+config values.
 
 Scenario names: history rows are matched under `Actual` (through PQ0); projection
-rows under --scenario, which defaults to `Supervisory Severely Adverse` — the
-sheet's own block name, so a standard run needs no scenario flag at all.
-Projection rows are mapped to PQ1..PQ9 BY THEIR Date column relative to
---launch-point, never by sheet order; a wrong scenario spelling errors with the
-row names actually found.
-
-Sheet names and column headers default to the user-described layout of 2026-08-07
-(CORP H.1 header row 4; FR-Y9C 4Q 2024 header row 8; M.1 Balance data from row 11;
-MEV with an `Actual` history back to 1976 Q1). Override the sheet names with the
---*-sheet flags if an extract differs; anything deeper, edit LoansSheetSpec.
+rows under the configured scenario, default `Supervisory Severely Adverse` — the
+sheet's own block name. Projection rows are mapped to PQ1..PQ9 BY THEIR Date
+column relative to the launch point, never by sheet order; a wrong scenario
+spelling errors with the row names actually found.
 
 Censuses print FIRST, results after — the securities-loop lesson: the diagnostics
 are the product of a first run, the numbers only matter once the censuses are
@@ -33,7 +32,8 @@ import datetime as dt
 import tempfile
 from pathlib import Path
 
-from scb_ppnr.core.schemas import PROJECTION_QUARTERS
+from scb_ppnr.core.schemas import PROJECTION_QUARTERS, ValidationFailure
+from scb_ppnr.ingestion.config import format_effective_config, load_config
 from scb_ppnr.ingestion.loans_loader import (
     LoansSheetSpec,
     load_3m_treasury,
@@ -54,7 +54,8 @@ from scb_ppnr.interest_income.loans_projection import project_corporate
 from scb_ppnr.interest_income.loans_schemas import projection_quarter_index
 
 
-def _run(spec: LoansSheetSpec, scenario: str, launch_point: str) -> str:
+def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
+         floor_collapse: str = "balance_weighted") -> str:
     sections: list[str] = []
     quarters = PROJECTION_QUARTERS
 
@@ -88,10 +89,11 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str) -> str:
     launch, launch_diagnostics = build_launch_point(
         facilities, balances, launch_3m, history, quarters,
         lambda when: projection_quarter_index(when, launch_point),
+        floor_collapse=floor_collapse,
     )
     merged = merged_bucket_launch_point(
         facilities, merged_balance, launch_3m, DEPOSITORY_INSTITUTION_H1_CODES,
-        FED_CATEGORY_NAMES[9],
+        FED_CATEGORY_NAMES[9], floor_collapse=floor_collapse,
     )
     sections.append(launch_diagnostics.render())
     sections.append(
@@ -190,39 +192,42 @@ def _synthetic_workbook(directory: Path) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--workbook", type=Path, default=None,
-                        help="company workbook; omit for the synthetic demo")
-    parser.add_argument("--scenario", default="Supervisory Severely Adverse",
-                        help="MEV scenario name exactly as the sheet spells it "
-                             "(history rows are matched separately, under 'Actual')")
-    parser.add_argument("--launch-point", default="2024Q4",
-                        help="PQ0 calendar quarter, e.g. 2024Q4")
-    parser.add_argument("--h1-sheet", default=None)
-    parser.add_argument("--m1-sheet", default=None)
-    parser.add_argument("--fry9c-sheet", default=None)
-    parser.add_argument("--mev-sheet", default=None)
+    parser.add_argument("--config", type=Path, default=None,
+                        help="company config with a [firm_data.loans] section; "
+                             "omit for the synthetic demo")
+    parser.add_argument("--scenario", default=None,
+                        help="override the configured MEV projection-block name for one run")
+    parser.add_argument("--launch-point", default=None,
+                        help="override the configured PQ0 quarter for one run")
     parser.add_argument("--report", type=Path, default=None,
                         help="also write the output to this file (keep it local)")
     args = parser.parse_args(argv)
 
-    overrides = {
-        name: value for name, value in (
-            ("h1_sheet", args.h1_sheet), ("m1_sheet", args.m1_sheet),
-            ("fry9c_sheet", args.fry9c_sheet), ("mev_sheet", args.mev_sheet),
-        ) if value is not None
-    }
-
-    if args.workbook is None:
+    if args.config is None:
         with tempfile.TemporaryDirectory() as scratch:
             workbook = _synthetic_workbook(Path(scratch))
             banner = ("SYNTHETIC DEMO — invented data, hand-checkable numbers. "
-                      "Point --workbook at the company file for a real run.\n\n")
+                      "Point --config at the company config for a real run.\n\n")
             output = banner + _run(
-                LoansSheetSpec(workbook=workbook, **overrides), args.scenario, args.launch_point
+                LoansSheetSpec(workbook=workbook),
+                args.scenario or "Supervisory Severely Adverse",
+                args.launch_point or "2024Q4",
             )
     else:
-        output = _run(LoansSheetSpec(workbook=args.workbook, **overrides),
-                      args.scenario, args.launch_point)
+        config = load_config(args.config)
+        if config.firm_data is None or config.firm_data.loans is None:
+            raise ValidationFailure(
+                f"{args.config}: no [firm_data.loans] section — the loans run is configured "
+                f"there (workbook path, sheet names, launch point; see "
+                f"config/company.template.toml)"
+            )
+        loans = config.firm_data.loans
+        output = format_effective_config(config) + "\n\n" + _run(
+            loans.spec,
+            args.scenario or loans.scenario,
+            args.launch_point or loans.launch_point,
+            loans.floor_collapse,
+        )
 
     print(output)
     if args.report is not None:
