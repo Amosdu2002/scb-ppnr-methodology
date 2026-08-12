@@ -18,6 +18,7 @@ rates are percentages."""
 from __future__ import annotations
 
 import datetime as _dt
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -105,6 +106,11 @@ class LoansSheetSpec:
     # synthesized row-number label — its balances are real and must not be dropped.
     col_internal_id: str = "Internal ID"
     col_original_internal_id: str = "Original Internal ID"
+    # Reference results sheet (compare mode). The workbook's own projected income,
+    # laid out as blocks per "N - HFI" / "N - HFS/FVO" marker (plus a "9, 10, 11"
+    # merged block) with Fixed Income / Variable Rate Income / Total rows over
+    # PQ0..PQ9 columns, in raw dollars. Optional: unset disables the compare.
+    results_sheet: str | None = None
 
 
 @dataclass
@@ -584,3 +590,100 @@ def load_3m_treasury(
         )
 
     return history, projection, history[launch_point]
+
+
+# --- Reference results (compare mode) --------------------------------------
+
+_BLOCK_MARKER = re.compile(r"^\s*(\d{1,2})\s*-\s*(HFI|HFS/FVO)\s*$")
+_MERGED_MARKER = re.compile(r"^\s*9\s*,\s*10\s*,\s*11\s*$")
+_RESULT_ROW_LABELS = {
+    "Fixed Income": "fixed",
+    "Variable Rate Income": "variable",
+    "Total": "total",
+}
+
+
+def load_reference_results(
+    spec: LoansSheetSpec,
+) -> Mapping[tuple[str, str], Mapping[str, Mapping[int, float]]]:
+    """Read the workbook's own projected income for the compare mode.
+
+    Layout (observed 2026-08-12): blocks introduced by a cell reading `N - HFI`
+    or `N - HFS/FVO` (and one `9, 10, 11` merged block), each carrying rows
+    labelled `Fixed Income`, `Variable Rate Income`, and `Total` over PQ0..PQ9
+    columns headed `PQ0`..`PQ9`, values in raw dollars ("-" meaning zero).
+
+    Returns {(Fed category name, class): {"fixed"|"variable"|"total": {0..9: USD
+    millions}}}. The blocks' Total exceeds Fixed + Variable — the workbook sums
+    a third stream (Mixed, by its rate signature); the compare derives it as
+    Total − Fixed − Variable rather than requiring its row."""
+    from .loans_mapping import CLASS_FVO_HFS, CLASS_HFI, FED_CATEGORY_NAMES
+
+    if spec.results_sheet is None:
+        raise ValidationFailure("results_sheet is not configured — nothing to compare against")
+
+    workbook = _open(spec.workbook)
+    try:
+        rows = [list(row) for row in _sheet(workbook, spec.results_sheet, spec.workbook).values]
+    finally:
+        workbook.close()
+    context = f"{spec.workbook.name}:{spec.results_sheet}"
+
+    quarter_columns: dict[int, int] = {}
+    for row in rows[:20]:
+        found = {
+            int(str(cell).strip()[2:]): index
+            for index, cell in enumerate(row)
+            if isinstance(cell, str) and re.fullmatch(r"PQ[0-9]", cell.strip())
+        }
+        if len(found) >= 10:
+            quarter_columns = found
+            break
+    if not quarter_columns:
+        raise ValidationFailure(
+            f"{context}: no header row carrying PQ0..PQ9 labels found in the first 20 rows"
+        )
+
+    class_by_marker = {"HFI": CLASS_HFI, "HFS/FVO": CLASS_FVO_HFS}
+    results: dict[tuple[str, str], dict[str, Mapping[int, float]]] = {}
+    current: tuple[str, str] | None = None
+
+    for row in rows:
+        for cell in row:
+            if not isinstance(cell, str):
+                continue
+            marker = _BLOCK_MARKER.match(cell)
+            if marker:
+                category = int(marker.group(1))
+                if category not in FED_CATEGORY_NAMES:
+                    raise ValidationFailure(f"{context}: block marker {cell!r} names Fed Category {category}, which does not exist")
+                current = (FED_CATEGORY_NAMES[category], class_by_marker[marker.group(2)])
+                break
+            if _MERGED_MARKER.match(cell):
+                current = (FED_CATEGORY_NAMES[9], "MERGED")
+                break
+        label = next(
+            (
+                _RESULT_ROW_LABELS[str(cell).strip()]
+                for cell in row
+                if isinstance(cell, str) and str(cell).strip() in _RESULT_ROW_LABELS
+            ),
+            None,
+        )
+        if label is None or current is None:
+            continue
+        path: dict[int, float] = {}
+        for quarter, index in quarter_columns.items():
+            cell = row[index] if index < len(row) else None
+            if _is_missing(cell) or (isinstance(cell, str) and cell.strip() == "-"):
+                path[quarter] = 0.0
+            else:
+                path[quarter] = to_float(cell, context=f"{context}: {current} {label} PQ{quarter}") / 1e6
+        results.setdefault(current, {})[label] = MappingProxyType(path)
+
+    if not results:
+        raise ValidationFailure(
+            f"{context}: no result blocks found — expected markers like '1 - HFI' with "
+            f"Fixed Income / Variable Rate Income / Total rows"
+        )
+    return MappingProxyType({key: MappingProxyType(streams) for key, streams in results.items()})

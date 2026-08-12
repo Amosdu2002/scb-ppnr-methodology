@@ -318,6 +318,15 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 # col_floor = "Interest Rate Floor"
 # col_origination = "Origination Date"
 # col_maturity = "Maturity Date"
+# results_sheet = "<RESULTS_SHEET_NAME>"   # COMPARE MODE: the workbook's own projected
+#                                           # income (blocks per "N - HFI"/"N - HFS/FVO"
+#                                           # + a "9, 10, 11" block; Fixed/Variable/Total
+#                                           # rows over PQ0..PQ9, raw dollars). Set it and
+#                                           # the run prints ours/theirs per block.
+# apply_scalar = false                      # reference-matching runs: the workbook's
+#                                           # results carry NO industry scalar (verified
+#                                           # 2026-08-12 — the grand total is the plain
+#                                           # block sum). Default true (Table A8 applied).
 # col_internal_id = "Internal ID"                 # PID-LOAN-12 fallback identifiers:
 # col_original_internal_id = "Original Internal ID"   # a row with [NULL] Customer ID tries
 #                                                 # these in order; all-[NULL] rows keep

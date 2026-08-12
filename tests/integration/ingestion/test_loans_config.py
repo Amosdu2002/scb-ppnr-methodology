@@ -143,3 +143,51 @@ def test_runner_without_a_loans_section_points_at_the_template(tmp_path):
     config = _config(tmp_path, '[firm_data]\nfirm_id = "S"\n')
     with pytest.raises(ValidationFailure, match=r"no \[firm_data.loans\] section"):
         run_loans.main(["--config", str(config)])
+
+
+def test_apply_scalar_and_results_sheet_are_config(tmp_path):
+    """Reference-matching runs: the workbook's results carry no industry scalar
+    (verified 2026-08-12), so the scalar is switchable and the results sheet
+    nameable — both in config, not CLI."""
+    body = LOANS_BLOCK + 'apply_scalar = false\nresults_sheet = "Results"\n'
+    config = load_config(_config(tmp_path, body))
+
+    assert config.firm_data.loans.apply_scalar is False
+    assert config.firm_data.loans.spec.results_sheet == "Results"
+
+    with pytest.raises(ValidationFailure, match="apply_scalar must be true or false"):
+        load_config(_config(tmp_path, LOANS_BLOCK + 'apply_scalar = "yes"\n'))
+
+
+def test_runner_compare_section_prints_when_results_sheet_is_configured(tmp_path, capsys):
+    sys.path.insert(0, str(ROOT / "examples"))
+    import openpyxl
+    import run_loans
+
+    workbook = run_loans._synthetic_workbook(tmp_path)
+    book = openpyxl.load_workbook(workbook)
+    sheet = book.create_sheet("Results")
+    sheet.append([None, None, None] + [f"PQ{q}" for q in range(10)])
+    sheet.append(["1 - HFI"])
+    sheet.append([None, "x", "Fixed Income"] + [20e6] * 10)
+    sheet.append([None, "x", "Variable Rate Income"] + [30e6, 25e6] + [20e6] * 8)
+    sheet.append([None, "x", "Total"] + [55e6, 48e6] + [42e6] * 8)   # hidden mixed inside
+    book.save(workbook)
+
+    config = _config(tmp_path, f"""
+[firm_data]
+firm_id = "SYNTH"
+
+[firm_data.loans]
+workbook = "{workbook.name}"
+launch_point = "2024Q4"
+apply_scalar = false
+results_sheet = "Results"
+""")
+    assert run_loans.main(["--config", str(config)]) == 0
+
+    printed = capsys.readouterr().out
+    assert "UNSCALED — apply_scalar = false" in printed
+    assert "LOANS COMPARE" in printed
+    assert "IMPLIED FROM THE PQ1->PQ2 SLOPE" in printed
+    assert "GRAND (blocks present on both sides)" in printed

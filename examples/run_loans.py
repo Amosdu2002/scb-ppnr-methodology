@@ -40,6 +40,7 @@ from scb_ppnr.ingestion.loans_loader import (
     load_category_balances,
     load_facilities,
     load_merged_bucket_balance,
+    load_reference_results,
 )
 from scb_ppnr.ingestion.loans_mapping import (
     DEPOSITORY_INSTITUTION_H1_CODES,
@@ -55,7 +56,7 @@ from scb_ppnr.interest_income.loans_schemas import projection_quarter_index
 
 
 def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
-         floor_collapse: str = "balance_weighted") -> str:
+         floor_collapse: str = "balance_weighted", apply_scalar: bool = True) -> str:
     sections: list[str] = []
     quarters = PROJECTION_QUARTERS
 
@@ -142,15 +143,22 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         + (f"{merged.floor:.4%}" if merged.floor is not None else "none on file")
     )
 
-    scalars, scalar_warnings = scalars_by_category_name()
+    if apply_scalar:
+        scalars, scalar_warnings = scalars_by_category_name()
+    else:
+        # Reference-matching runs: the workbook's own results carry NO industry
+        # scalar (verified 2026-08-12 — the grand total is the plain block sum).
+        scalars, scalar_warnings = {}, ()
     projections, totals, projection_diagnostics = project_corporate(
-        {**dict(launch), merged.segment: merged}, base_path, quarters, scalars
+        {**dict(launch), merged.segment: merged}, base_path, quarters, scalars,
+        require_scalar=apply_scalar,
     )
     sections.append(projection_diagnostics.render())
     for warning in scalar_warnings:
         sections.append(f"WARN: {warning}")
 
-    result_lines = ["PROJECTED CORPORATE LOAN INTEREST INCOME (scaled, USD millions)"]
+    scaling_note = "scaled" if apply_scalar else "UNSCALED — apply_scalar = false"
+    result_lines = [f"PROJECTED CORPORATE LOAN INTEREST INCOME ({scaling_note}, USD millions)"]
     result_lines.append("  category / PQ                " + "".join(f"{f'PQ{q}':>9}" for q in quarters) + "      9Q")
     grand = {q: 0.0 for q in quarters}
     for name, path in sorted(totals.items(), key=lambda kv: -sum(kv[1].values())):
@@ -167,7 +175,123 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
     result_lines.append(f"  segments projected: {len(projections)}")
     sections.append("\n".join(result_lines))
 
+    if spec.results_sheet is not None:
+        reference = load_reference_results(spec)
+        sections.append(_compare(reference, projections, base_path, quarters))
+
     return "\n\n".join(sections)
+
+
+def _compare(reference, projections, base_path, quarters) -> str:
+    """Ours (UNSCALED, per segment) against the workbook's results blocks.
+
+    Their block Total exceeds Fixed + Variable: the workbook sums a third stream
+    whose rate signature (linear in 3M, spread above the variable stream's) says
+    Mixed — so theirs' mixed is derived as Total - Fixed - Variable and compared
+    to our v3 stream. Implied balance and spread per floating stream come from
+    the PQ1->PQ2 slope, identically on both sides, so the decomposition into
+    balance-vs-spread differences is assumption-free."""
+    from scb_ppnr.interest_income.loans_schemas import (
+        VT_FIXED, VT_FLOATING, VT_MIXED,
+    )
+
+    ours: dict[tuple[str, str], dict[str, dict[int, float]]] = {}
+    stream_of = {VT_FIXED: "fixed", VT_FLOATING: "variable", VT_MIXED: "mixed"}
+    for key, projection in projections.items():
+        stream = stream_of.get(key.variable_type)
+        if key.locom == "MERGED":
+            stream = "variable"                     # the merged bucket is one floating block
+        if stream is None:
+            continue
+        block = ours.setdefault((key.category, key.locom), {})
+        path = block.setdefault(stream, {q: 0.0 for q in quarters})
+        for q in quarters:
+            path[q] += projection.income_path[q]
+
+    lines = ["LOANS COMPARE (ours UNSCALED vs the workbook's results sheet; USD millions; ratio = ours/theirs)"]
+    lines.append("  block                                     stream       PQ1 o/t          PQ2 o/t          9Q o/t            ratio")
+
+    def fmt(pair):
+        mine, theirs = pair
+        return f"{mine:>8,.1f}/{theirs:>8,.1f}"
+
+    grand_ours = {q: 0.0 for q in quarters}
+    grand_theirs = {q: 0.0 for q in quarters}
+    implied_lines: list[str] = []
+
+    for key in sorted(reference):
+        category, klass = key
+        streams = reference[key]
+        total_theirs = streams.get("total", {})
+        if all(total_theirs.get(q, 0.0) == 0.0 for q in quarters):
+            continue
+        mixed_theirs = {
+            q: total_theirs.get(q, 0.0) - streams.get("fixed", {}).get(q, 0.0)
+               - streams.get("variable", {}).get(q, 0.0)
+            for q in quarters
+        }
+        block_ours = ours.get(key, {})
+        totals_ours = {
+            q: sum(block_ours.get(name, {}).get(q, 0.0) for name in ("fixed", "variable", "mixed"))
+            for q in quarters
+        }
+        for q in quarters:
+            grand_ours[q] += totals_ours[q]
+            grand_theirs[q] += total_theirs.get(q, 0.0)
+
+        rows = [
+            ("fixed", block_ours.get("fixed", {}), streams.get("fixed", {})),
+            ("variable", block_ours.get("variable", {}), streams.get("variable", {})),
+            ("mixed", block_ours.get("mixed", {}), mixed_theirs),
+            ("total", totals_ours, total_theirs),
+        ]
+        label = f"{category[:32]}/{klass}"
+        for name, mine, theirs in rows:
+            nine_mine = sum(mine.get(q, 0.0) for q in quarters)
+            nine_theirs = sum(theirs.get(q, 0.0) for q in quarters)
+            if nine_mine == 0.0 and nine_theirs == 0.0:
+                continue
+            ratio = f"{nine_mine / nine_theirs:8.4f}" if nine_theirs else "     n/a"
+            lines.append(
+                f"  {label:<41} {name:<9}"
+                f"  {fmt((mine.get(1, 0.0), theirs.get(1, 0.0)))}"
+                f"  {fmt((mine.get(2, 0.0), theirs.get(2, 0.0)))}"
+                f"  {fmt((nine_mine, nine_theirs))}  {ratio}"
+            )
+            label = ""
+            if name in ("variable", "mixed"):
+                implied = []
+                for side, path in (("ours", mine), ("theirs", theirs)):
+                    m1, m2 = base_path[1], base_path[2]
+                    if abs(m1 - m2) < 1e-9:
+                        continue
+                    balance = (path.get(1, 0.0) - path.get(2, 0.0)) * 4.0 / (m1 - m2)
+                    if balance <= 0.0:
+                        continue
+                    spread = path.get(2, 0.0) * 4.0 / balance - m2
+                    implied.append(f"{side} bal {balance:>11,.0f} spread {spread:7.4%}")
+                if implied:
+                    implied_lines.append(
+                        f"      {category[:32]}/{klass} {name:<9} " + "   ".join(implied)
+                    )
+
+    nine_ours, nine_theirs = sum(grand_ours.values()), sum(grand_theirs.values())
+    lines.append(
+        f"  {'GRAND (blocks present on both sides)':<41} {'total':<9}"
+        f"  {fmt((grand_ours[1], grand_theirs[1]))}"
+        f"  {fmt((grand_ours[2], grand_theirs[2]))}"
+        f"  {fmt((nine_ours, nine_theirs))}  "
+        + (f"{nine_ours / nine_theirs:8.4f}" if nine_theirs else "     n/a")
+    )
+    lines.append("  IMPLIED FROM THE PQ1->PQ2 SLOPE (floating streams; balance in USD millions):")
+    lines.extend(implied_lines)
+    lines.append(
+        "  note: a matching ratio with different implied balance AND spread means the two"
+    )
+    lines.append(
+        "  offset — fix the balance first, then re-read the spread."
+    )
+    return "\n".join(lines)
 
 
 def _synthetic_workbook(directory: Path) -> Path:
@@ -265,6 +389,7 @@ def main(argv: list[str] | None = None) -> int:
             args.scenario or loans.scenario,
             args.launch_point or loans.launch_point,
             loans.floor_collapse,
+            loans.apply_scalar,
         )
 
     print(output)

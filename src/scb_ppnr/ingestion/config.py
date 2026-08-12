@@ -234,9 +234,12 @@ class LoansConfig:
     scenario: str
     launch_point: str
     floor_collapse: str
+    apply_scalar: bool = True   # false = reference-matching runs: the workbook's own
+                                # results carry NO industry scalar (verified 2026-08-12:
+                                # the grand total is the plain sum of the blocks)
 
 
-_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse")
+_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar")
 
 
 def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
@@ -252,6 +255,9 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
         str(_require(section, "launch_point", context)),
     )
     scenario = str(section.get("scenario", "Supervisory Severely Adverse"))
+    apply_scalar = section.get("apply_scalar", True)
+    if not isinstance(apply_scalar, bool):
+        raise ValidationFailure(f"config {context}: apply_scalar must be true or false, got {apply_scalar!r}")
     floor_collapse = str(section.get("floor_collapse", "balance_weighted")).strip().lower()
     if floor_collapse not in FLOOR_COLLAPSES:
         raise ValidationFailure(
@@ -289,6 +295,7 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
         scenario=scenario,
         launch_point=launch_point,
         floor_collapse=floor_collapse,
+        apply_scalar=bool(apply_scalar),
     )
 
 

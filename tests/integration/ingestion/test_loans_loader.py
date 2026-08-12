@@ -449,3 +449,56 @@ def test_categories_absent_from_m1_are_warned_about(tmp_path):
     ])
     _, census = load_category_balances(LoansSheetSpec(workbook=path))
     assert any("project zero income" in note for note in census.warnings)
+
+
+# --- reference results (compare mode) --------------------------------------
+
+def _results_workbook(tmp_path: Path) -> Path:
+    """A results sheet in the observed layout: block markers, Fixed/Variable/
+    Total rows, PQ0..PQ9 columns, raw dollars, with the Total exceeding
+    Fixed + Variable by a hidden third stream."""
+    path = _workbook(tmp_path, [_row("F1", 4, 1, 3)])
+    book = openpyxl.load_workbook(path)
+    sheet = book.create_sheet("Results")
+    sheet.append([None, None, None] + [f"PQ{q}" for q in range(10)])
+    sheet.append([])
+    sheet.append(["1 - HFI"])
+    fixed = [80e6] * 10
+    variable = [2_696e6, 1_677e6] + [1_011e6] * 8
+    hidden = [91.7e6, 58.1e6] + [36.1e6] * 8
+    sheet.append([None, "x", "Fixed Income"] + fixed)
+    sheet.append([None, "x", "Variable Rate Income"] + variable)
+    sheet.append([None, "x", "Total"] + [f + v + h for f, v, h in zip(fixed, variable, hidden)])
+    sheet.append([])
+    sheet.append(["9, 10, 11"])
+    sheet.append([None, "x", "Fixed Income"] + ["-"] * 10)
+    merged_var = [1_260e6, 658e6] + [264e6] * 8
+    sheet.append([None, "x", "Variable Rate Income"] + merged_var)
+    sheet.append([None, "x", "Total"] + merged_var)
+    book.save(path)
+    return path
+
+
+def test_reference_results_parse_blocks_markers_and_dashes(tmp_path):
+    from scb_ppnr.ingestion.loans_loader import load_reference_results
+
+    path = _results_workbook(tmp_path)
+    results = load_reference_results(LoansSheetSpec(workbook=path, results_sheet="Results"))
+
+    cni = results[("Commercial and industrial", "HFI")]
+    assert cni["fixed"][0] == pytest.approx(80.0)            # dollars -> millions
+    assert cni["variable"][1] == pytest.approx(1_677.0)
+    # the hidden stream survives inside Total
+    assert cni["total"][2] - cni["fixed"][2] - cni["variable"][2] == pytest.approx(36.1)
+
+    merged = results[("Loans for Purchasing and Carrying Securities", "MERGED")]
+    assert merged["fixed"][3] == 0.0                         # "-" means zero
+    assert merged["total"][9] == pytest.approx(264.0)
+
+
+def test_reference_results_requires_the_sheet_to_be_configured(tmp_path):
+    from scb_ppnr.ingestion.loans_loader import load_reference_results
+
+    path = _workbook(tmp_path, [_row("F1", 4, 1, 3)])
+    with pytest.raises(ValidationFailure, match="results_sheet is not configured"):
+        load_reference_results(LoansSheetSpec(workbook=path))
