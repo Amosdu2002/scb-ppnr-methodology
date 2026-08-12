@@ -71,7 +71,13 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         f"  launch point  : {launch_point} (PQ0); PQ1..PQ9 follow\n"
         f"  3M at PQ0     : {launch_3m:.4%}   history quarters: {len(history)} "
         f"(earliest {min(history)})\n"
+        f"  floor collapse: {floor_collapse}   share measure: committed "
+        f"(flagged — confirm vs the workbook)\n"
         f"  units         : USD millions; annualized decimal rates"
+    )
+    sections.append(
+        "SCENARIO 3M PATH\n  PQ0 " + f"{launch_3m:7.4%}  "
+        + "  ".join(f"PQ{q} {base_path[q]:7.4%}" for q in quarters)
     )
     sections.append(load_census.render())
     if m1_census.warnings:
@@ -96,6 +102,38 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         FED_CATEGORY_NAMES[9], floor_collapse=floor_collapse,
     )
     sections.append(launch_diagnostics.render())
+
+    register = ["LAUNCH-POINT REGISTER (compare each line against the workbook's own cells)"]
+    register.append(
+        "  segment (category/LOCOM/vt)                     share%   balance"
+        "   pool rate  base@(qtr)     spread    floor   sum-wt"
+    )
+    for key in sorted(launch, key=str):
+        lp = launch[key]
+        if lp.spread is not None:
+            pool = f"{lp.spread.pool_rate:8.4%}"
+            base_at = lp.spread.base_quarter or "PQ0"
+            base = f"{lp.spread.base_rate:7.4%}@{base_at:<7}"
+            spread = f"{lp.spread.spread:8.4%}"
+        else:
+            pool, base, spread = "       -", "        -      ", "       -"
+        floor_text = f"{lp.floor:7.4%}" if lp.floor is not None else "      -"
+        wt_text = (
+            f"{sum(lp.reorigination_weights.values()):7.3f}"
+            if lp.reorigination_weights else "      -"
+        )
+        register.append(
+            f"  {str(key)[:46]:<46}  {lp.share:6.2%}  {lp.balance:>8,.1f}"
+            f"  {pool}  {base}  {spread}  {floor_text}  {wt_text}"
+        )
+    register.append(
+        f"  {str(merged.segment)[:46]:<46}    n/a   {merged.balance:>8,.1f}"
+        f"  {merged.spread.pool_rate:8.4%}  {merged.spread.base_rate:7.4%}@PQ0    "
+        f"  {merged.spread.spread:8.4%}  "
+        + (f"{merged.floor:7.4%}" if merged.floor is not None else "      -") + "        -"
+    )
+    sections.append("\n".join(register))
+
     sections.append(
         f"MERGED 9/10/11 BUCKET\n"
         f"  donor pool rate (depository floating) : {merged.spread.pool_rate:.4%}\n"

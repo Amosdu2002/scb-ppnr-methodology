@@ -22,6 +22,8 @@ def test_synthetic_demo_runs_and_reports(tmp_path, capsys):
     for marker in (
         "SYNTHETIC DEMO",
         "LOANS LOADER CENSUS",
+        "SCENARIO 3M PATH",
+        "LAUNCH-POINT REGISTER",
         "LAUNCH-POINT DIAGNOSTICS",
         "MERGED 9/10/11 BUCKET",
         "PROJECTION DIAGNOSTICS",
