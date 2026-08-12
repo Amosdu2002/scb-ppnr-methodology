@@ -323,6 +323,15 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # + a "9, 10, 11" block; Fixed/Variable/Total
 #                                           # rows over PQ0..PQ9, raw dollars). Set it and
 #                                           # the run prints ours/theirs per block.
+# share_basis = "outstanding"               # segment shares/balances weighted by the
+#                                           # Launchpoint Outstanding Balance (HFI) /
+#                                           # Value (HFS) columns — the reference
+#                                           # workbook's mix, and the Fed's own words
+#                                           # ("percentage of OUTSTANDING balance").
+#                                           # Default "committed" (the original choice;
+#                                           # REFUTED against the reference 2026-08-12).
+#                                           # Rate pools stay committed-weighted either
+#                                           # way — they matched the reference exactly.
 # apply_scalar = false                      # reference-matching runs: the workbook's
 #                                           # results carry NO industry scalar (verified
 #                                           # 2026-08-12 — the grand total is the plain

@@ -191,3 +191,11 @@ results_sheet = "Results"
     assert "LOANS COMPARE" in printed
     assert "IMPLIED FROM THE PQ1->PQ2 SLOPE" in printed
     assert "GRAND (blocks present on both sides)" in printed
+
+
+def test_share_basis_is_config_and_validated(tmp_path):
+    config = load_config(_config(tmp_path, LOANS_BLOCK + 'share_basis = "outstanding"\n'))
+    assert config.firm_data.loans.share_basis == "outstanding"
+
+    with pytest.raises(ValidationFailure, match="share_basis must be"):
+        load_config(_config(tmp_path, LOANS_BLOCK + 'share_basis = "drawn"\n'))

@@ -502,3 +502,67 @@ def test_reference_results_requires_the_sheet_to_be_configured(tmp_path):
     path = _workbook(tmp_path, [_row("F1", 4, 1, 3)])
     with pytest.raises(ValidationFailure, match="results_sheet is not configured"):
         load_reference_results(LoansSheetSpec(workbook=path))
+
+
+# --- outstanding balance (share basis, 2026-08-12) --------------------------
+
+def test_outstanding_column_is_locom_dependent(tmp_path):
+    """HFI rows read 'Launchpoint Outstanding Balance'; HFS/FVO rows read
+    'Value' — the columns the reference workbook's share mix is built from."""
+    headers = H1_HEADERS + ["Launchpoint Outstanding Balance", "Value"]
+    rows = [
+        _row("HFI-1", 4, 2, 3) + [750_000.0, None],       # HFI -> outstanding column
+        _row("HFS-1", 4, 2, 1) + [None, 250_000.0],       # LOCOM 1 -> Value column
+        _row("FVO-1", 4, 2, 2) + [None, 100_000.0],       # LOCOM 2 -> Value column
+    ]
+    path = _workbook(tmp_path, rows, h1_headers=headers)
+    facilities, _ = load_facilities(LoansSheetSpec(workbook=path))
+
+    assert facilities[0].outstanding_balance == pytest.approx(0.75)   # dollars -> millions
+    assert facilities[1].outstanding_balance == pytest.approx(0.25)
+    assert facilities[2].outstanding_balance == pytest.approx(0.10)
+
+
+def test_outstanding_share_basis_changes_the_mix(tmp_path):
+    """The root cause of the first-run gap: fixed/mixed books are fully drawn
+    while revolvers and fee lines are not, so the committed mix underweights
+    them. Outstanding basis restores the reference's mix."""
+    from scb_ppnr.interest_income.loans_launchpoint import build_launch_point
+    from scb_ppnr.interest_income.loans_schemas import SegmentKey
+
+    headers = H1_HEADERS + ["Launchpoint Outstanding Balance", "Value"]
+    rows = [
+        # committed 100 each: committed shares 50/50 — but outstanding 90 vs 10
+        _row("FIX", 4, 1, 3, rate=0.06, committed=100e6,
+             originated="15-Jan-2020") + [90_000_000.0, None],
+        _row("FLT", 4, 2, 3, rate=0.05, committed=100e6) + [10_000_000.0, None],
+    ]
+    path = _workbook(tmp_path, rows, h1_headers=headers)
+    facilities, _ = load_facilities(LoansSheetSpec(workbook=path))
+    history = {"2020Q1": 0.015, "2024Q4": 0.044}
+
+    launch, _ = build_launch_point(
+        facilities, {"Commercial and industrial": 1000.0}, 0.044, history,
+        (1, 2, 3), lambda when: None, share_measure="outstanding",
+    )
+    fixed = launch[SegmentKey("Commercial and industrial", "HFI", 1)]
+    floating = launch[SegmentKey("Commercial and industrial", "HFI", 2)]
+
+    assert fixed.share == pytest.approx(0.9)
+    assert fixed.balance == pytest.approx(900.0)
+    assert floating.share == pytest.approx(0.1)
+    # rate pools stay COMMITTED-weighted (they matched the reference exactly)
+    assert floating.spread.pool_rate == pytest.approx(0.05)
+
+
+def test_outstanding_basis_refuses_rows_without_the_column(tmp_path):
+    from scb_ppnr.interest_income.loans_launchpoint import build_launch_point
+
+    path = _workbook(tmp_path, [_row("F1", 4, 2, 3)])     # no outstanding columns
+    facilities, _ = load_facilities(LoansSheetSpec(workbook=path))
+
+    with pytest.raises(ValidationFailure, match="share_basis is 'outstanding'"):
+        build_launch_point(
+            facilities, {"Commercial and industrial": 1000.0}, 0.044, {}, (1, 2, 3),
+            lambda when: None, share_measure="outstanding",
+        )

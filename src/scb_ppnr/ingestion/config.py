@@ -237,9 +237,14 @@ class LoansConfig:
     apply_scalar: bool = True   # false = reference-matching runs: the workbook's own
                                 # results carry NO industry scalar (verified 2026-08-12:
                                 # the grand total is the plain sum of the blocks)
+    share_basis: str = "committed"   # which column weights segment shares and balances:
+                                # "committed" (the original flagged choice) or
+                                # "outstanding" (Launchpoint Outstanding Balance / Value —
+                                # the reference workbook's basis, and the Fed's own words:
+                                # "percentage of OUTSTANDING balance", PDF p. 174)
 
 
-_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar")
+_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar", "share_basis")
 
 
 def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
@@ -258,6 +263,12 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
     apply_scalar = section.get("apply_scalar", True)
     if not isinstance(apply_scalar, bool):
         raise ValidationFailure(f"config {context}: apply_scalar must be true or false, got {apply_scalar!r}")
+    share_basis = str(section.get("share_basis", "committed")).strip().lower()
+    if share_basis not in ("committed", "outstanding"):
+        raise ValidationFailure(
+            f"config {context}: share_basis must be 'committed' or 'outstanding', "
+            f"got {section.get('share_basis')!r}"
+        )
     floor_collapse = str(section.get("floor_collapse", "balance_weighted")).strip().lower()
     if floor_collapse not in FLOOR_COLLAPSES:
         raise ValidationFailure(
@@ -296,6 +307,7 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
         launch_point=launch_point,
         floor_collapse=floor_collapse,
         apply_scalar=bool(apply_scalar),
+        share_basis=share_basis,
     )
 
 

@@ -56,7 +56,8 @@ from scb_ppnr.interest_income.loans_schemas import projection_quarter_index
 
 
 def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
-         floor_collapse: str = "balance_weighted", apply_scalar: bool = True) -> str:
+         floor_collapse: str = "balance_weighted", apply_scalar: bool = True,
+         share_basis: str = "committed") -> str:
     sections: list[str] = []
     quarters = PROJECTION_QUARTERS
 
@@ -72,8 +73,7 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         f"  launch point  : {launch_point} (PQ0); PQ1..PQ9 follow\n"
         f"  3M at PQ0     : {launch_3m:.4%}   history quarters: {len(history)} "
         f"(earliest {min(history)})\n"
-        f"  floor collapse: {floor_collapse}   share measure: committed "
-        f"(flagged — confirm vs the workbook)\n"
+        f"  floor collapse: {floor_collapse}   share basis: {share_basis}\n"
         f"  units         : USD millions; annualized decimal rates"
     )
     sections.append(
@@ -96,6 +96,7 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
     launch, launch_diagnostics = build_launch_point(
         facilities, balances, launch_3m, history, quarters,
         lambda when: projection_quarter_index(when, launch_point),
+        share_measure=share_basis,
         floor_collapse=floor_collapse,
     )
     merged = merged_bucket_launch_point(
@@ -394,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
             args.launch_point or loans.launch_point,
             loans.floor_collapse,
             loans.apply_scalar,
+            loans.share_basis,
         )
 
     print(output)

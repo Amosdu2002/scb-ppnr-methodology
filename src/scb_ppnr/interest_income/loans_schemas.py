@@ -90,7 +90,8 @@ FLOOR_COLLAPSES = (FLOOR_COLLAPSE_BALANCE_WEIGHTED, FLOOR_COLLAPSE_MAX, FLOOR_CO
 # (PID-LOAN-3 / PID-LOAN-6, both user-specified).
 EXPOSURE_COMMITTED = "committed"
 EXPOSURE_UTILIZED = "utilized"
-EXPOSURE_MEASURES = (EXPOSURE_COMMITTED, EXPOSURE_UTILIZED)
+EXPOSURE_OUTSTANDING = "outstanding"   # Launchpoint Outstanding Balance (HFI) / Value (HFS)
+EXPOSURE_MEASURES = (EXPOSURE_COMMITTED, EXPOSURE_UTILIZED, EXPOSURE_OUTSTANDING)
 
 # Why a segment fell back to a zero base rate (PID-LOAN-4 amendment).
 FALLBACK_OUTSIDE_MEV = "outside_mev_range"
@@ -186,6 +187,9 @@ class LoanFacility:
     interest_rate_floor: float | None = None
     origination_date: date | None = None
     maturity_date: date | None = None
+    outstanding_balance: float | None = None   # Launchpoint Outstanding Balance (HFI rows)
+                                               # or Value (HFS/FVO rows) — the share basis
+                                               # the reference workbook uses (2026-08-12)
     h1_code: int | None = None   # retained after decoding: the Fed Category collapses
                                  # codes 1, 2 and 7 together, but the merged 9/10/11
                                  # bucket is priced off codes 1 and 2 ONLY — the
@@ -199,12 +203,23 @@ class LoanFacility:
             check_rate(f"{self.facility_id}.interest_rate", self.interest_rate)
         if self.interest_rate_floor is not None:
             check_rate(f"{self.facility_id}.interest_rate_floor", self.interest_rate_floor)
+        if self.outstanding_balance is not None:
+            check_balance(f"{self.facility_id}.outstanding_balance", self.outstanding_balance)
 
     def exposure(self, measure: str) -> float:
         if measure == EXPOSURE_COMMITTED:
             return self.committed_exposure
         if measure == EXPOSURE_UTILIZED:
             return self.utilized_exposure
+        if measure == EXPOSURE_OUTSTANDING:
+            if self.outstanding_balance is None:
+                raise ValidationFailure(
+                    f"{self.facility_id}: share_basis is 'outstanding' but the row carries no "
+                    f"Launchpoint Outstanding Balance / Value — configure col_outstanding / "
+                    f"col_value to the sheet's headers (refused rather than silently falling "
+                    f"back to committed, which is the mix error this basis exists to fix)"
+                )
+            return self.outstanding_balance
         raise ValidationFailure(f"exposure measure must be one of {EXPOSURE_MEASURES}, got {measure!r}")
 
 

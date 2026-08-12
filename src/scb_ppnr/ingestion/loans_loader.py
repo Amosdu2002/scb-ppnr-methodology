@@ -32,6 +32,7 @@ from .loans_mapping import (
     decode_segment,
     m1_role_category,
     parse_h1_code,
+    parse_locom,
     reference_key,
 )
 from .normalize import (
@@ -106,6 +107,12 @@ class LoansSheetSpec:
     # synthesized row-number label — its balances are real and must not be dropped.
     col_internal_id: str = "Internal ID"
     col_original_internal_id: str = "Original Internal ID"
+    # Share-basis columns (2026-08-12): the reference workbook's segment balances
+    # are OUTSTANDING-mix based — "Launchpoint Outstanding Balance" on HFI rows,
+    # "Value" on HFS/FVO rows. Optional: looked up if present; required only when
+    # share_basis = "outstanding".
+    col_outstanding: str = "Launchpoint Outstanding Balance"
+    col_value: str = "Value"
     # Reference results sheet (compare mode). The workbook's own projected income,
     # laid out as blocks per "N - HFI" / "N - HFS/FVO" marker (plus a "9, 10, 11"
     # merged block) with Fixed Income / Variable Rate Income / Total rows over
@@ -283,6 +290,8 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
     # the sheet lacks them (their absence is reported only if it ends up mattering).
     idx_internal = header.get(spec.col_internal_id)
     idx_original = header.get(spec.col_original_internal_id)
+    idx_outstanding = header.get(spec.col_outstanding)
+    idx_value = header.get(spec.col_value)
     idx_code = _column(header, spec.col_h1_code, context)
     idx_var = _resolve_variability_column(header, spec, census, context)
     idx_locom = _column(header, spec.col_locom, context)
@@ -337,6 +346,16 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
             context=f"{where}: utilized",
         )
         rate = _optional_rate(cell(row, idx_rate), spec.rate_scale, context=f"{where}: interest rate")
+        outstanding_index = idx_value if parse_locom(raw_locom) in (1, 2) else idx_outstanding
+        outstanding: float | None = None
+        if outstanding_index is not None:
+            raw_outstanding = cell(row, outstanding_index)
+            if not _is_missing(raw_outstanding):
+                outstanding = apply_money_scale(
+                    spec.exposure_scale,
+                    to_float(raw_outstanding, context=f"{where}: outstanding"),
+                    context=f"{where}: outstanding",
+                )
         floor = _optional_rate(cell(row, idx_floor), spec.rate_scale, context=f"{where}: floor")
         originated = _optional_date(cell(row, idx_orig), context=f"{where}: origination date")
         matures = _optional_date(cell(row, idx_mat), context=f"{where}: maturity date")
@@ -365,6 +384,7 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
                 interest_rate_floor=floor,
                 origination_date=originated,
                 maturity_date=matures,
+                outstanding_balance=outstanding,
                 h1_code=parse_h1_code(raw_code),
             )
         )
