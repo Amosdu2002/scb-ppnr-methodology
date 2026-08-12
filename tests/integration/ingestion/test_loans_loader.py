@@ -566,3 +566,30 @@ def test_outstanding_basis_refuses_rows_without_the_column(tmp_path):
             facilities, {"Commercial and industrial": 1000.0}, 0.044, {}, (1, 2, 3),
             lambda when: None, share_measure="outstanding",
         )
+
+
+def test_missing_outstanding_is_censused_with_row_and_id(tmp_path):
+    """A [NULL] outstanding cell is counted and located BEFORE the launch-point
+    layer refuses, so a ValidationFailure naming a Customer ID can be traced to
+    its sheet row from the census alone."""
+    headers = H1_HEADERS + ["Launchpoint Outstanding Balance", "Value"]
+    rows = [
+        _row("OK-1", 4, 2, 3) + [500_000.0, None],
+        _row("0021575908", 4, 2, 3) + ["[NULL]", None],
+    ]
+    path = _workbook(tmp_path, rows, h1_headers=headers)
+    _, census = load_facilities(LoansSheetSpec(workbook=path))
+
+    assert census.missing_outstanding == 1
+    assert census.missing_outstanding_rows == [(6, "0021575908")]
+    assert "missing Outstanding/Value   : 1" in census.render()
+    # both columns exist, so no configuration hint fires
+    assert not any("share-basis column" in note for note in census.warnings)
+
+
+def test_absent_share_columns_produce_a_configuration_hint(tmp_path):
+    path = _workbook(tmp_path, [_row("F1", 4, 2, 3)])   # fixture lacks the columns
+    _, census = load_facilities(LoansSheetSpec(workbook=path))
+
+    assert census.missing_outstanding == 1
+    assert any("col_outstanding / col_value" in note for note in census.warnings)

@@ -133,6 +133,8 @@ class LoaderCensus:
     missing_floor: int = 0
     missing_origination_date: int = 0
     missing_maturity_date: int = 0
+    missing_outstanding: int = 0
+    missing_outstanding_rows: list = field(default_factory=list)   # (sheet row, facility id)
     id_sources: Counter = field(default_factory=Counter)
     unidentified_rows: list[int] = field(default_factory=list)
     unidentified_exposure: float = 0.0
@@ -150,6 +152,14 @@ class LoaderCensus:
         lines.append(f"  no floor on file            : {self.missing_floor}")
         lines.append(f"  missing Origination Date    : {self.missing_origination_date}")
         lines.append(f"  missing Maturity Date       : {self.missing_maturity_date}")
+        if self.missing_outstanding:
+            shown = ", ".join(f"row {r} ({fid})" for r, fid in self.missing_outstanding_rows[:8])
+            more = (f", ... {self.missing_outstanding - 8} more"
+                    if self.missing_outstanding > 8 else "")
+            lines.append(
+                f"  missing Outstanding/Value   : {self.missing_outstanding}"
+                f"  ({shown}{more}) — share_basis='outstanding' refuses these rows"
+            )
         if self.id_sources:
             lines.append(
                 "  facility-ID sources         : "
@@ -356,6 +366,9 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
                     to_float(raw_outstanding, context=f"{where}: outstanding"),
                     context=f"{where}: outstanding",
                 )
+        if outstanding is None:
+            census.missing_outstanding += 1
+            census.missing_outstanding_rows.append((offset, str(facility_id).strip()))
         floor = _optional_rate(cell(row, idx_floor), spec.rate_scale, context=f"{where}: floor")
         originated = _optional_date(cell(row, idx_orig), context=f"{where}: origination date")
         matures = _optional_date(cell(row, idx_mat), context=f"{where}: maturity date")
@@ -391,6 +404,17 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
 
     if not facilities:
         raise ValidationFailure(f"{context}: no data rows found below header row {spec.h1_header_row}")
+    absent_share_columns = [
+        name for name, index in
+        ((spec.col_outstanding, idx_outstanding), (spec.col_value, idx_value))
+        if index is None
+    ]
+    if absent_share_columns:
+        census.warnings.append(
+            f"share-basis column(s) {absent_share_columns} not on header row {spec.h1_header_row} — "
+            f"every row on that side will refuse under share_basis='outstanding'. If the sheet "
+            f"names them differently, set col_outstanding / col_value in [firm_data.loans]."
+        )
     if census.unidentified_rows:
         absent = [
             name for name, index in
