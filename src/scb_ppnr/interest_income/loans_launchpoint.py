@@ -27,6 +27,7 @@ from .loans_schemas import (
     CLASS_MERGED,
     BASE_AT_MEDIAN_ORIGINATION,
     EXPOSURE_COMMITTED,
+    EXPOSURE_OUTSTANDING,
     EXPOSURE_UTILIZED,
     FALLBACK_NO_ORIGINATION_DATE,
     FALLBACK_OUTSIDE_MEV,
@@ -34,11 +35,15 @@ from .loans_schemas import (
     FLOOR_COLLAPSE_MAX,
     FLOOR_COLLAPSE_MIN,
     FLOOR_COLLAPSES,
+    ORIG_DATE_STATISTICS,
+    ORIG_DATE_WEIGHTED_MEAN,
+    ORIG_DATE_WEIGHTED_MEDIAN,
     POOL_MEMBERSHIP,
     SPREAD_BASE_BY_CODE,
     SPREAD_POOL_BY_CODE,
     TREATMENT_FIXED,
     TREATMENT_NO_INCOME,
+    TREATMENT_VARIABLE,
     VT_FLOATING,
     VT_MIXED,
     LoanFacility,
@@ -154,6 +159,58 @@ def median_origination_quarter(facilities: Sequence[LoanFacility]) -> str | None
     return quarter_label(statistics.median_low(dates))
 
 
+def weighted_origination_quarter(
+    facilities: Sequence[LoanFacility],
+    measure: str,
+    statistic: str,
+) -> str | None:
+    """A balance-weighted origination-date statistic, as a calendar quarter.
+
+    The CRE workbook weights origination dates by OUTSTANDING balance
+    (PID-LOAN-22: "balance weighted orig date based on: outstanding") where
+    Corporate's PID-LOAN-4 used an unweighted row median. Whether the weighted
+    statistic is a median or a mean is unread in the cell formula, so both are
+    offered; `weighted_median` returns an actually observed date (the first
+    whose cumulative weight reaches half), `weighted_mean` interpolates one
+    from date ordinals.
+
+    Rows without a date carry no information and are skipped. Rows whose weight
+    is zero are skipped too; if EVERY dated row has zero weight the statistic
+    degenerates to the unweighted row median — the limit of the weighted form,
+    not a new rule."""
+    if statistic not in ORIG_DATE_STATISTICS:
+        raise ValidationFailure(
+            f"orig-date statistic must be one of {ORIG_DATE_STATISTICS}, got {statistic!r}"
+        )
+    dated = [
+        (f.origination_date, f.exposure(measure))
+        for f in facilities
+        if f.origination_date is not None
+    ]
+    if not dated:
+        return None
+    weighted = [(when, weight) for when, weight in dated if weight > 0.0]
+    if not weighted:
+        return quarter_label(statistics.median_low([when for when, _ in dated]))
+
+    if statistic == ORIG_DATE_WEIGHTED_MEAN:
+        total = sum(weight for _, weight in weighted)
+        mean_ordinal = sum(when.toordinal() * weight for when, weight in weighted) / total
+        import datetime as _dt
+        return quarter_label(_dt.date.fromordinal(int(round(mean_ordinal))))
+
+    # weighted median: sort by date, take the first whose cumulative weight
+    # reaches half the total — always a really observed date, median_low-style.
+    ordered = sorted(weighted, key=lambda pair: pair[0])
+    half = sum(weight for _, weight in ordered) / 2.0
+    running = 0.0
+    for when, weight in ordered:
+        running += weight
+        if running >= half:
+            return quarter_label(when)
+    return quarter_label(ordered[-1][0])   # pragma: no cover - float-sum guard
+
+
 def resolve_base_rate(
     segment: SegmentKey,
     facilities: Sequence[LoanFacility],
@@ -227,13 +284,17 @@ def compute_reorigination_weights(
     quarters: Sequence[int],
     segment: SegmentKey | None = None,
     diagnostics: LaunchPointDiagnostics | None = None,
+    measure: str = EXPOSURE_UTILIZED,
 ) -> Mapping[int, float]:
     """The Equation A38 blend weight, from contractual maturities (PID-LOAN-6).
 
-    wt(PQx) = utilized exposure of Fixed facilities maturing in PQx, divided by
-    the launch-point Fixed balance. `quarter_of_maturity` maps a maturity date to
-    a projection quarter or None if it falls outside the horizon — supplied by
-    the caller so the projection calendar stays in one place.
+    wt(PQx) = `measure` exposure of Fixed facilities maturing in PQx, divided by
+    the launch-point Fixed balance. Corporate measures with UTILIZED exposure
+    (the default, PID-LOAN-6); the CRE construction weighs with the OUTSTANDING
+    balance column, matching its share basis. `quarter_of_maturity` maps a
+    maturity date to a projection quarter or None if it falls outside the
+    horizon — supplied by the caller so the projection calendar stays in one
+    place.
 
     Divergence from the Fed, recorded not smoothed: the Board derives wt from
     "the default rate, prepayment rate, and maturity rate" (PDF p. 183); this
@@ -252,7 +313,7 @@ def compute_reorigination_weights(
         quarter = quarter_of_maturity(facility.maturity_date)
         if quarter is None:
             continue
-        maturing[quarter] += facility.exposure(EXPOSURE_UTILIZED)
+        maturing[quarter] += facility.exposure(measure)
 
     weights: dict[int, float] = {}
     for quarter in quarters:
@@ -375,6 +436,8 @@ def build_launch_point(
     Shares within a side span ALL rate types, so codes 0/4 still dilute."""
     if engine not in ("pid", "reference"):
         raise ValidationFailure(f"engine must be 'pid' or 'reference', got {engine!r}")
+    # (CRE runs through build_cre_launch_point below, not through an engine flag
+    # here — the two wholesale parts use different constructions, PID-LOAN-23.)
     if engine == "reference" and side_balances is None:
         raise ValidationFailure(
             "engine='reference' needs the per-(category, side) M.1 balances — pass side_balances"
@@ -499,6 +562,180 @@ def build_launch_point(
                 quarters,
                 segment,
                 diagnostics,
+            )
+
+        result[segment] = SegmentLaunchPoint(
+            segment=segment,
+            share=share,
+            balance=balance,
+            spread=spread,
+            floor=floor,
+            floor_dispersion=dispersion,
+            reorigination_weights=weights,
+        )
+
+    return MappingProxyType(result), diagnostics
+
+
+def build_cre_launch_point(
+    facilities: Iterable[LoanFacility],
+    side_balances: Mapping[tuple[str, str], float],
+    launch_point_3m: float,
+    historical_3m: Mapping[str, float],
+    quarters: Sequence[int],
+    quarter_of_maturity,
+    orig_date_statistic: str = ORIG_DATE_WEIGHTED_MEAN,
+) -> tuple[Mapping[SegmentKey, SegmentLaunchPoint], LaunchPointDiagnostics]:
+    """Assemble the CRE launch point (PID-LOAN-18..25).
+
+    The CRE construction is NEITHER Corporate engine. It shares the reference
+    engine's balance side (per-LOCOM M.1 balances, all-rate-type share
+    denominators, fixed path floored at 0, zeros-included weighted variable
+    floor) but keeps Mixed as its OWN segment on the pid-style hybrid spread —
+    the CRE workbook computes fixed-pool rate minus the base rate at mixed's
+    own weighted origination date (PID-LOAN-23), which the Corporate reference
+    engine had superseded. Per wholesale part, per the evidence.
+
+    Piece by piece:
+
+        shares/balances   OUTSTANDING-weighted within (category, LOCOM); the
+                          denominator spans ALL rate types, so fee-based and
+                          DO-NOT-USE rows dilute the earners (PID-LOAN-24);
+                          balance = share x the side's M.1 balance (PID-LOAN-20)
+        rate pools        committed-weighted, Float = v2+v3, Fixed = v1
+                          (observed on the CRE launch sheet; the PID-LOAN-3
+                          pattern — residual item (i) of the CRE brief)
+        spreads           floating vs 3M(PQ0); fixed and mixed vs the 3M of
+                          their own outstanding-WEIGHTED origination quarter
+                          (PID-LOAN-22; mean-vs-median is `orig_date_statistic`)
+        variable floor    per (category, LOCOM) block over floating + mixed
+                          rows together, outstanding-weighted with blank floors
+                          counting as ZERO, then max(.., 0) — one value shared
+                          by the block's v2 and v3 segments (PID-LOAN-25)
+        fixed floor       exactly 0 (the PID-LOAN-15 family, carried)
+        wt                fixed rows' maturing OUTSTANDING balance over the
+                          block's fixed outstanding balance — the PID-LOAN-6
+                          analogue; the OQ-001 CRE leg is otherwise open, so
+                          this is the flagged working construction
+
+    A base-rate lookup miss falls back to 0 with a censused cause, exactly as
+    Corporate (PID-LOAN-4 amendment) — the fallback inflates that segment's
+    new-origination rate by the omitted base-rate level, so it must be visible."""
+    diagnostics = LaunchPointDiagnostics()
+    rows = list(facilities)
+    if not rows:
+        raise ValidationFailure("no CRE facilities supplied — nothing to build a launch point from")
+
+    by_segment: dict[SegmentKey, list[LoanFacility]] = defaultdict(list)
+    by_block: dict[tuple[str, str], list[LoanFacility]] = defaultdict(list)
+    side_exposure: dict[tuple[str, str], float] = defaultdict(float)
+    for facility in rows:
+        by_segment[facility.segment].append(facility)
+        block = (facility.segment.category, facility.segment.locom)
+        by_block[block].append(facility)
+        side_exposure[block] += facility.exposure(EXPOSURE_OUTSTANDING)
+
+    pool_rates = compute_pool_rates(rows, diagnostics)
+    for (category, locom, pool), rate in pool_rates.items():
+        if rate.rows_dropped:
+            diagnostics.rate_rows_dropped.append(
+                (category, locom, pool, rate.rows_dropped, rate.exposure_dropped)
+            )
+
+    # PID-LOAN-25: one variable floor per block, over floating + mixed rows,
+    # outstanding-weighted, blanks as ZERO (dilutive), floored at 0.
+    block_floor: dict[tuple[str, str], float | None] = {}
+    block_floor_dispersion: dict[tuple[str, str], float] = {}
+    for block, block_rows in by_block.items():
+        variable_rows = [
+            f for f in block_rows if f.segment.variable_type in (VT_FLOATING, VT_MIXED)
+        ]
+        weight = sum(f.exposure(EXPOSURE_OUTSTANDING) for f in variable_rows)
+        if weight > 0.0:
+            weighted = sum(
+                f.exposure(EXPOSURE_OUTSTANDING) * (f.interest_rate_floor or 0.0)
+                for f in variable_rows
+            )
+            block_floor[block] = max(weighted / weight, 0.0)
+        else:
+            block_floor[block] = None
+        populated = [
+            f.interest_rate_floor for f in variable_rows if f.interest_rate_floor is not None
+        ]
+        block_floor_dispersion[block] = (max(populated) - min(populated)) if populated else 0.0
+
+    # wt denominator: the block's fixed OUTSTANDING balance (PID-LOAN-6 analogue
+    # on the CRE share basis).
+    fixed_launch_balances: dict[tuple[str, str], float] = defaultdict(float)
+    for facility in rows:
+        if facility.segment.treatment == TREATMENT_FIXED:
+            fixed_launch_balances[(facility.segment.category, facility.segment.locom)] += (
+                facility.exposure(EXPOSURE_OUTSTANDING)
+            )
+
+    result: dict[SegmentKey, SegmentLaunchPoint] = {}
+    for segment, segment_rows in by_segment.items():
+        block = (segment.category, segment.locom)
+        exposure = sum(f.exposure(EXPOSURE_OUTSTANDING) for f in segment_rows)
+        side_total = side_exposure[block]
+        share = exposure / side_total if side_total > 0.0 else 0.0
+        balance = share * side_balances.get(block, 0.0)
+
+        spread: SegmentSpread | None = None
+        if segment.treatment != TREATMENT_NO_INCOME:
+            pool = SPREAD_POOL_BY_CODE[segment.variable_type]
+            pool_rate = pool_rates.get((segment.category, segment.locom, pool))
+            if pool_rate is None:
+                raise ValidationFailure(
+                    f"{segment}: the {pool!r} pool for {segment.category}/{segment.locom} has no "
+                    f"usable interest rates, so no spread can be formed. Surfaced rather than "
+                    f"defaulted — a zero spread here would silently reprice the whole segment. "
+                    f"(A Mixed segment with no Fixed siblings in its block is the known case.)"
+                )
+            basis = SPREAD_BASE_BY_CODE[segment.variable_type]
+            if basis == BASE_AT_LAUNCH_POINT:
+                base, base_quarter, fallback = launch_point_3m, None, None
+            else:
+                quarter = weighted_origination_quarter(
+                    segment_rows, EXPOSURE_OUTSTANDING, orig_date_statistic
+                )
+                if quarter is None:
+                    base, base_quarter, fallback = 0.0, None, FALLBACK_NO_ORIGINATION_DATE
+                    diagnostics.base_rate_fallbacks.append((segment, FALLBACK_NO_ORIGINATION_DATE))
+                elif quarter not in historical_3m:
+                    base, base_quarter, fallback = 0.0, quarter, FALLBACK_OUTSIDE_MEV
+                    diagnostics.base_rate_fallbacks.append((segment, FALLBACK_OUTSIDE_MEV))
+                else:
+                    base, base_quarter, fallback = historical_3m[quarter], quarter, None
+            spread = SegmentSpread(
+                segment=segment,
+                spread=pool_rate.rate - base,
+                pool_rate=pool_rate.rate,
+                base_rate=base,
+                base_quarter=base_quarter,
+                base_rate_fallback=fallback,
+            )
+
+        if segment.treatment == TREATMENT_FIXED:
+            floor, dispersion = 0.0, 0.0      # the workbook floors the fixed path at exactly 0
+        elif segment.treatment == TREATMENT_VARIABLE:
+            floor = block_floor[block]
+            dispersion = block_floor_dispersion[block]
+        else:
+            floor, dispersion = None, 0.0
+        if dispersion > 0.0:
+            diagnostics.floor_dispersion.append((segment, dispersion))
+
+        weights: Mapping[int, float] = MappingProxyType({})
+        if segment.treatment == TREATMENT_FIXED:
+            weights = compute_reorigination_weights(
+                segment_rows,
+                fixed_launch_balances[block],
+                quarter_of_maturity,
+                quarters,
+                segment,
+                diagnostics,
+                measure=EXPOSURE_OUTSTANDING,
             )
 
         result[segment] = SegmentLaunchPoint(

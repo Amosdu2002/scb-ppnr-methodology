@@ -21,9 +21,14 @@ are the product of a first run, the numbers only matter once the censuses are
 clean. Output amounts: USD MILLIONS per quarter (D-006). The report file carries
 firm amounts — keep it local, never commit it (gitignored `loans_report*.txt`).
 
+The run covers both wholesale parts: Corporate always, and CRE when the config
+names the H.2 sheet (`cre_h2_sheet` — PID-LOAN-18..25; the two parts use
+DIFFERENT constructions on evidence, so neither borrows the other's engine).
+
 The Federal Reserve model is PROPOSED for the 2026 stress test, NOT adopted.
-Decisions: PID-LOAN-1..11 (`handbook/open-questions.md`); computation:
-`specifications/interest-income/loans/ii_loans_corporate.spec.md`."""
+Decisions: PID-LOAN-1..25 (`handbook/open-questions.md`); computation:
+`specifications/interest-income/loans/ii_loans_corporate.spec.md` and
+`specifications/interest-income/loans/ii_loans_cre.spec.md`."""
 
 from __future__ import annotations
 
@@ -34,10 +39,16 @@ from pathlib import Path
 
 from scb_ppnr.core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from scb_ppnr.ingestion.config import format_effective_config, load_config
+from scb_ppnr.ingestion.loans_cre_mapping import (
+    CRE_CATEGORY_NAMES,
+    cre_scalars_by_category_name,
+)
 from scb_ppnr.ingestion.loans_loader import (
     LoansSheetSpec,
     load_3m_treasury,
     load_category_balances,
+    load_cre_facilities,
+    load_cre_side_balances,
     load_facilities,
     load_merged_bucket_balance,
     load_reference_results,
@@ -48,6 +59,7 @@ from scb_ppnr.ingestion.loans_mapping import (
     scalars_by_category_name,
 )
 from scb_ppnr.interest_income.loans_launchpoint import (
+    build_cre_launch_point,
     build_launch_point,
     merged_bucket_launch_point,
 )
@@ -58,7 +70,8 @@ from scb_ppnr.interest_income.loans_schemas import projection_quarter_index
 def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
          floor_collapse: str = "balance_weighted", apply_scalar: bool = True,
          share_basis: str = "committed", balance_source: str = "m1",
-         engine: str = "pid", collected: list[str] | None = None) -> str:
+         engine: str = "pid", cre_orig_date_statistic: str = "weighted_mean",
+         collected: list[str] | None = None) -> str:
     """Each section PRINTS the moment it is produced (the securities-loop
     lesson): a failure deep in the run must never hide the censuses that
     explain it. `collected` receives the sections for the report file even
@@ -208,10 +221,97 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
         reference = load_reference_results(spec)
         emit(_compare(reference, projections, base_path, quarters, scalars))
 
+    # --- CRE part (PID-LOAN-18..25) — enabled by naming the H.2 sheet --------
+    if spec.cre_h2_sheet is not None:
+        cre_facilities, cre_census = load_cre_facilities(spec)
+        emit(cre_census.render())
+
+        cre_sides, cre_m1_notes = load_cre_side_balances(spec)
+        m1_cre = ["CRE M.1 SIDE BALANCES (PID-LOAN-20: dom E/G per row; international = sum of I/K)"]
+        for (name, side), value in sorted(cre_sides.items()):
+            m1_cre.append(f"  {value:>12,.1f}  {name} / {side}")
+        for note in cre_m1_notes:
+            m1_cre.append(f"  {note}")
+        emit("\n".join(m1_cre))
+
+        cre_launch, cre_launch_diagnostics = build_cre_launch_point(
+            cre_facilities, cre_sides, launch_3m, history, quarters,
+            lambda when: projection_quarter_index(when, launch_point),
+            orig_date_statistic=cre_orig_date_statistic,
+        )
+        emit("CRE " + cre_launch_diagnostics.render())
+
+        cre_register = [
+            f"CRE LAUNCH-POINT REGISTER (orig-date statistic: {cre_orig_date_statistic} on "
+            f"outstanding, PID-LOAN-22)"
+        ]
+        cre_register.append(
+            "  segment (category/LOCOM/vt)                     share%   balance"
+            "   pool rate  base@(qtr)     spread    floor   sum-wt"
+        )
+        for key in sorted(cre_launch, key=str):
+            lp = cre_launch[key]
+            if lp.spread is not None:
+                pool = f"{lp.spread.pool_rate:8.4%}"
+                base_at = lp.spread.base_quarter or "PQ0"
+                base = f"{lp.spread.base_rate:7.4%}@{base_at:<7}"
+                spread = f"{lp.spread.spread:8.4%}"
+            else:
+                pool, base, spread = "       -", "        -      ", "       -"
+            floor_text = f"{lp.floor:7.4%}" if lp.floor is not None else "      -"
+            wt_text = (
+                f"{sum(lp.reorigination_weights.values()):7.3f}"
+                if lp.reorigination_weights else "      -"
+            )
+            cre_register.append(
+                f"  {str(key)[:46]:<46}  {lp.share:6.2%}  {lp.balance:>8,.1f}"
+                f"  {pool}  {base}  {spread}  {floor_text}  {wt_text}"
+            )
+        emit("\n".join(cre_register))
+
+        if apply_scalar:
+            cre_scalars = cre_scalars_by_category_name()
+        else:
+            cre_scalars = {}
+        cre_projections, cre_totals, cre_projection_diagnostics = project_corporate(
+            cre_launch, base_path, quarters, cre_scalars, require_scalar=apply_scalar,
+        )
+        emit("CRE " + cre_projection_diagnostics.render())
+
+        cre_lines = [f"PROJECTED CRE LOAN INTEREST INCOME ({scaling_note}, USD millions)"]
+        cre_lines.append("  category / PQ                " + "".join(f"{f'PQ{q}':>9}" for q in quarters) + "      9Q")
+        cre_grand = {q: 0.0 for q in quarters}
+        for name, path in sorted(cre_totals.items(), key=lambda kv: -sum(kv[1].values())):
+            for q in quarters:
+                cre_grand[q] += path[q]
+            cre_lines.append(
+                f"  {name[:27]:<27}  " + "".join(f"{path[q]:>9,.1f}" for q in quarters)
+                + f"{sum(path.values()):>9,.1f}"
+            )
+        cre_lines.append(
+            "  TOTAL                        " + "".join(f"{cre_grand[q]:>9,.1f}" for q in quarters)
+            + f"{sum(cre_grand.values()):>9,.1f}"
+        )
+        cre_lines.append(
+            f"  segments projected: {len(cre_projections)}   (the international category is "
+            f"Fed portfolios 4-6, merged — data-forced, PID-LOAN-19)"
+        )
+        emit("\n".join(cre_lines))
+
+        if spec.cre_results_sheet is not None:
+            cre_reference = load_reference_results(
+                spec, sheet=spec.cre_results_sheet,
+                category_names=CRE_CATEGORY_NAMES, include_merged=False,
+            )
+            emit(_compare(
+                cre_reference, cre_projections, base_path, quarters, cre_scalars,
+                a8_map=cre_scalars_by_category_name(),
+            ))
+
     return "\n\n".join(sections)
 
 
-def _compare(reference, projections, base_path, quarters, scalars) -> str:
+def _compare(reference, projections, base_path, quarters, scalars, a8_map=None) -> str:
     """Ours (UNSCALED, per segment) against the workbook's results blocks.
 
     Their block Total exceeds Fixed + Variable: the workbook sums a third stream
@@ -228,10 +328,11 @@ def _compare(reference, projections, base_path, quarters, scalars) -> str:
 
     # The reference's row structure (settled 2026-08-12): Fixed and Variable rows
     # are UNSCALED, and Total = (Fixed + Variable) x the Table A8 scalar — verified
-    # exact on every transcribed block. So: our fixed/variable streams compare RAW
-    # (mixed folds into variable — the reference carries no separate mixed row),
-    # and our total compares with the scalar applied.
-    a8, _ = scalars_by_category_name()
+    # exact on every transcribed block, Corporate AND CRE. So: our fixed/variable
+    # streams compare RAW (mixed folds into variable — the reference carries no
+    # separate mixed row), and our total compares with the scalar applied.
+    # `a8_map` supplies the category-name -> scalar map; default: Corporate's.
+    a8 = a8_map if a8_map is not None else scalars_by_category_name()[0]
     ours: dict[tuple[str, str], dict[str, dict[int, float]]] = {}
     stream_of = {VT_FIXED: "fixed", VT_FLOATING: "variable", VT_MIXED: "variable"}
     for key, projection in projections.items():
@@ -367,10 +468,48 @@ def _synthetic_workbook(directory: Path) -> Path:
                "2.a Graded", "M", 700.0, "M", 90.0, "M", 180.0, "M", 10.0])
     m1.append(["Wholesale - Corp - FI", "Wholesale - Corp - FI",
                "5.d", "M", 260.0, "M", 0.0, "M", 90.0, "M", 0.0])
+    # CRE rows (PID-LOAN-20 shape): E/G = domestic HFI / HFS-FVO of the row's own
+    # category; I/K feed the merged international category across all three rows.
+    m1.append(["Wholesale - CRE - construction", "Wholesale - CRE - international",
+               "1.b(1)", "M", 210.0, "M", 20.0, "M", 15.0, "M", 0.0])       # row 13
+    m1.append(["Wholesale - CRE - multi fam", "Wholesale - CRE - international",
+               "1.b(2)", "M", 380.0, "M", 0.0, "M", 40.0, "M", 5.0])        # row 14
+    m1.append(["Wholesale - CRE - non owner occupied", "Wholesale - CRE - international",
+               "1.b(3)(b)", "M", 0.0, "M", 110.0, "M", 30.0, "M", 0.0])     # row 15
+
+    cre = book.create_sheet("CRE H.2")
+    cre_headers = [
+        "Customer ID", "Line Reported on FR Y-9C", "Interest Rate Variability",
+        "Lower of Cost or Market Flag", "Interest Rate", "Committed Balance",
+        "Outstanding Balance", "Interest Rate Floor", "Origination Date", "Maturity Date",
+    ]
+    for _ in range(3):
+        cre.append([None] * len(cre_headers))
+    cre.append(cre_headers)
+    for row in (
+        # dom construction (codes 1 + 2 merge, PID-LOAN-19), floating; R1 carries
+        # a 5% floor that binds once the 3M path collapses
+        ["R1", 1, 2, 3, 0.070, 200e6, 150e6, 0.05, "15-Oct-2024", "15-Oct-2027"],
+        ["R2", 2, 2, 3, 0.065, 100e6, 50e6, None, "15-Jan-2024", "15-Jan-2028"],
+        # dom multifamily: a fixed row maturing at PQ5 and a mixed sibling on the
+        # hybrid spread (PID-LOAN-23)
+        ["R3", 3, 1, 3, 0.050, 300e6, 300e6, None, "15-May-2021", "15-Feb-2026"],
+        ["R4", 3, 3, 3, 0.055, 80e6, 60e6, None, "17-May-2022", "15-Oct-2028"],
+        # dom non-owner-occupied, HFS/FVO side
+        ["R5", 5, 2, 1, 0.080, 120e6, 100e6, None, "15-Oct-2023", "15-Oct-2027"],
+        # international (code 7 = Fed portfolios 4-6, merged)
+        ["R6", 7, 2, 3, 0.090, 90e6, 70e6, None, "15-Oct-2023", "15-Oct-2027"],
+        # DO-NOT-USE line code 4: outside every CRE category, excluded + censused
+        ["R7", 4, 2, 3, 0.060, 50e6, 40e6, None, None, None],
+        # fee-based and DO-NOT-USE variable types: balance-only (PID-LOAN-24)
+        ["R8", 1, 4, 3, 0.030, 40e6, 30e6, None, None, None],
+        ["R9", 1, "[NULL]", 3, None, 10e6, 5e6, None, None, None],
+    ):
+        cre.append(row)
 
     mev = book.create_sheet("MEV")
     mev.append(["Scenario Name", "Date", "3-month Treasury rate"])
-    history = {1976: 4.9, 2020: 1.5, 2022: 0.8}
+    history = {1976: 4.9, 2020: 1.5, 2021: 0.3, 2022: 0.8}
     for year, rate in history.items():
         for quarter in (1, 2, 3, 4):
             mev.append(["Actual", f"{year} Q{quarter}", rate])
@@ -406,7 +545,13 @@ def main(argv: list[str] | None = None) -> int:
                 print("SYNTHETIC DEMO — invented data, hand-checkable numbers. "
                       "Point --config at the company config for a real run.\n", flush=True)
                 _run(
-                    LoansSheetSpec(workbook=workbook),
+                    LoansSheetSpec(
+                        workbook=workbook,
+                        cre_h2_sheet="CRE H.2",
+                        cre_m1_construction_row=13,
+                        cre_m1_multifamily_row=14,
+                        cre_m1_non_owner_occupied_row=15,
+                    ),
                     args.scenario or "Supervisory Severely Adverse",
                     args.launch_point or "2024Q4",
                     collected=collected,
@@ -430,6 +575,7 @@ def main(argv: list[str] | None = None) -> int:
                 loans.share_basis,
                 loans.balance_source,
                 loans.engine,
+                loans.cre_orig_date_statistic,
                 collected=collected,
             )
         failed = None

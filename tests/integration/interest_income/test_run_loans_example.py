@@ -29,10 +29,22 @@ def test_synthetic_demo_runs_and_reports(tmp_path, capsys):
         "PROJECTION DIAGNOSTICS",
         "PROJECTED CORPORATE LOAN INTEREST INCOME",
         "TOTAL",
+        # the CRE part (PID-LOAN-18..25) runs in the same demo
+        "CRE LOANS LOADER CENSUS",
+        "CRE M.1 SIDE BALANCES",
+        "CRE LAUNCH-POINT REGISTER",
+        "PROJECTED CRE LOAN INTEREST INCOME",
+        "excluded DO-NOT-USE line-code rows",
     ):
         assert marker in printed
     # the merged bucket borrows the depository rate, not the 9% nondepository row
     assert "donor pool rate (depository floating) : 5.5000%" in printed
+    # the CRE hybrid mixed spread (PID-LOAN-23): fixed pool 5.0% less the 3M at
+    # mixed's own weighted origination quarter (2022Q2 = 0.8%)
+    assert "0.8000%@2022Q2" in printed and "4.2000%" in printed
+    # PID-LOAN-21: domestic CRE categories x1.081, the merged international x1.113
+    assert "CRE Dom multifamily  x1.0810" in printed
+    assert "CRE International (Fed 4-6 merged)  x1.1130" in printed
     assert report.exists()
 
 

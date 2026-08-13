@@ -356,3 +356,35 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                                 # these in order; all-[NULL] rows keep
 #                                                 # their balances under a synthesized
 #                                                 # UNIDENTIFIED-ROW-<n> label, censused
+# --- CRE part (PID-LOAN-18..25) — the CRE run is ENABLED by naming the H.2
+# sheet; leave cre_h2_sheet unset for a Corporate-only run. Same workbook, same
+# MEV sheet; the Fed names NO Y-14Q schedule for CRE (OQ-039), so all of this
+# is company convention.
+# cre_h2_sheet = "CRE H.2"                  # header row 4 (cre_h2_header_row)
+# cre_col_committed = "Committed Balance"           # H.2's own balance columns —
+# cre_col_outstanding = "Outstanding Balance"       # NOT the H.1 exposure names;
+#                                           # a blank Outstanding Balance is a
+#                                           # genuine ZERO (undrawn), censused
+# cre_col_value = "<HFS_FVO_VALUE_COLUMN>"  # OPTIONAL distinct HFS/FVO weighting
+#                                           # column ("Launchpoint Value" residual);
+#                                           # unset -> Outstanding weights both sides
+# cre_m1_construction_row = 17              # PID-LOAN-20: the M.1 rows whose E/G
+# cre_m1_multifamily_row = 18               # cells carry each domestic category's
+# cre_m1_non_owner_occupied_row = 21        # HFI / HFS-FVO balances; international
+#                                           # = sum of I/K over the SAME three rows.
+#                                           # The role labels on those rows print,
+#                                           # and a non-"Wholesale - CRE" role WARNs
+# cre_orig_date_statistic = "weighted_mean" # PID-LOAN-22: the origination-date
+#                                           # statistic is OUTSTANDING-weighted;
+#                                           # median-vs-mean is unread in the cell
+#                                           # formula — "weighted_mean" (default;
+#                                           # the sheet's sumproduct column is mean
+#                                           # evidence) | "weighted_median". The
+#                                           # CRE compare settles it
+# cre_results_sheet = "<CRE_RESULTS_SHEET>" # COMPARE MODE for CRE: blocks
+#                                           # "1 - HFI".."4 - HFS/FVO" (no merged
+#                                           # block), Fixed/Variable/Total rows over
+#                                           # PQ0..PQ9. Their Total = (F+V) x Table
+#                                           # A8 (domestic x1.081, international
+#                                           # x1.113 — PID-LOAN-21); pair with
+#                                           # apply_scalar = false, as for Corporate

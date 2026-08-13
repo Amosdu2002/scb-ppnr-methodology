@@ -97,6 +97,18 @@ EXPOSURE_MEASURES = (EXPOSURE_COMMITTED, EXPOSURE_UTILIZED, EXPOSURE_OUTSTANDING
 FALLBACK_OUTSIDE_MEV = "outside_mev_range"
 FALLBACK_NO_ORIGINATION_DATE = "missing_origination_date"
 
+# --- Origination-date statistic (PID-LOAN-22, CRE) --------------------------
+# Corporate uses an unweighted row median (PID-LOAN-4, `median_low`). The CRE
+# workbook computes an OUTSTANDING-BALANCE-WEIGHTED statistic (sheet-stated:
+# "balance weighted orig date based on: outstanding"); whether that statistic
+# is a median or a mean is a cell-formula detail still to confirm, so both are
+# implemented and the choice is configuration. Default: weighted_mean — the
+# sheet carries a sumproduct column ("outstanding balance x orig date"), which
+# is direct evidence of a mean; the compare mode settles it.
+ORIG_DATE_WEIGHTED_MEAN = "weighted_mean"
+ORIG_DATE_WEIGHTED_MEDIAN = "weighted_median"
+ORIG_DATE_STATISTICS = (ORIG_DATE_WEIGHTED_MEAN, ORIG_DATE_WEIGHTED_MEDIAN)
+
 
 def check_segment_share(name: str, value: float) -> float:
     """Shares are validated in [0, 1] and never clipped (asset conventions §8).

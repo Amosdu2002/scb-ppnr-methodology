@@ -16,7 +16,11 @@ from types import MappingProxyType
 from typing import Mapping
 
 from ..core.schemas import ValidationFailure
-from ..interest_income.loans_schemas import FLOOR_COLLAPSES, check_quarter_label
+from ..interest_income.loans_schemas import (
+    FLOOR_COLLAPSES,
+    ORIG_DATE_STATISTICS,
+    check_quarter_label,
+)
 from .loans_loader import LoansSheetSpec
 
 SERIES_KIND_RATE = "rate"    # scale-normalized to annualized decimal (scale required)
@@ -256,9 +260,17 @@ class LoansConfig:
                                 # of this column over a segment's reference keys,
                                 # user-clarified 2026-08-12), or "outstanding" (a separate
                                 # per-row column, if an extract ever carries one)
+    cre_orig_date_statistic: str = "weighted_mean"
+                                # PID-LOAN-22 (CRE only): the workbook weights origination
+                                # dates by OUTSTANDING balance; whether its statistic is a
+                                # median or a mean is a cell-formula detail still unread.
+                                # "weighted_mean" (default — the sheet carries a sumproduct
+                                # column, direct evidence of a mean) | "weighted_median".
+                                # The CRE compare settles it. Corporate is unaffected
+                                # (PID-LOAN-4's unweighted median stands there).
 
 
-_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar", "share_basis", "balance_source", "engine")
+_LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar", "share_basis", "balance_source", "engine", "cre_orig_date_statistic")
 
 
 def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
@@ -300,6 +312,14 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
             f"config {context}: floor_collapse must be one of {FLOOR_COLLAPSES} "
             f"(PID-LOAN-7), got {section.get('floor_collapse')!r}"
         )
+    cre_orig_date_statistic = str(
+        section.get("cre_orig_date_statistic", "weighted_mean")
+    ).strip().lower()
+    if cre_orig_date_statistic not in ORIG_DATE_STATISTICS:
+        raise ValidationFailure(
+            f"config {context}: cre_orig_date_statistic must be one of {ORIG_DATE_STATISTICS} "
+            f"(PID-LOAN-22), got {section.get('cre_orig_date_statistic')!r}"
+        )
 
     spec_kwargs: dict[str, object] = {"workbook": workbook}
     for key, value in section.items():
@@ -335,6 +355,7 @@ def _parse_loans(section: Mapping[str, object], base_dir: Path) -> LoansConfig:
         share_basis=share_basis,
         balance_source=balance_source,
         engine=engine,
+        cre_orig_date_statistic=cre_orig_date_statistic,
     )
 
 
