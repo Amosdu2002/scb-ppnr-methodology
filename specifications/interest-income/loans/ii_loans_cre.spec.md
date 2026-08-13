@@ -153,7 +153,7 @@ Domestic construction / multifamily / non-owner-occupied → **"Domestic CRE" (1
 | Config | `ingestion/config.py` (`cre_orig_date_statistic`), `[firm_data.loans]` cre_* keys | **Landed** |
 | Runner + compare | `examples/run_loans.py` (CRE section; `_compare` takes the scalar map) | **Landed** — synthetic demo runs Corporate + CRE end to end |
 | Tests | `tests/unit/interest_income/test_loans_cre.py`, `tests/unit/ingestion/test_loans_cre_loader.py`, integration demo markers | **370 passed** (2026-08-12); arithmetic worked by hand in the assertions |
-| Reference compare vs the company workbook | — | **Round 1 (2026-08-12): GRAND 1.0008** — every implied balance identical to the digit; most blocks 1.0000; the two residual ratios (construction fixed 1.0447; multifamily variable 1.0022) identified the two amendments above. **Round 2 after the amendments expected ≈ 1.0000** |
+| Reference compare vs the company workbook | — | **Round 1 (2026-08-12): GRAND 1.0008** — every implied balance identical to the digit; most blocks 1.0000; the two residual ratios (construction fixed 1.0447; multifamily variable 1.0022) identified the two amendments above. **Round 2 after the amendments expected ≈ 1.0000.** Note for the workbook's owners (found the same evening): the workbook's separate grand-summary row disagrees with its OWN block Totals — its PQ4 cell (635.21) drops the multifamily/HFI fixed contribution (≈ 916.5 = 847.8 × 1.081) and every quarter double-counts the international Total (+10.25 at PQ1, +6.9 thereafter); reconciliation 14,105.3 + 65.0 − 916.5 = 13,253.8 exactly. The compare deliberately reads the block Totals, not that summary row |
 
 ## 11. PID index
 
