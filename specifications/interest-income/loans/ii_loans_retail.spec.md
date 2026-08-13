@@ -136,9 +136,11 @@ arithmetic identification; the HELOC spread-cell reference confirmation is still
 other consumer under the leftmost-PQ0-group fix (the sheet's header carries NINE PQ0..PQ9
 groups; the rates live under the first). **Auto: ours/reference = 0.912 on both horizons —
 scalar-only by construction**: the machinery reproduces the workbook's unscaled New/Old
-streams, and the panel's own PQ0 cells imply the workbook multiplies by ≈ **0.9481** (a
-computed, non-round value — the firm-computed true-up, not Table A8's published 0.865 that
-production uses per PID-LOAN-32). Round-1/2 fix history: HELOC base and spread anchor
+streams, and the workbook multiplies by **0.948 — user-confirmed at the scalar cell (round 3)** — the
+firm-computed true-up, not Table A8's published 0.865 that production uses per PID-LOAN-32;
+`retail_auto_scalar = "0.948"` reproduces the reference exactly (verification run), and the
+published-vs-computed inconsistency (auto alone off Table A8) is flagged for the workbook
+owners. Round-1/2 fix history: HELOC base and spread anchor
 (§3); the line-item PQ-column anchoring (§2). Floor binds fell 82 → 27 once HELOC left the
 Prime path (its ARM floor no longer binds).
 
