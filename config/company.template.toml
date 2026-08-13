@@ -54,12 +54,12 @@ column = "TO_BE_CONFIRMED"              # working assumption "USD 10Y Treasury" 
 scale = "TO_BE_CONFIRMED"
 
 [mev.series.prime_rate]
-column = "TO_BE_CONFIRMED"              # ii_loans retail variable base rate (Increment 3)
-scale = "TO_BE_CONFIRMED"
+column = "Prime rate"                   # ii_loans retail base rate — PID-LOAN-31 (user-supplied
+scale = "percent"                       # 2026-08-13): "MEV Data" sheet, Fed scenario-table layout
 
 [mev.series.mortgage_rate]
-column = "TO_BE_CONFIRMED"              # ii_loans ARM base rate (Increment 3)
-scale = "TO_BE_CONFIRMED"
+column = "Mortgage rate"                # ii_loans mortgage-family base rate — PID-LOAN-31
+scale = "percent"
 
 [firm_data]
 firm_id = "<FIRM_ID>"

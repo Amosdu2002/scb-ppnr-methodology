@@ -31,6 +31,20 @@ Two PIDs registered with this brief record **input contracts the user supplied 2
 - **(d) "x" = missing observation.** Sparse segments print a literal "x" in the `AFTER` columns (thin or empty origination windows). The loader must read "x" as MISSING with a per-segment census — never as zero (the PID-SEC-6 error-literal discipline; a fixed segment with no window observation needs a stated fallback, TO CONFIRM).
 - **(e) Fixed-rate HELOC segments exist.** The 12-segment key gives HELOC × Fixed cells (fixed-rate draws/locks). Their engine (fixed machinery despite the HELOC-on-Prime base-rate entry) and their OQ-040 base-rate assignment need the user's reading.
 
+### 0.2 Wave-3 engine observations (2026-08-13) — user-supplied calculation-sheet screenshots, TO CONFIRM at the gate
+
+The user supplied the mortgage calculation sheets' layout the day after drafting ("here's how they calculate everything"). Readings below are screenshot observations — arithmetic-verified where stated — awaiting one-line confirmations at the combined gate; each names the §0.1 item or OQ it sharpens. **No firm values enter this repository.**
+
+| # | Observation | Sharpens |
+|---|---|---|
+| (f) | **The two classification variants are two calc sheets** (a primary and an alternative; tab names config-local). The primary keys rate type off a FR Y-14M **"Interest Type - Current"** field (code M248), with M953 = the HFI/FVO-HFS flag, M197 = the UPB-weighted rate, M201 = segment UPB — the query is a Y-14M field-level aggregation | §0.1 (a) becomes a sheet-selection question: which sheet feeds the results |
+| (g) | **The A36 window is a declared switch** — a header cell reading "1=new origination in latest month; 0 = latest quarter", observed set to **0** (the jump-off-quarter origination window) | §0.1 (b) mechanism confirmed; production setting to confirm |
+| (h) | **Base-rate assignment observed: the mortgage rate for the first-lien AND home-equity blocks (fixed and variable alike); Prime for the HELOC blocks** — each block's launch base equals that series' PQ0 value. Anomaly: the HE-HFI block heads its base column **"Median Date Base Rate"** (an Eq A37-style label) where every other block says "Base Rate at launch"; label meaning to confirm | The **OQ-040 working reading observed in the cells** — confirmation resolves OQ-040(a)/(b) for project implementation |
+| (i) | **wt arithmetic-verified as maturity-only**: the engine's "Re-Origination Weight" equals the query's maturing-UPB schedule ÷ the segment's launch UPB (verified exactly on a first-lien PQ1 cell) | §0.1 (c) confirmed-as-observed; the prepayment-omission divergence (OQ-001 retail leg) is now concrete and stands as this family's recorded-divergence risk |
+| (j) | **Missing-window fallback observed**: a fixed segment with "x" in both `AFTER` windows takes its **own current weighted rate** as the new-origination rate | §0.1 (d) sharpened into a stated rule; confirm |
+| (k) | **Balance wiring and income arithmetic-verified**: each block's multiplicand = the M.1 sub-family row sum per side (first lien; the two HELOAN rows; HELOC) in dollars, allocated across segments by the query's UPB shares; the variable path is **floored at the query's ARM floor** (a binding quarter observed); income = fixed-weighted rate × fixed balance ÷ 4 + variable rate × variable balance ÷ 4; **Total = (Fixed + Variable) × 1.014** — the Table A8 Mortgage row on the PID-LOAN-16 semantics | Confirms the PID-LOAN-26 flag-sum reading at sub-family grain; the OQ-002 mortgage leg (ARM-floor source and bind) and the OQ-010 Mortgage-row assignment are observed; confirmation upgrades both |
+| (l) | **The sheet stacks the next cycle's launch section below the current one** (a later-PQ0 copy of the same block structure) | [CODE] the loader must anchor on the configured `launch_point`, never on row order |
+
 ---
 
 ## 1. Executive summary

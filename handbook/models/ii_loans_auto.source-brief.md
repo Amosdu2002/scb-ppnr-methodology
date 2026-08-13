@@ -27,6 +27,18 @@ Labels [FACT] / [PID] / [INT] / [CODE] / [OQ] / [ALT] per `ii_loans_common.sourc
 | 6 | Scalar-row confirmation for auto blocks (candidate "Auto" 0.865) | Total construction | **OQ-010 retail leg** (§11) |
 | 7 | Materiality: HFS auto balances at the firm (the reclass in §6.2 is then live or vacuous) — *M.1 view suggests the answer; confirm at the gate* | grid collapse | §6.2 |
 
+### 0.2 Wave-3 input contract and engine observations (2026-08-13) — TO CONFIRM at the gate
+
+**PID-LOAN-29 (user-stated 2026-08-13, registered in `handbook/open-questions.md`):** the auto input lives in a **separate workbook**, sheet **"Auto 4Q24 pivot"** — a summary block per product type {New auto loans, Used auto loans, Auto leases} with **column M = total outstanding (D_OS), column N = average interest rate, column O = new-origination interest rate** ("which we can directly use", user-stated), built from pivots per REPORTING_MONTH × PRODUCT_TYPE over FR Y-14Q Schedule A.2 segment codes (Sum of D_OS / INTEREST_RATE / D_NEW_ACCOUNTS); companion tabs carry the Y-14Q Retail A.2/A.7/A.9 extracts. This answers §0.1 items 1 and 4 as a contract; the observations below are screenshot readings awaiting confirmation. No firm values enter this repository.
+
+| # | Observation | Sharpens |
+|---|---|---|
+| (f) | **Spread = new-origination rate (column O) − Prime PQ0**, arithmetic-verified on both segments; the A35 path = Prime(t) + that spread | **The OQ-042 project-side answer, observed**: a direct new-origination rate observation exists on the segment-level data — the printed A36 reading, not the trend-analysis alternative |
+| (g) | **wt is a large per-quarter schedule** (amortization-scale, reaching double-digit percent in later quarters), feeding the A38 blend per segment | §0.1 item 3 half-answered: the schedule exists; its **source** (which A.2 field or pivot area produces it) is the remaining ask — OQ-001 auto leg |
+| (h) | **Balances = the M.1 auto row × the pivot's D_OS shares** (New/Used); the Auto leases row carries zero | Confirms the PID-LOAN-26 wiring for auto; the leases row's excluded treatment to confirm (§2.2 note) |
+| (i) | **Scalar anomaly: the auto income panel applies × 0.948, not Table A8's 0.865** — the only observed retail block whose scalar differs from the published row (mortgage 1.014, consumer card 0.969, SME 1.033, noncore 1.072 all match) | **Gate question with teeth** — which scalar column drives auto (published Table A8 vs a firm-computed true-up; cf. the PID-LOAN-11 precedent, where the firm-computed column existed and was rejected). OQ-010 auto leg |
+| (j) | Income = (New + Used fixed legs) × scalar; **no variable leg exists in the engine** | Confirms §6.1's all-fixed consequence as implemented |
+
 ---
 
 ## 1. Executive summary

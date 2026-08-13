@@ -29,6 +29,17 @@ Labels [FACT] / [PID] / [INT] / [CODE] / [OQ] / [ALT] per `ii_loans_common.sourc
 - **(d) `WEIGHTED_MAX_APR` role.** A cap candidate (the ceiling counterpart of a floor) or informational only; no Fed statement corresponds (the stated rule is a **floor**, PDF p. 180). If the workbook applies it as a cap, that is a project construction to record as its own PID.
 - **(e) Spread column semantics.** `WEIGHTED_SPRD` reads as APR − Prime at some date (and `_revolver` its revolver-only counterpart); which spread column (all-book vs revolver-only; reported vs derived) seeds the Eq A33 projection is part of (c) and of OQ-043.
 
+### 0.2 Wave-3 engine observations (2026-08-13) — user-supplied calculation-sheet screenshots, TO CONFIRM at the gate
+
+| # | Observation | Sharpens |
+|---|---|---|
+| (f) | **Three engine switches observed** as header cells: floor mode ("1=floored at prior APR; 0=floor at zero", observed **0**); population ("1=revolver only; 0=full population", observed **0**); spread mode ("0=reported spreads (full population); 1=reported spreads (revolver only); 2=calculated spread", observed **0**) | §0.1 (e) resolved as a switch family. **Spread mode 0 = the REPORTED FR Y-14M spread drives the Eq A33 path — the OQ-043 project-side answer, observed** (the reported spread is not reconciled to APR − Prime; the "calculated" construction exists only as mode 2) |
+| (g) | **Row identity confirmed by the calc sheet's own labels**: 1 Consumer Bank Card, 2 Consumer Charge Card, 3 Non-Consumer Bank Card, 4 Non-Consumer Charge Card — consumer/SME × bank/charge | §0.1 (a) resolved-as-observed; empty sub-segments (charge rows) carry zero balance and zero spread |
+| (h) | **Income arithmetic-verified**: income(q) = M.1 block balance × revolver share × (Prime(q) + reported spread) ÷ 4, with revolver share = "Balance of accounts with non-zero Finance charge in recent 3 month / total balance" (the sheet's own formula note) | §0.1 (b)/(c) resolved-as-observed — the balance leg is the M.1 balance, the rate leg the reported spread on Prime; §7's [INT] arrangement confirmed in the revolving-balance form (Eq A32 with the revolving balance as the income-bearing balance) |
+| (i) | **Scalars observed: consumer block × 0.969 ("Credit Card"); SME block × 1.033 (the merged "C&I, noncore SME loan and card" row)** | The §11 OQ-010 SME-row question answered in the observed engine — confirmation makes it the PID |
+| (j) | **FR Y-14M field codes observed**: MDSE_APR_RT (APR), OTST_EOM_AM (balance), FED_FIN_CHG_NET_AM (finance charge), LAST_12MOS_ACTV_IN (12-month activity), FED_VAR_PURCH_APR_SPRD_RT (reported spread), FED_LND_TYPE_CD (lending type) | Contract context. **Open detail:** the revolver-share formula note names only the 3-month finance-charge condition while the Fed's rule (§5.1) has both conditions, and a "MonthEndActive Flag = 0" column sits alongside — whether LAST_12MOS_ACTV_IN enters the share is a gate question |
+| (k) | `WEIGHTED_MAX_APR` **does not appear in the engine** | §0.1 (d): the cap candidate is unused-as-observed; confirm informational-only |
+
 ---
 
 ## 1. Executive summary
