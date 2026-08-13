@@ -2,7 +2,7 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Component: **Interest Income on Loans**, Section v.a(1) (PDF pp. 173–188; md sec-150–172); this brief covers the **Consumer and Small Business Credit Card** family of Retail (PDF pp. 178–179; md sec-159) — consumer cards and small business cards as **two sub-portfolios in one brief**, matching the Fed's one section — plus the card-relevant passages elsewhere: the retail census entry (PDF p. 177; md sec-156), the Prime base-rate entry (PDF p. 181; md sec-163), Question A156 (PDF p. 187; md sec-172), the Retail Portfolio limitations (PDF p. 185; md sec-170), Table A8's Credit Card row and the merged "C&I, noncore SME loan and card" row (PDF p. 220; md sec-209), and footnote 63 (PDF p. 184 footer; md 5354). Model type per Table A6: **Structural**.
-> Deliverable: loans workstream (asset-side Increment 3), retail wave 2 — drafted 2026-08-12 with the mortgage and other-consumer briefs at the user's direction. Review state: **DRAFT — awaiting user review.**
+> Deliverable: loans workstream (asset-side Increment 3), retail wave 2 — drafted 2026-08-12 with the mortgage and other-consumer briefs at the user's direction. Review state: **APPROVED 2026-08-13** *(user review of the combined retail gate — "Looking good"; banner updated at approval)*.
 > Scope: **Card only.** Retail-shared rules cited from `ii_loans_retail.source-brief.md`; equations not transcribed (D-010(b)); other families appear solely at source-drawn boundaries.
 > Integrity flags: **filed with this brief — SQ-25** ("reflected in the alternative model", p. 178, referent unstated). Open questions: **OQ-043, filed with this brief** (projected-spread construction: three inputs, no formula); **OQ-012** (revolver-share constancy); the retail legs of OQ-002 (floors) and OQ-010 (scalar rows — the SME-card row question has real teeth here); OQ-033.
 > Physical context: the user supplied the **"Card query"** input sheet and the **"M.1 Balances"** retail wiring 2026-08-12 (screenshots; logical contracts registered as **PID-LOAN-28** and **PID-LOAN-26** — §0.1); interpretive readings are **flagged observations (a)–(e)**, not yet confirmed. No firm values appear in this repository.
@@ -238,4 +238,4 @@ Labels [FACT] / [PID] / [INT] / [CODE] / [OQ] / [ALT] per `ii_loans_common.sourc
 - [x] Consumer and small business cards as two sub-portfolios in one brief — the Fed's own section granularity.
 - [x] Retail-shared rules cited from the framework brief; the small-business-loans boundary recorded with its physical resolution labeled PID, never source-attributed.
 - [x] No production Python; no confidential values, formulas, or firm data — logical contract only.
-- [ ] Review state: DRAFT — awaiting user review gate (combined retail gate).
+- [x] Review state: **APPROVED 2026-08-13** (combined retail gate; banner and checklist updated at approval).

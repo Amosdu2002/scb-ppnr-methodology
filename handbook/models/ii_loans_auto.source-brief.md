@@ -2,7 +2,7 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Component: **Interest Income on Loans**, Section v.a(1) (PDF pp. 173–188; md sec-150–172); this brief covers the **Auto Loan** family of Retail (PDF p. 178; md sec-158), plus the auto-relevant passages elsewhere in v.a(1): the retail fixed-rate prevalence note (PDF p. 183; md sec-165), the Retail Portfolio limitations' auto sentences (PDF p. 185; md sec-170), Table A8's Auto row (PDF p. 220; md sec-209), and footnote 63's "auto" category (PDF p. 184 footer; md 5354). Model type per Table A6: **Structural**.
-> Deliverable: loans workstream (asset-side Increment 3), retail slice R1 per the approved plan of 2026-08-12 — first **family brief** of the retail set, drafted in one slice with `ii_loans_retail.source-brief.md` (user-confirmed bundling and Auto-first order, 2026-08-12). Review state: **DRAFT — awaiting user review.**
+> Deliverable: loans workstream (asset-side Increment 3), retail slice R1 per the approved plan of 2026-08-12 — first **family brief** of the retail set, drafted in one slice with `ii_loans_retail.source-brief.md` (user-confirmed bundling and Auto-first order, 2026-08-12). Review state: **APPROVED 2026-08-13** *(user review of the combined retail gate — "Looking good"; banner updated at approval)*.
 > Scope: **Auto only.** Retail-shared rules are cited from the retail framework brief, never restated; equations are **not** transcribed (D-010(b) — all of Equations A32–A38 live verbatim in `ii_loans_common.source-brief.md` §7); the other three families appear solely where the source draws an explicit boundary.
 > Integrity flags relevant here: SQ-18/OQ-033 (fixed-rate subscripts — auto is an all-fixed family), SQ-24 ("non-core retails products", framework §12). **No new source quirk was found in the auto passage.** Open questions: **OQ-042, filed with this brief** (new-origination spread measurement); the retail legs of OQ-001 (wt), OQ-002 (floors), and OQ-010 (scalar row); OQ-033.
 > Verification: **PDF p. 178 read as a page image 2026-08-12** (both auto paragraphs confirmed verbatim; md conversion faithful); p. 183 re-read 2026-08-12 within the pp. 177–185 pass context; pp. 173–188 had a full image pass 2026-07-30. Citation format: (PDF p. N; md sec-M).
@@ -301,4 +301,4 @@ Nothing here is Fed methodology. No production Python in this phase; the engine 
 - [x] Retail-shared rules cited from the framework brief, never restated (inheritance register §10); other families appear only as source-drawn boundaries.
 - [x] The all-fixed and HFS-reclass consequences labeled [INT], separated from the stated assumptions.
 - [x] No production Python; no confidential workbook content.
-- [ ] Review state: DRAFT — awaiting user review gate (bundled with `ii_loans_retail.source-brief.md`).
+- [x] Review state: **APPROVED 2026-08-13** (combined retail gate; banner and checklist updated at approval).

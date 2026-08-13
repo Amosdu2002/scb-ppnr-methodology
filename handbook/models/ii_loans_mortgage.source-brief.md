@@ -2,7 +2,7 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Component: **Interest Income on Loans**, Section v.a(1) (PDF pp. 173–188; md sec-150–172); this brief covers the **Mortgage** family of Retail (PDF pp. 177–178; md sec-157), plus the mortgage-relevant passages elsewhere in v.a(1): the retail census entry (PDF p. 177; md sec-156), the base-rate entries (PDF p. 181; md sec-163), the fixed-rate prevalence note (PDF p. 183; md sec-165), the Retail Portfolio limitations' mortgage exception (PDF p. 185; md sec-170), Table A8's Mortgage row (PDF p. 220; md sec-209), and footnote 63's "mortgage" category (PDF p. 184 footer; md 5354). Model type per Table A6: **Structural**.
-> Deliverable: loans workstream (asset-side Increment 3), retail wave 2 — drafted 2026-08-12 with the card and other-consumer briefs at the user's direction (accelerating the original per-family gate order; the framework + auto briefs were drafted the same day). Review state: **DRAFT — awaiting user review.**
+> Deliverable: loans workstream (asset-side Increment 3), retail wave 2 — drafted 2026-08-12 with the card and other-consumer briefs at the user's direction (accelerating the original per-family gate order; the framework + auto briefs were drafted the same day). Review state: **APPROVED 2026-08-13** *(user review of the combined retail gate — "Looking good"; banner updated at approval)*.
 > Scope: **Mortgage only.** Retail-shared rules are cited from `ii_loans_retail.source-brief.md`, never restated; equations are **not** transcribed (D-010(b)); other families appear solely where the source draws an explicit boundary.
 > Integrity flags relevant here: SQ-23 (Prime-for-retail abbreviation), SQ-18/OQ-033 (fixed-rate subscripts). **No new source quirk in the mortgage passage.** Open questions: **OQ-040** (base-rate boundary — this family's central source gap), the retail legs of OQ-001 (wt), OQ-002 (floors), OQ-010 (scalar row); OQ-033.
 > Physical context: the user supplied the **"Mortgage query"** input sheet and the **"M.1 Balances"** retail wiring 2026-08-12 (screenshots; logical contract registered as **PID-LOAN-27** and **PID-LOAN-26** — §0.1); interpretive readings are **flagged observations (a)–(e)**, not yet confirmed. No firm values appear in this repository.
@@ -265,4 +265,4 @@ Every row states whether the source names the item; physical realizations are PI
 - [x] Fed-stated grid preserved as [FACT]; the 12-cell physical grid labeled PID, never presented as Fed methodology.
 - [x] Retail-shared rules cited from the framework brief; other families as boundaries only.
 - [x] No production Python; no confidential values, formulas, or firm data — logical contract only.
-- [ ] Review state: DRAFT — awaiting user review gate (combined retail gate).
+- [x] Review state: **APPROVED 2026-08-13** (combined retail gate; banner and checklist updated at approval).
