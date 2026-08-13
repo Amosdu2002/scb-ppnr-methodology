@@ -39,6 +39,7 @@ from .loans_mapping import (
 )
 from .normalize import (
     SCALE_DOLLARS,
+    SCALE_MILLIONS,
     SCALE_PERCENT,
     SCALE_THOUSANDS,
     apply_money_scale,
@@ -145,6 +146,45 @@ class LoansSheetSpec:
     # The workbook's own CRE projected income (same block layout as Corporate's,
     # markers "1 - HFI" .. "4 - HFS/FVO", no merged block). Unset disables.
     cre_results_sheet: str | None = None
+    # --- Retail part (PID-LOAN-26..34) --------------------------------------
+    # Each family runs when its sheet is configured; a sheet may live in a
+    # DIFFERENT workbook (PID-LOAN-31 — relative paths resolve against the main
+    # workbook's directory). The M.1 retail rows are matched by their schedule
+    # line labels in the label column (PID-LOAN-26), on the same m1_sheet.
+    m1_label_column_index: int = 3          # column C carries the M.1 line labels
+    mev_prime_column: str = "Prime rate"        # PID-LOAN-31 (user-supplied 2026-08-13)
+    mev_mortgage_column: str = "Mortgage rate"  # PID-LOAN-31
+    mortgage_query_sheet: str | None = None
+    mortgage_query_workbook: str | None = None
+    mortgage_upb_scale: str = SCALE_DOLLARS
+    mortgage_window: str = "quarter"        # PID-LOAN-33: "quarter" (jump-off-quarter
+                                            # originations, the sheet switch's 0) | "month"
+    card_query_sheet: str | None = None
+    card_query_workbook: str | None = None
+    card_money_scale: str = SCALE_DOLLARS
+    card_rate_scale: str = SCALE_PERCENT    # the query's APR/spread columns print percent
+    card_spread_mode: str = "reported"      # PID-LOAN-34: "reported" (full-population
+                                            # reported spread — the production working
+                                            # assumption) | "reported_revolver" | "calculated"
+    auto_pivot_sheet: str | None = None
+    auto_pivot_workbook: str | None = None
+    auto_summary_label_column: int = 12     # column L anchors the summary block labels
+    auto_summary_first_row: int = 2         # row 2 = New auto loans; row 3 = Used (PID-LOAN-29)
+    auto_balance_scale: str = SCALE_MILLIONS
+    auto_wt_scale: str = "decimal"          # columns P..X = PQ1..PQ9 re-origination weights
+    retail_auto_scalar: str = "0.865"       # PID-LOAN-32 (user-directed): the PUBLISHED Table
+                                            # A8 Auto row; "0.948" reproduces the reference
+                                            # workbook's own panel for compare-matching runs
+    oc_sheet: str | None = None             # the other-consumer construction sheet's input block
+    oc_workbook: str | None = None
+    oc_schedule_column: int = 2             # "Sch." tags (A.7 / A.9)
+    oc_product_type_column: int = 4         # "Secured-Revolving", "Line of Credit", ...
+    oc_balance_column: int = 6              # the schedule's own balance — SHARES only
+    oc_line_column: int = 7                 # the workbook's line-mapping token ("Card", "C&I", ...)
+    oc_balance_scale: str = SCALE_DOLLARS
+    line_items_sheet: str | None = None     # the PPNR line-item projections sheet — its name
+    line_items_workbook: str | None = None  # references an institution and stays config-local
+    line_items_rate_scale: str = "decimal"  # percent-FORMATTED cells store decimal values
 
 
 @dataclass

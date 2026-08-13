@@ -428,6 +428,135 @@ def _compare(reference, projections, base_path, quarters, scalars, a8_map=None) 
     return "\n".join(lines)
 
 
+def _retail_enabled(spec: LoansSheetSpec) -> bool:
+    return any((spec.mortgage_query_sheet, spec.card_query_sheet,
+                spec.auto_pivot_sheet, spec.oc_sheet))
+
+
+def _run_retail(spec: LoansSheetSpec, scenario: str, launch_point: str,
+                collected: list[str] | None = None) -> str:
+    """The four retail families (PID-LOAN-26..34), censuses FIRST per family.
+
+    Each family runs iff its sheet is configured, so the mortgage slice can be
+    exercised before the auto pivot file exists. Everything prints the moment
+    it is produced — a failure in one family never hides another's censuses."""
+    from scb_ppnr.ingestion.retail_loader import (
+        load_auto_pivot,
+        load_card_query,
+        load_line_item_rates,
+        load_mev_series,
+        load_mortgage_query,
+        load_oc_products,
+        load_retail_m1,
+    )
+    from scb_ppnr.interest_income.loans_retail import (
+        RetailDiagnostics,
+        build_auto,
+        build_card,
+        build_mortgage,
+        build_other_consumer,
+        family_summary,
+        parse_auto_scalar,
+    )
+
+    sections: list[str] = collected if collected is not None else []
+
+    def emit(text: str) -> None:
+        print(text, end="\n\n", flush=True)
+        sections.append(text)
+
+    quarters = PROJECTION_QUARTERS
+    emit("RETAIL RUN — families per configured sheets; M.1 role labels are the wiring "
+         "(PID-LOAN-26); scalars per PID-LOAN-32")
+
+    m1, m1_census = load_retail_m1(spec)
+    emit(m1_census.render())
+
+    _, prime_path, prime_launch = load_mev_series(
+        spec, spec.mev_prime_column, scenario, quarters, launch_point
+    )
+    emit("SCENARIO PRIME PATH\n  PQ0 " + f"{prime_launch:7.4%}  "
+         + "  ".join(f"PQ{q} {prime_path[q]:7.4%}" for q in quarters))
+
+    blocks = []
+    diagnostics = RetailDiagnostics()
+
+    def emit_blocks(family_blocks) -> None:
+        for block in family_blocks:
+            lines = [f"{block.family.upper()} BLOCK {block.name}  (scalar x{block.scalar:.4f})"]
+            lines.append(f"  {'stream':<26}{'balance mm':>14}{'launch':>9}{'spread':>9}"
+                         f"{'PQ1 rate':>10}{'PQ9 rate':>10}{'9Q income':>14}")
+            for s in block.streams:
+                launch = "" if s.launch_rate is None else f"{s.launch_rate:8.4%}"
+                spread = "" if s.spread is None else f"{s.spread:8.4%}"
+                pq1 = "" if s.rate_path is None else f"{s.rate_path[1]:9.4%}"
+                pq9 = "" if s.rate_path is None else f"{s.rate_path[9]:9.4%}"
+                lines.append(f"  {s.name:<26}{s.balance:>14,.1f}{launch:>9}{spread:>9}"
+                             f"{pq1:>10}{pq9:>10}{s.total_income:>14,.2f}")
+            totals = block.total_path(quarters)
+            lines.append("  Total x scalar: " + "  ".join(f"PQ{q} {totals[q]:,.1f}" for q in quarters))
+            emit("\n".join(lines))
+        blocks.extend(family_blocks)
+
+    if spec.mortgage_query_sheet is not None:
+        query = load_mortgage_query(spec)
+        emit(query.census.render())
+        _, mortgage_path, mortgage_launch = load_mev_series(
+            spec, spec.mev_mortgage_column, scenario, quarters, launch_point
+        )
+        emit("SCENARIO MORTGAGE-RATE PATH\n  PQ0 " + f"{mortgage_launch:7.4%}  "
+             + "  ".join(f"PQ{q} {mortgage_path[q]:7.4%}" for q in quarters))
+        emit_blocks(build_mortgage(
+            query, m1,
+            base_paths={"mortgage_rate": mortgage_path, "prime_rate": prime_path},
+            base_launch={"mortgage_rate": mortgage_launch, "prime_rate": prime_launch},
+            quarters=quarters, diagnostics=diagnostics,
+        ))
+
+    if spec.card_query_sheet is not None:
+        card_segments, card_census = load_card_query(spec)
+        emit(card_census.render())
+        emit_blocks(build_card(
+            card_segments, m1, prime_path, prime_launch,
+            spec.card_spread_mode, quarters, diagnostics,
+        ))
+
+    if spec.auto_pivot_sheet is not None:
+        auto = load_auto_pivot(spec)
+        emit(auto.census.render())
+        emit_blocks([build_auto(
+            auto, m1, prime_path, prime_launch,
+            parse_auto_scalar(spec.retail_auto_scalar), quarters, diagnostics,
+        )])
+
+    if spec.oc_sheet is not None:
+        products, oc_census = load_oc_products(spec)
+        emit(oc_census.render())
+        line_rates, line_census = load_line_item_rates(spec)
+        emit(line_census.render())
+        emit("LINE-ITEM PQ0 RATES (jump-off earned rates, PID-LOAN-30)\n"
+             + "\n".join(f"  {key:<14} {rate:8.4%}" for key, rate in sorted(line_rates.items())))
+        emit_blocks(build_other_consumer(
+            products, line_rates, m1, prime_path, prime_launch, quarters, diagnostics,
+        ))
+
+    emit(diagnostics.render("RETAIL DIAGNOSTICS"))
+
+    summary = family_summary(blocks, quarters)
+    lines = ["RETAIL SUMMARY (scaled; the results-summary shape: 4Q cum / 9Q cum)",
+             f"  {'family':<18}{'4Q cum mm':>14}{'9Q cum mm':>14}{'4Q $bn':>9}{'9Q $bn':>9}"]
+    total4 = total9 = 0.0
+    for family, sums in sorted(summary.items()):
+        total4 += sums["cum_4q"]
+        total9 += sums["cum_9q"]
+        lines.append(f"  {family:<18}{sums['cum_4q']:>14,.1f}{sums['cum_9q']:>14,.1f}"
+                     f"{sums['cum_4q'] / 1e3:>9,.1f}{sums['cum_9q'] / 1e3:>9,.1f}")
+    lines.append(f"  {'TOTAL RETAIL':<18}{total4:>14,.1f}{total9:>14,.1f}"
+                 f"{total4 / 1e3:>9,.1f}{total9 / 1e3:>9,.1f}")
+    emit("\n".join(lines))
+    return "\n\n".join(sections)
+
+
 def _synthetic_workbook(directory: Path) -> Path:
     """A tiny invented book so the runner is demonstrable without any .xlsx on disk."""
     import openpyxl
@@ -535,6 +664,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="override the configured PQ0 quarter for one run")
     parser.add_argument("--report", type=Path, default=None,
                         help="also write the output to this file (keep it local)")
+    parser.add_argument("--retail-only", action="store_true",
+                        help="skip the wholesale run and execute only the retail families "
+                             "(their sheets must be configured in [firm_data.loans])")
     args = parser.parse_args(argv)
 
     collected: list[str] = []
@@ -566,18 +698,31 @@ def main(argv: list[str] | None = None) -> int:
                 )
             loans = config.firm_data.loans
             print(format_effective_config(config) + "\n", flush=True)
-            _run(
-                loans.spec,
-                args.scenario or loans.scenario,
-                args.launch_point or loans.launch_point,
-                loans.floor_collapse,
-                loans.apply_scalar,
-                loans.share_basis,
-                loans.balance_source,
-                loans.engine,
-                loans.cre_orig_date_statistic,
-                collected=collected,
-            )
+            if args.retail_only and not _retail_enabled(loans.spec):
+                raise ValidationFailure(
+                    "--retail-only was passed but no retail sheet is configured "
+                    "(mortgage_query_sheet / card_query_sheet / auto_pivot_sheet / oc_sheet)"
+                )
+            if not args.retail_only:
+                _run(
+                    loans.spec,
+                    args.scenario or loans.scenario,
+                    args.launch_point or loans.launch_point,
+                    loans.floor_collapse,
+                    loans.apply_scalar,
+                    loans.share_basis,
+                    loans.balance_source,
+                    loans.engine,
+                    loans.cre_orig_date_statistic,
+                    collected=collected,
+                )
+            if _retail_enabled(loans.spec):
+                _run_retail(
+                    loans.spec,
+                    args.scenario or loans.scenario,
+                    args.launch_point or loans.launch_point,
+                    collected=collected,
+                )
         failed = None
     except ValidationFailure as error:
         failed = str(error)

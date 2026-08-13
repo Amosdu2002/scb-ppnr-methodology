@@ -389,3 +389,31 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # A8 (domestic x1.081, international
 #                                           # x1.113 — PID-LOAN-21); pair with
 #                                           # apply_scalar = false, as for Corporate
+
+# --- Retail families (PID-LOAN-26..34) — each family runs when its sheet is
+# named; a sheet in ANOTHER workbook gets its *_workbook path (relative paths
+# resolve against the main workbook's folder). The M.1 retail rows are matched
+# by their schedule line labels on the m1_sheet configured above; the MEV
+# columns below are the PID-LOAN-31 confirmed headers (percent, like the 3M).
+# mortgage_query_sheet = "Mortgage query"   # 12-segment launch table + PQ schedules;
+#                                           # the FIRST launch/schedule block pair =
+#                                           # the MORT variant that drives (PID-LOAN-33)
+# mortgage_window = "quarter"               # "quarter" = jump-off-quarter originations
+#                                           # (the sheet switch's 0, production);
+#                                           # "month" = the final-month window
+# card_query_sheet = "Card query"           # rows 1..4 = consumer/SME x bank/charge
+# card_spread_mode = "reported"             # PID-LOAN-34 production assumption;
+#                                           # "reported_revolver" | "calculated" for A/B
+# auto_pivot_sheet = "Auto 4Q24 pivot"      # summary block: labels col L, M/N/O =
+# auto_pivot_workbook = "<AUTO_FILE>.xlsx"  # outstanding / avg rate / new-orig rate,
+#                                           # P..X = wt PQ1..PQ9 (PID-LOAN-29)
+# retail_auto_scalar = "0.865"              # PID-LOAN-32 (user-directed): the PUBLISHED
+#                                           # Table A8 Auto row; "0.948" reproduces the
+#                                           # reference workbook's own auto panel
+# oc_sheet = "OTHER"                        # the construction sheet's A.7/A.9 input
+#                                           # block (cols: 2 Sch., 4 product type,
+#                                           # 6 balance, 7 line token — oc_*_column)
+# line_items_sheet = "<LINE_ITEMS_SHEET>"   # the PPNR line-item projections sheet
+#                                           # (name references an institution — keep it
+#                                           # HERE, config-local; PQ0 rates drive the
+#                                           # other-consumer jump-offs, PID-LOAN-30)
