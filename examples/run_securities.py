@@ -134,7 +134,7 @@ def _synthetic_demo() -> tuple[IngestionConfig, IncomeScenarioPaths]:
     return config, scenario
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default=None, help="company-local config with [firm_data.securities]")
     parser.add_argument("--scenario", default=None, help="scenario id (company runs)")
@@ -142,7 +142,16 @@ def main() -> None:
                         help="terminal warning verbosity (tables always print first)")
     parser.add_argument("--report", default=None,
                         help="write the FULL report (tables + every warning) to this file")
-    args = parser.parse_args()
+    parser.add_argument("--paths-out", default=None,
+                        help="write the quarterly component income paths (USD millions, wide CSV: "
+                             "component,PQ1..PQ9) for run_nii.py --component-paths")
+    parser.add_argument("--paths-basis", choices=("xr", "full"), default="xr",
+                        help="paths-out income basis: 'xr' excludes reinvestment income "
+                             "(PID-SEC-8 — the reference components sheet's II_PQ columns exclude "
+                             "it, so the trading residual should subtract the same basis); "
+                             "'full' includes it (only if the workbook's 'Implied FRB results' "
+                             "formula subtracts reinvestment too)")
+    args = parser.parse_args(argv)
 
     if args.config is None:
         config, scenario = _synthetic_demo()
@@ -208,6 +217,19 @@ def main() -> None:
             handle.write(header + "\n" + tables + f"\n\nALL WARNINGS ({len(all_warnings)}):\n")
             handle.writelines(f"  {w}\n" for w in all_warnings)
         print(f"\nfull report written to {args.report}")
+
+    if args.paths_out:
+        rows = ["component," + ",".join(f"PQ{q}" for q in PROJECTION_QUARTERS)]
+        for result in results:
+            path = dict(result.income_path())
+            if args.paths_basis == "xr":
+                for q in PROJECTION_QUARTERS:
+                    path[q] -= result.quarters[q - 1].diagnostics.reinvested_income
+            rows.append(result.model_id + "," + ",".join(f"{path[q]:.6f}" for q in PROJECTION_QUARTERS))
+        Path(args.paths_out).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        print(f"\ncomponent paths written to {args.paths_out} (USD millions; basis: "
+              f"{args.paths_basis}) — feed to run_nii.py --component-paths; "
+              f"carries firm amounts, keep it local")
 
 
 if __name__ == "__main__":

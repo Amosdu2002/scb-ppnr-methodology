@@ -33,12 +33,25 @@ def test_frb_nii_within_guard():
     assert report.notes == ()
 
 
-def test_frb_nii_breach_reported_never_forced():
-    # Gap 10 vs guard 0.01·max(1, 100, 40) = 1 → breach every quarter; values
+def test_quarterly_shape_divergence_alone_is_not_a_breach():
+    # Both calibrations match cumulatives only, so quarterly modeled-vs-FRB
+    # divergence is structural: ±10 swings that cancel cumulatively stay True.
+    income = {**flat(100.0), 1: 110.0, 2: 90.0}
+    report = combined_nii_monitor(income, flat(40.0), frb_net_interest_income=flat(60.0))
+    assert report.per_quarter_gap[1] == pytest.approx(10.0)
+    assert report.per_quarter_gap[2] == pytest.approx(-10.0)
+    assert report.cumulative_gap == pytest.approx(0.0)
+    assert report.within_identity_guard is True
+    assert report.notes == ()
+
+
+def test_frb_nii_cumulative_breach_reported_never_forced():
+    # Cumulative gap 90 vs guard 0.01·max(1, 900, 360) = 9 → breach; values
     # untouched, nothing raises — reported only (conventions §10).
     report = combined_nii_monitor(flat(100.0), flat(40.0), frb_net_interest_income=flat(50.0))
     assert report.within_identity_guard is False
-    assert len(report.notes) == len(PROJECTION_QUARTERS)
+    assert len(report.notes) == 1
+    assert "cumulative" in report.notes[0]
     assert all(report.nii_path[q] == pytest.approx(60.0) for q in PROJECTION_QUARTERS)
     assert report.cumulative_gap == pytest.approx(90.0)
 
@@ -61,3 +74,4 @@ def test_report_text_layout():
     assert "modeled_nii" in text
     assert "frb_nii (target)" in text
     assert "identity guard: True" in text
+    assert "structural under cumulative-only calibration" in text

@@ -71,7 +71,8 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
          floor_collapse: str = "balance_weighted", apply_scalar: bool = True,
          share_basis: str = "committed", balance_source: str = "m1",
          engine: str = "pid", cre_orig_date_statistic: str = "weighted_median",
-         collected: list[str] | None = None) -> str:
+         collected: list[str] | None = None,
+         paths_out: dict[str, dict[int, float]] | None = None) -> str:
     """Each section PRINTS the moment it is produced (the securities-loop
     lesson): a failure deep in the run must never hide the censuses that
     explain it. `collected` receives the sections for the report file even
@@ -216,6 +217,8 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
     )
     result_lines.append(f"  segments projected: {len(projections)}")
     emit("\n".join(result_lines))
+    if paths_out is not None:
+        paths_out["ii_loans_corporate"] = dict(grand)
 
     if spec.results_sheet is not None:
         reference = load_reference_results(spec)
@@ -297,6 +300,8 @@ def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
             f"Fed portfolios 4-6, merged — data-forced, PID-LOAN-19)"
         )
         emit("\n".join(cre_lines))
+        if paths_out is not None:
+            paths_out["ii_loans_cre"] = dict(cre_grand)
 
         if spec.cre_results_sheet is not None:
             cre_reference = load_reference_results(
@@ -434,7 +439,8 @@ def _retail_enabled(spec: LoansSheetSpec) -> bool:
 
 
 def _run_retail(spec: LoansSheetSpec, scenario: str, launch_point: str,
-                collected: list[str] | None = None) -> str:
+                collected: list[str] | None = None,
+                paths_out: dict[str, dict[int, float]] | None = None) -> str:
     """The four retail families (PID-LOAN-26..34), censuses FIRST per family.
 
     Each family runs iff its sheet is configured, so the mortgage slice can be
@@ -555,6 +561,13 @@ def _run_retail(spec: LoansSheetSpec, scenario: str, launch_point: str,
     lines.append(f"  {'TOTAL RETAIL':<18}{total4:>14,.1f}{total9:>14,.1f}"
                  f"{total4 / 1e3:>9,.1f}{total9 / 1e3:>9,.1f}")
     emit("\n".join(lines))
+    if paths_out is not None:
+        retail_grand = {q: 0.0 for q in quarters}
+        for block in blocks:
+            block_totals = block.total_path(quarters)
+            for q in quarters:
+                retail_grand[q] += block_totals[q]
+        paths_out["ii_loans_retail"] = retail_grand
     return "\n\n".join(sections)
 
 
@@ -668,9 +681,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--retail-only", action="store_true",
                         help="skip the wholesale run and execute only the retail families "
                              "(their sheets must be configured in [firm_data.loans])")
+    parser.add_argument("--paths-out", type=Path, default=None,
+                        help="write the quarterly component income paths (USD millions, wide CSV: "
+                             "component,PQ1..PQ9 — parts plus the ii_loans total) for "
+                             "run_nii.py --component-paths; the configured basis "
+                             "(apply_scalar, retail_auto_scalar) flows into these paths")
     args = parser.parse_args(argv)
 
     collected: list[str] = []
+    component_paths: dict[str, dict[int, float]] = {}
     try:
         if args.config is None:
             with tempfile.TemporaryDirectory() as scratch:
@@ -688,6 +707,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.scenario or "Supervisory Severely Adverse",
                     args.launch_point or "2024Q4",
                     collected=collected,
+                    paths_out=component_paths,
                 )
         else:
             config = load_config(args.config)
@@ -716,6 +736,7 @@ def main(argv: list[str] | None = None) -> int:
                     loans.engine,
                     loans.cre_orig_date_statistic,
                     collected=collected,
+                    paths_out=component_paths,
                 )
             if _retail_enabled(loans.spec):
                 _run_retail(
@@ -723,6 +744,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.scenario or loans.scenario,
                     args.launch_point or loans.launch_point,
                     collected=collected,
+                    paths_out=component_paths,
                 )
         failed = None
     except ValidationFailure as error:
@@ -737,6 +759,28 @@ def main(argv: list[str] | None = None) -> int:
         args.report.write_text(body + f"\n\ngenerated {dt.datetime.now():%Y-%m-%d %H:%M}\n",
                                encoding="utf-8")
         print(f"\nreport written to {args.report} — carries firm amounts; keep it local")
+    if args.paths_out is not None:
+        if failed is None and component_paths:
+            header = "component," + ",".join(f"PQ{q}" for q in PROJECTION_QUARTERS)
+            rows = [header]
+            for name in sorted(component_paths):
+                rows.append(name + "," + ",".join(
+                    f"{component_paths[name][q]:.6f}" for q in PROJECTION_QUARTERS))
+            if "ii_loans_corporate" in component_paths:
+                loans_total = {
+                    q: sum(path[q] for path in component_paths.values())
+                    for q in PROJECTION_QUARTERS
+                }
+                rows.append("ii_loans," + ",".join(f"{loans_total[q]:.6f}" for q in PROJECTION_QUARTERS))
+            else:
+                print("\nNOTE: partial loans run (e.g. --retail-only) — writing the parts only, "
+                      "no ii_loans total row; run_nii.py sums whatever parts it receives")
+            args.paths_out.write_text("\n".join(rows) + "\n", encoding="utf-8")
+            print(f"\ncomponent paths written to {args.paths_out} (USD millions; parts + the "
+                  f"ii_loans total; basis = this run's apply_scalar/retail_auto_scalar) — "
+                  f"feed to run_nii.py --component-paths; carries firm amounts, keep it local")
+        else:
+            print("\n--paths-out skipped: the run failed or produced no component paths")
     return 0 if failed is None else 1
 
 

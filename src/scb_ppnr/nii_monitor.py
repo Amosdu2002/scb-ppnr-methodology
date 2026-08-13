@@ -5,12 +5,15 @@
 Compares the modeled NII path against the FRB-provided `frb_net_interest_income`
 path when supplied. REPORTS, NEVER FORCES (conventions §10): with both sides
 calibrated exact-by-construction to their FRB paths (PID-OB-5 expense,
-PID-TRD-1 income), the cumulative gaps close whenever the three hardcoded FRB
+PID-TRD-1 income), the CUMULATIVE gap closes whenever the three hardcoded FRB
 paths satisfy their own income − expense = NII identity — so this monitor is
-primarily a wiring/units tripwire across the two families. Per-quarter gaps are
-judged against the same 1% guard the input-side identity check uses
-(FRB_IDENTITY_GUARD_REL); breaches land in `notes`, values are never adjusted
-and nothing raises except structural path defects.
+primarily a wiring/units tripwire across the two families, and its verdict is
+judged on the nine-quarter cumulative gap against the same 1% guard the
+input-side identity check uses (FRB_IDENTITY_GUARD_REL). Per-quarter gaps are
+carried as pure diagnostics WITHOUT a verdict: both calibrations match
+cumulatives only, so quarterly modeled-vs-FRB divergence is structural, not a
+defect. A cumulative breach lands in `notes`; values are never adjusted and
+nothing raises except structural path defects.
 
 The Fed source states no total-NII aggregation for the proposed suite (Section v
 models each component independently — FACT absence); this roll-up is project
@@ -41,9 +44,11 @@ class CombinedNiiReport:
     cumulative_expense: float
     cumulative_nii: float
     frb_net_interest_income: Mapping[int, float] | None
-    per_quarter_gap: Mapping[int, float] | None      # modeled NII − FRB NII
+    per_quarter_gap: Mapping[int, float] | None      # modeled NII − FRB NII (diagnostic only —
+                                                     # quarterly divergence is structural under
+                                                     # cumulative-only calibration)
     cumulative_gap: float | None
-    within_identity_guard: bool | None
+    within_identity_guard: bool | None               # verdict on the CUMULATIVE gap
     notes: tuple[str, ...]
 
 
@@ -68,16 +73,17 @@ def combined_nii_monitor(
         frb_nii = freeze_projection_path("frb_net_interest_income", frb_net_interest_income)
         per_quarter_gap = MappingProxyType({q: nii[q] - frb_nii[q] for q in PROJECTION_QUARTERS})
         cumulative_gap = sum_path(nii) - sum_path(frb_nii)
-        within = True
-        for q in PROJECTION_QUARTERS:
-            guard = FRB_IDENTITY_GUARD_REL * max(1.0, abs(income[q]), abs(expense[q]))
-            if abs(per_quarter_gap[q]) > guard:
-                within = False
-                notes.append(
-                    f"PQ{q}: modeled NII {nii[q]} vs FRB NII {frb_nii[q]} "
-                    f"(gap {per_quarter_gap[q]}, guard {guard}) — likely wiring or units issue "
-                    f"across the two families; reported, never forced"
-                )
+        guard = FRB_IDENTITY_GUARD_REL * max(
+            1.0, abs(sum_path(income)), abs(sum_path(expense))
+        )
+        within = abs(cumulative_gap) <= guard
+        if not within:
+            notes.append(
+                f"cumulative modeled NII {sum_path(nii)} vs cumulative FRB NII "
+                f"{sum_path(frb_nii)} (gap {cumulative_gap}, guard {guard}) — with both "
+                f"families calibrated to their FRB paths this should close; likely a wiring, "
+                f"units, or path-scope issue across the two families; reported, never forced"
+            )
 
     return CombinedNiiReport(
         income_path=income,
@@ -116,8 +122,9 @@ def combined_nii_report_text(report: CombinedNiiReport) -> str:
         )
     if report.within_identity_guard is not None:
         lines.append(
-            f"Within the {FRB_IDENTITY_GUARD_REL:.0%} identity guard: {report.within_identity_guard} "
-            f"(reported, never forced)"
+            f"Cumulative gap within the {FRB_IDENTITY_GUARD_REL:.0%} identity guard: "
+            f"{report.within_identity_guard} (per-quarter gaps are diagnostics — quarterly "
+            f"divergence is structural under cumulative-only calibration; reported, never forced)"
         )
     if report.notes:
         lines.append("Notes:")
