@@ -143,3 +143,71 @@ def test_cre_reference_results_read_the_cre_markers_without_a_merged_block(tmp_p
         # refused, never guessed
         load_reference_results(spec, sheet=spec.cre_results_sheet,
                                category_names={1: "only one"}, include_merged=False)
+
+
+# --- float NaN: the pandas-blank encoding (first real CRE run, 2026-08-12) ---
+# openpyxl itself cannot round-trip a float NaN through .xlsx (it writes an
+# empty cell), so the fake sheet below feeds the loader NaNs exactly as the
+# company workbook's reader delivered them: row 15899's Interest Rate Floor
+# arrived as float('nan') and crashed validation instead of meaning "no floor".
+
+
+class _FakeBook:
+    def __init__(self, sheets):
+        self._sheets = sheets
+        self.sheetnames = list(sheets)
+
+    def __getitem__(self, name):
+        class _Sheet:
+            def __init__(self, rows):
+                self.values = iter(rows)
+        return _Sheet(self._sheets[name])
+
+    def close(self):
+        pass
+
+
+def test_a_float_nan_floor_means_no_floor_and_is_censused(monkeypatch, tmp_path):
+    from scb_ppnr.ingestion import loans_loader
+
+    headers = [
+        "Line Reported on FR Y-9C", "Interest Rate Variability",
+        "Lower of Cost or Market Flag", "Interest Rate", "Committed Balance",
+        "Outstanding Balance", "Interest Rate Floor", "Origination Date", "Maturity Date",
+    ]
+    rows = [
+        [None] * len(headers), [None] * len(headers), [None] * len(headers),
+        headers,
+        # floor and maturity arrive as float NaN; the row must load with NO floor
+        [1, 2, 3, 0.07, 200e6, 150e6, float("nan"), "15-Oct-2024", float("nan")],
+        # outstanding arrives as NaN: a blank -> genuine zero, censused twice
+        [3, 1, 3, 0.05, 300e6, float("nan"), None, "15-May-2021", "15-Feb-2026"],
+        # a string "NaN" rate is the same blank in text form
+        [7, 2, 3, "NaN", 90e6, 70e6, None, None, None],
+    ]
+    monkeypatch.setattr(loans_loader, "_open", lambda path: _FakeBook({"CRE H.2": rows}))
+
+    facilities, census = load_cre_facilities(
+        LoansSheetSpec(workbook=tmp_path / "fake.xlsx", cre_h2_sheet="CRE H.2")
+    )
+    assert len(facilities) == 3
+    floating = next(f for f in facilities if f.segment.variable_type == 2 and f.committed_exposure == 200.0)
+    assert floating.interest_rate_floor is None
+    assert floating.maturity_date is None
+    fixed = next(f for f in facilities if f.segment.variable_type == 1)
+    assert fixed.outstanding_balance == 0.0
+    assert census.nan_cells == {"floor": 1, "maturity date": 1, "outstanding": 1}
+    assert census.blank_outstanding == 1
+    international = next(f for f in facilities if f.committed_exposure == 90.0)
+    assert international.interest_rate is None            # string "NaN" = missing token
+    assert "float-NaN cells as missing" in census.render()
+
+
+def test_is_missing_treats_non_finite_floats_as_absent():
+    from scb_ppnr.ingestion.loans_loader import _is_missing
+
+    assert _is_missing(float("nan"))
+    assert _is_missing(float("inf"))
+    assert _is_missing("NaN")
+    assert not _is_missing(0.0)
+    assert not _is_missing(-1.5)

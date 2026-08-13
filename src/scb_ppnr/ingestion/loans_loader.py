@@ -18,6 +18,7 @@ rates are percentages."""
 from __future__ import annotations
 
 import datetime as _dt
+import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -47,8 +48,11 @@ from .normalize import (
 # Values that all mean "absent". `[NULL]` is the workbook's own token; the Excel
 # formula errors follow the PID-SEC-6 amendment — a derived cell that errors
 # because its own inputs are missing is a missing value, not a parse failure.
+# "NAN" (the string) and float NaN (see _is_missing) joined the set at the first
+# real CRE run (2026-08-12): pandas-produced sheets write blanks as NaN, which
+# H.1 never carried — a NaN floor crashed row 15899 instead of meaning "no floor".
 _EXCEL_ERRORS = {"#VALUE!", "#N/A", "#REF!", "#DIV/0!", "#NAME?", "#NULL!", "#NUM!"}
-_MISSING_TOKENS = {"", "NA", "N/A", "NONE", "[NULL]", "NULL", "-"} | _EXCEL_ERRORS
+_MISSING_TOKENS = {"", "NA", "N/A", "NONE", "[NULL]", "NULL", "-", "NAN"} | _EXCEL_ERRORS
 
 # The merged-bucket MDRMs (PID-LOAN-10).
 MDRM_PURCHASING_CARRYING_SECURITIES = "BHCK1545"
@@ -171,6 +175,9 @@ class LoaderCensus:
     excluded_line_codes: Counter = field(default_factory=Counter)
     excluded_line_code_exposure: float = 0.0
     blank_outstanding: int = 0
+    # float-NaN cells read as missing, per column (the pandas-blank encoding;
+    # PID-SEC-6-amendment style — folded, but never silently)
+    nan_cells: Counter = field(default_factory=Counter)
 
     def render(self) -> str:
         lines = [self.title]
@@ -214,6 +221,12 @@ class LoaderCensus:
             lines.append(
                 f"  blank Outstanding Balance   : {self.blank_outstanding} rows read as 0 "
                 f"(an undrawn facility has no outstanding balance — a genuine zero, not a refusal)"
+            )
+        if self.nan_cells:
+            lines.append(
+                "  float-NaN cells as missing  : "
+                + ", ".join(f"{name} {count}" for name, count in sorted(self.nan_cells.items()))
+                + "  (pandas-blank encoding; each read as absent, never as a number)"
             )
         lines.append(f"  distinct reference keys     : {len(self.reference_keys)}")
         for key, count in sorted(self.reference_keys.items()):
@@ -262,9 +275,20 @@ def _column(header: Mapping[str, int], name: str, context: str) -> int:
 def _is_missing(value: object) -> bool:
     if value is None:
         return True
+    if isinstance(value, float) and not math.isfinite(value):
+        # A float NaN (or the odd inf) is a written-out blank, not a number —
+        # pandas-produced sheets encode empty cells this way. Optional fields
+        # read it as absent (the loaders census it per column); a REQUIRED
+        # money field still surfaces, because its parse path never consults
+        # this function and check_balance refuses non-finite values by name.
+        return True
     if isinstance(value, str):
         return value.strip().upper() in _MISSING_TOKENS
     return False
+
+
+def _is_nan_cell(value: object) -> bool:
+    return isinstance(value, float) and not math.isfinite(value)
 
 
 def _optional_rate(value: object, scale: str, *, context: str) -> float | None:
@@ -400,6 +424,13 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
         )
         rate = _optional_rate(cell(row, idx_rate), spec.rate_scale, context=f"{where}: interest rate")
         outstanding_index = idx_value if parse_locom(raw_locom) in (1, 2) else idx_outstanding
+        for column_name, column_index in (
+            ("interest rate", idx_rate), ("floor", idx_floor),
+            ("origination date", idx_orig), ("maturity date", idx_mat),
+            ("outstanding", outstanding_index),
+        ):
+            if column_index is not None and _is_nan_cell(cell(row, column_index)):
+                census.nan_cells[column_name] += 1
         outstanding: float | None = None
         if outstanding_index is not None:
             raw_outstanding = cell(row, outstanding_index)
@@ -720,6 +751,13 @@ def load_cre_facilities(spec: LoansSheetSpec) -> tuple[list["LoanFacility"], Loa
         outstanding_index = idx_outstanding
         if idx_value is not None and parse_locom(raw_locom) in (1, 2):
             outstanding_index = idx_value
+        for column_name, column_index in (
+            ("interest rate", idx_rate), ("floor", idx_floor),
+            ("origination date", idx_orig), ("maturity date", idx_mat),
+            ("outstanding", outstanding_index),
+        ):
+            if _is_nan_cell(cell(row, column_index)):
+                census.nan_cells[column_name] += 1
         raw_outstanding = cell(row, outstanding_index)
         if _is_missing(raw_outstanding):
             outstanding = 0.0

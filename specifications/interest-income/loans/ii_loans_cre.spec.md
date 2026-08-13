@@ -123,6 +123,7 @@ Domestic construction / multifamily / non-owner-occupied → **"Domestic CRE" (1
 - **Reference-key census** per category × LOCOM × Variable Type — shows empty categories and the key universe against the mapping panel.
 - **DO-NOT-USE line-code census** — count and committed exposure of excluded code-4/6 rows; a large number means the extract carries owner-occupied lines.
 - **Blank-Outstanding census** — rows read as genuine zeros.
+- **Float-NaN census per column** — the H.2 sheet encodes blanks as float NaN in places (pandas-produced; found on the first real run, where a NaN floor crashed row 15899). NaN and the string "NaN" now read as MISSING for optional fields — a NaN floor is "no floor", a NaN date is "no date", a NaN outstanding is the blank-zero — counted per column, never silent; a NaN in a REQUIRED money column (committed) still surfaces by facility id.
 - **Base-rate fallback census by cause** (outside-MEV vs missing date), with the §5 consequence stated.
 - **Floor census** — block floors, dispersion across populated floors, and per-segment-quarter binds (the PID-SEC-18 lesson).
 - **wt ≤ 1 per quarter** — surfaced, never clamped.
