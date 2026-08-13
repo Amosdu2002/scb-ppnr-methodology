@@ -390,11 +390,16 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # x1.113 — PID-LOAN-21); pair with
 #                                           # apply_scalar = false, as for Corporate
 
-# --- Retail families (PID-LOAN-26..34) — each family runs when its sheet is
-# named; a sheet in ANOTHER workbook gets its *_workbook path (relative paths
-# resolve against the main workbook's folder). The M.1 retail rows are matched
-# by their schedule line labels on the m1_sheet configured above; the MEV
-# columns below are the PID-LOAN-31 confirmed headers (percent, like the 3M).
+# --- Retail families (PID-LOAN-26..34) — THE RETAIL INPUTS LIVE IN THEIR OWN
+# WORKBOOK, separate from the wholesale one above; the auto pivot in a third.
+# Per sheet the loader resolves: its *_workbook override -> retail_workbook ->
+# the main workbook (relative paths resolve against the main workbook's
+# folder). Each family runs when its sheet is named. The retail M.1 rows are
+# matched by their schedule line labels on retail_m1_sheet; the MEV columns
+# are the PID-LOAN-31 confirmed headers (percent, like the 3M).
+# retail_workbook = "<RETAIL_FILE>.xlsx"    # default home of every retail sheet
+# retail_m1_sheet = "M.1 Balances"          # the RETAIL workbook's M.1 (default)
+# retail_mev_sheet = "MEV Data"             # the RETAIL workbook's scenario sheet (default)
 # mortgage_query_sheet = "Mortgage query"   # 12-segment launch table + PQ schedules;
 #                                           # the FIRST launch/schedule block pair =
 #                                           # the MORT variant that drives (PID-LOAN-33)

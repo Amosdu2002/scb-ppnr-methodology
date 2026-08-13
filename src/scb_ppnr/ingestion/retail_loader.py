@@ -59,13 +59,18 @@ def _retail_missing(value: object) -> bool:
 
 
 def _resolve_workbook(spec: LoansSheetSpec, override: str | None) -> Path:
-    """A retail sheet may live in a different workbook (PID-LOAN-31).
+    """Resolve a retail sheet's workbook (PID-LOAN-31, user-stated topology):
 
-    A relative override resolves against the MAIN workbook's directory, so the
-    company config can keep all its files side by side."""
-    if override is None:
+        per-sheet override  ->  retail_workbook  ->  the main (wholesale) workbook
+
+    The retail inputs live in their own file, distinct from the wholesale
+    workbook; the auto pivot sits in a third. A relative path resolves against
+    the MAIN workbook's directory, so the company config can keep its files
+    side by side."""
+    chosen = override if override is not None else spec.retail_workbook
+    if chosen is None:
         return spec.workbook
-    path = Path(override)
+    path = Path(chosen)
     if not path.is_absolute():
         path = spec.workbook.parent / path
     return path
@@ -175,12 +180,18 @@ def load_retail_m1(spec: LoansSheetSpec) -> tuple[Mapping[str, M1RetailRow], Ret
     """Read the twelve retail M.1 rows by line label (PID-LOAN-26).
 
     Every pattern must match exactly one row; zero or several is refused —
-    a silently missing balance row would understate a family multiplicand."""
-    rows, quieted = _load_rows(spec.workbook, spec.m1_sheet)
-    context = f"{spec.workbook.name}:{spec.m1_sheet}"
+    a silently missing balance row would understate a family multiplicand.
+
+    Reads the RETAIL workbook's own M.1 sheet (`retail_m1_sheet`) — the retail
+    inputs live in a different file from the wholesale workbook."""
+    workbook = _resolve_workbook(spec, None)
+    rows, quieted = _load_rows(workbook, spec.retail_m1_sheet)
+    context = f"{workbook.name}:{spec.retail_m1_sheet}"
     census = RetailCensus(title="RETAIL M.1 CENSUS")
     if quieted:
-        census.notes.append(f"{quieted} openpyxl cell warning(s) quieted while reading {spec.m1_sheet!r}")
+        census.notes.append(
+            f"{quieted} openpyxl cell warning(s) quieted while reading {spec.retail_m1_sheet!r}"
+        )
 
     label_index = spec.m1_label_column_index - 1
     dom_role_index = spec.m1_domestic_role_column_index - 1
@@ -913,9 +924,12 @@ def load_mev_series(
     scenario keyed by calendar quarter; projection rows carry `scenario` and
     are mapped onto PQ1..PQn BY DATE, never sheet order. Retail needs no
     pre-PQ0 history (the A36 branch is spot-only) but the launch value is read
-    from the history block, so the same three-part return shape is kept."""
-    rows, _ = _load_rows(spec.workbook, spec.mev_sheet)
-    context = f"{spec.workbook.name}:{spec.mev_sheet}"
+    from the history block, so the same three-part return shape is kept.
+
+    Reads the RETAIL workbook's own scenario sheet (`retail_mev_sheet`)."""
+    workbook = _resolve_workbook(spec, None)
+    rows, _ = _load_rows(workbook, spec.retail_mev_sheet)
+    context = f"{workbook.name}:{spec.retail_mev_sheet}"
     header = _header_index(rows, spec.mev_header_row, context)
     idx_scenario = _column(header, spec.mev_scenario_column, context)
     idx_date = _column(header, spec.mev_date_column, context)

@@ -147,10 +147,19 @@ class LoansSheetSpec:
     # markers "1 - HFI" .. "4 - HFS/FVO", no merged block). Unset disables.
     cre_results_sheet: str | None = None
     # --- Retail part (PID-LOAN-26..34) --------------------------------------
-    # Each family runs when its sheet is configured; a sheet may live in a
-    # DIFFERENT workbook (PID-LOAN-31 — relative paths resolve against the main
-    # workbook's directory). The M.1 retail rows are matched by their schedule
-    # line labels in the label column (PID-LOAN-26), on the same m1_sheet.
+    # THE RETAIL INPUTS LIVE IN THEIR OWN WORKBOOK (user-stated 2026-08-13):
+    # `retail_workbook` is the default home of every retail sheet, with
+    # per-sheet *_workbook overrides on top (the auto pivot sits in yet a third
+    # file). Resolution order per sheet: its own override -> retail_workbook ->
+    # the main (wholesale) workbook. Relative paths resolve against the main
+    # workbook's directory. Each family runs when its sheet is configured.
+    retail_workbook: str | None = None
+    retail_m1_sheet: str = "M.1 Balances"   # the RETAIL workbook's M.1 (distinct from the
+                                            # wholesale m1_sheet); labels matched per
+                                            # PID-LOAN-26 in the label column below
+    retail_mev_sheet: str = "MEV Data"      # the RETAIL workbook's scenario sheet; shares
+                                            # the mev_scenario_column / mev_date_column /
+                                            # mev_history_scenario header contract
     m1_label_column_index: int = 3          # column C carries the M.1 line labels
     mev_prime_column: str = "Prime rate"        # PID-LOAN-31 (user-supplied 2026-08-13)
     mev_mortgage_column: str = "Mortgage rate"  # PID-LOAN-31

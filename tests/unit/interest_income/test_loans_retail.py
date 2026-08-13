@@ -229,25 +229,43 @@ def _write_mev(workbook):
 
 @pytest.fixture(scope="module")
 def spec(tmp_path_factory) -> LoansSheetSpec:
+    """The user's real topology: the retail sheets live in their OWN workbook,
+    separate from the wholesale one; the auto pivot in a third file. The
+    wholesale workbook here deliberately carries NO retail sheet, so any loader
+    that wrongly touched it would fail with sheet-not-found; `retail_workbook`
+    and `auto_pivot_workbook` are RELATIVE paths, resolving against the main
+    workbook's directory."""
     directory = tmp_path_factory.mktemp("retail")
-    path = directory / "retail.xlsx"
-    workbook = openpyxl.Workbook()
-    workbook.remove(workbook.active)
-    _write_m1(workbook)
-    _write_mortgage_query(workbook)
-    _write_card_query(workbook)
-    _write_auto_pivot(workbook)
-    _write_oc(workbook)
-    _write_line_items(workbook)
-    _write_mev(workbook)
-    workbook.save(path)
+
+    wholesale_path = directory / "wholesale.xlsx"
+    wholesale = openpyxl.Workbook()
+    wholesale.active.title = "CORP H.1"          # wholesale-only content
+    wholesale.save(wholesale_path)
+
+    retail_path = directory / "retail.xlsx"
+    retail = openpyxl.Workbook()
+    retail.remove(retail.active)
+    _write_m1(retail)
+    _write_mortgage_query(retail)
+    _write_card_query(retail)
+    _write_oc(retail)
+    _write_line_items(retail)
+    _write_mev(retail)
+    retail.save(retail_path)
+
+    auto_path = directory / "auto.xlsx"
+    auto = openpyxl.Workbook()
+    auto.remove(auto.active)
+    _write_auto_pivot(auto)
+    auto.save(auto_path)
+
     return LoansSheetSpec(
-        workbook=path,
-        m1_sheet="M.1 Balances",
-        mev_sheet="MEV Data",
+        workbook=wholesale_path,
+        retail_workbook="retail.xlsx",           # relative to the main workbook's folder
         mortgage_query_sheet="Mortgage query",
         card_query_sheet="Card query",
         auto_pivot_sheet="Auto 4Q24 pivot",
+        auto_pivot_workbook="auto.xlsx",         # the third file
         oc_sheet="OTHER",
         line_items_sheet="Peer results",
         oc_schedule_column=2, oc_product_type_column=4,

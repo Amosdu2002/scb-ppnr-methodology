@@ -26,15 +26,22 @@ wholesale Equation A33/A38 machinery (`loans_projection.project_variable_rate` /
 
 ## 2. Input contract (all company-local config; multi-workbook per PID-LOAN-31)
 
+**Workbook topology (user-stated 2026-08-13):** the retail sheets live in their **own
+workbook**, separate from the wholesale one; the auto pivot in a **third** file. Per sheet
+the loader resolves: its `*_workbook` override → `retail_workbook` → the main workbook;
+relative paths resolve against the main workbook's directory. Retail reads its own
+`retail_m1_sheet` ("M.1 Balances") and `retail_mev_sheet` ("MEV Data") — never the wholesale
+`m1_sheet`/`mev_sheet`.
+
 | Input | Sheet (config key) | What is read |
 |---|---|---|
-| M.1 retail rows | `m1_sheet` | Twelve rows matched by their **M.1 line labels** (label column, default C); values E/G/I/K per side, millions; the per-side **role labels** (cols A/B) are cross-checked — they are the wiring authority (PID-LOAN-26). Family multiplicands: mortgage = first-mortgages / HELOAN-pair / HELOCs rows per side; card = bank + charge + SME-cards rows; auto = auto-loans row; noncore = the four dom-noncore rows + the international side of every retail row. Lease rows are excluded (role-less, zero) |
+| M.1 retail rows | `retail_m1_sheet` (in `retail_workbook`) | Twelve rows matched by their **M.1 line labels** (label column, default C); values E/G/I/K per side, millions; the per-side **role labels** (cols A/B) are cross-checked — they are the wiring authority (PID-LOAN-26). Family multiplicands: mortgage = first-mortgages / HELOAN-pair / HELOCs rows per side; card = bank + charge + SME-cards rows; auto = auto-loans row; noncore = the four dom-noncore rows + the international side of every retail row. Lease rows are excluded (role-less, zero) |
 | Mortgage query | `mortgage_query_sheet` (+`_workbook`) | The **first** launch block (Lien Position / Loan Type=classification / Interest Rate Type / TOTAL_UPB $ / WEIGHTED_AVERAGE_RATE / WEIGHTED_AVERAGE_RATE_AFTER_<yyyymmdd> ×2 / WEIGHTED_ARM_FLOOR) and the **first** PQ-schedule block — the MORT variant (PID-LOAN-33); the alternative classification blocks are ignored, censused. `"x"` = missing (PID-LOAN-27) |
 | Card query | `card_query_sheet` (+`_workbook`) | Rows ids 1–4 (consumer/SME × bank/charge); TOTAL_OS, APR/spread pairs (all-book + revolver-only, percent), TOTAL_OTST_REVOLVER; WEIGHTED_MAX_APR carried, **never applied** (card brief §0.2 (k)) |
 | Auto pivot | `auto_pivot_sheet` (+`_workbook`, typically a separate file) | Summary rows New/Used(/leases) anchored at the label column (default L): M/N/O = outstanding (millions) / average rate / **new-origination rate**; P..X = **supplied** re-origination weights PQ1..PQ9 (PID-LOAN-29 as amended) |
 | Other-consumer products | `oc_sheet` (+`_workbook`) | The A.7/A.9 input rows (schedule tag + product type + balance + the workbook's own line-mapping token); balances give **shares only** — multiplicands stay M.1 (PID-LOAN-30) |
 | Line-item rates | `line_items_sheet` (+`_workbook`; institution-named — config-local) | Each mapped line's **PQ0** value inside the *Average Rates Earned* section (scoped between the section header and *Total Interest Income*, so the balance/GII sections can never match); PQ0 column from the sheet's own PQ0..PQ9 header row |
-| Scenario | `mev_sheet`, columns `mev_prime_column` = "Prime rate", `mev_mortgage_column` = "Mortgage rate" | Percent; `Actual` history (launch value) + the scenario block mapped to PQ1..PQ9 **by date**. Retail needs no pre-PQ0 history — every retail spread is spot-measured |
+| Scenario | `retail_mev_sheet` (in `retail_workbook`), columns `mev_prime_column` = "Prime rate", `mev_mortgage_column` = "Mortgage rate" | Percent; `Actual` history (launch value) + the scenario block mapped to PQ1..PQ9 **by date**. Retail needs no pre-PQ0 history — every retail spread is spot-measured |
 
 ## 3. Constructions (per family)
 

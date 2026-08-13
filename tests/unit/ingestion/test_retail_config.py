@@ -21,8 +21,9 @@ def test_retail_keys_parse(tmp_path):
         [firm_data.loans]
         workbook = "book.xlsx"
         launch_point = "2024Q4"
-        m1_sheet = "M.1 Balances"
-        mev_sheet = "MEV Data"
+        retail_workbook = "retail.xlsx"
+        retail_m1_sheet = "M.1 Balances"
+        retail_mev_sheet = "MEV Data"
         mortgage_query_sheet = "Mortgage query"
         mortgage_window = "quarter"
         card_query_sheet = "Card query"
@@ -37,6 +38,9 @@ def test_retail_keys_parse(tmp_path):
         mev_mortgage_column = "Mortgage rate"
     """))
     spec = config.firm_data.loans.spec
+    assert spec.retail_workbook == "retail.xlsx"
+    assert spec.retail_m1_sheet == "M.1 Balances"
+    assert spec.retail_mev_sheet == "MEV Data"
     assert spec.mortgage_query_sheet == "Mortgage query"
     assert spec.card_query_sheet == "Card query"
     assert spec.auto_pivot_sheet == "Auto 4Q24 pivot"
