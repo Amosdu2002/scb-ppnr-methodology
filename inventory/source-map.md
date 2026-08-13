@@ -112,7 +112,7 @@ Mapped at model level; drill in only when a proposed model cites it. All are the
 | v.c(2) | (2) Assumptions and Limitations | sec-212, line 4469 | 223 | No renewals/terminations modeled | adj_irr_hedge |
 | v.c(3) | (3) Questions | sec-213, line 4477 | 223–225 | Questions A181–A187 | adj_irr_hedge |
 | v.d | d. Proposed Regression Models | sec-214, line 4525 | 225 | — | — |
-| v.d(1) | (1) Net II on Trading Assets and Liabilities | sec-215, line 4531 | 225–230 | **Eq A52**; WLS on net trading assets; Sched G worksheet; ÷4 rate conversion | nii_trading_al |
+| v.d(1) | (1) Net II on Trading Assets and Liabilities | sec-215, line 4531 | 225–230 | **Eq A52**; WLS on net trading assets; Sched G worksheet; ÷4 rate conversion; where-list omits Ratio(b,t) (SQ-26); **no projection mechanics stated** (OQ-007); pp. 225–230 image-verified 2026-08-13 | nii_trading_al |
 | v.d(2) | (2) Interest Expense on Other Borrowing | sec-220, line 4614 | 230–234 | **Eq A53(1)/(2)**; items 44C/46/47; FR Y-9C BHDM4062, BHDMC699, BHCK2309; 2020:Q2–2021:Q4 sample; "(a.) Variable Selection" at line 4664 (no anchor, CA-4) | ie_other_borrowing |
 | v.e | e. Estimated Parameters for Proposed Regression Models | sec-224, line 4707 | 234 | **Table A9**; firm fixed effects not disclosed | nii_trading_al, ie_other_borrowing |
 

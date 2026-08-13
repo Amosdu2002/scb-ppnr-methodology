@@ -93,7 +93,9 @@ which adds the constant share α(b,q) = α(b,q0)). The other families state thei
   (maturing securities replaced) — detailed in the separate Securities Model Description
   (footnotes 64–65; OQ-004, collection approved 2026-07-23).
 - `nii_trading_al`: constant net trading assets at the launch point is the project's working
-  interpretation for the ratio→dollar step (OQ-007) — not source-stated.
+  interpretation for the ratio→dollar step (OQ-007) — not source-stated. *(Narrowed 2026-08-13,
+  PID-TRD-1: the multiplication is confirmed operative inside the calibration identity; the
+  multiplicand's physical rows remain an open elicitation item — chapter §3.1/§14.)*
 
 Chapters restate their own component's constancy register; this section only fixes the pattern:
 **what is constant is per-model [FACT or flagged INT], never a global assumption.**
@@ -153,6 +155,17 @@ Chapters restate their own component's constancy register; this section only fix
   is an **open project decision** scheduled for the Increment 4 gate (successor to D-002 /
   OQ-007 / OQ-009 for this model). Until decided, family reconciliation runs in monitor mode
   (differences reported, nothing forced).
+- **Revised 2026-08-13 (Increment 4 gate — PID-TRD-1, user-confirmed; not a silent overwrite,
+  the paragraph above is the recorded pre-gate state):** the decision is closed. `nii_trading_al`
+  plays exactly the mirrored residual-calibration role — α_b is calibrated so the nine-quarter
+  cumulative net trading NII equals the `frb_total_interest_income` residual after the six
+  sibling income models (registry: `handbook/open-questions.md`; chapter §9). Consequences:
+  the income-family reconciliation vs `frb_total_interest_income` becomes **exact by
+  construction** once `nii_trading_al` runs (the PID-OB-5 pattern on the expense side); the NET
+  item enters the income total as its net quantity — its inclusion in the FRB income path is
+  **implied by the residual construction itself** (the FRB paths are hardcoded summary-level
+  numbers; OQ-023 extended). Monitor mode remains the state only for runs without the trading
+  model. D-002 is fully superseded; OQ-009 is resolved-for-project for both regression models.
 
 ## 11. What is deliberately not shared
 

@@ -1,0 +1,303 @@
+# Coding-oriented specification — nii_trading_al.
+# Net Interest Income on Trading Assets and Liabilities (proposed 2026 PPNR suite).
+# STATUS: PROPOSED for the 2026 stress test (public comment) — NOT adopted.
+# Labels: FACT = Fed source-stated (cited); INT = interpretation; PID = user-confirmed project
+# decision (never a Fed statement); CODE = coding consideration; UNKNOWN = not stated anywhere
+# authoritative — never defaulted. Citations: (PDF p. N; md sec-M).
+# Follows specifications/model-spec-guidelines.md and the ie_other_borrowing.yaml regression precedent.
+
+model:
+  id: nii_trading_al
+  fed_name: "Net Interest Income on Trading Assets and Liabilities"
+  fed_section: B.v.d(1)
+  source_pages_pdf: [225, 230, 234]
+  source_anchors_md: [sec-214, sec-219, sec-224]
+  model_type: regression                # FACT — Table A6 (PDF pp. 168-169)
+  model_form: wls_panel_ratio           # Eq A52: quarterly net-trading-NII ratio = beta * 3M Treasury + firm fixed effect
+  side: net                             # FACT — a NET item (interest minus expense), neither side alone (PDF p. 225)
+  status: proposed_2026_stress_test__public_comment__NOT_adopted   # FACT (PDF pp. 6, 167)
+  estimation: WLS on an unbalanced panel of all FR Y-14Q reporters, weighted by the firm-quarter
+    net trading asset balance; sample window dates UNKNOWN ("relatively long time period") —
+    documentation only, the project never re-estimates
+  chapter: handbook/models/interest-income/trading/nii_trading_al.md
+  review: reviews/interest-income/trading/nii_trading_al.review.md
+  chapter_review_state: REVIEWED        # independent source-grounding review 2026-08-13
+  replaces_current_models: current iv.g (interest income from trading assets, Eq A8) merged with
+    the trading-liabilities subset of current iv.i(4) (Eqs A13/A14); the remaining iv.i(4) subset
+    goes to the proposed ie_other_borrowing (PDF pp. 68, 96) — contrast only, nothing imported.
+    SQ-27 records the p. 96 "structural approach" wording vs the Regression classification
+  implementation_status: conditionally_implementable   # calibration mode confirmed (PID-TRD-1,
+    # 2026-08-13); remaining gates: the two physical trading-balance rows (TO_BE_CONFIRMED) and
+    # the residual subtraction-basis confirmation — see inputs and fixed_effect
+
+dimensions:
+  firm: b
+  time:
+    launchpoint_quarter: PQ0            # launch point (D-005); source has NO launch-point language for this model (FACT absence)
+    projection_quarters: 9              # FACT (PDF p. 6)
+  output_grain: [firm, scenario, quarter]
+  no_subcomponent_dimension: true       # FACT — one net quantity per firm (PDF p. 225)
+
+inputs:
+  firm_data:
+    - name: trading_assets_avg_balance_launchpoint
+      fed_item: {schedule: FR Y-14Q Schedule G NII Worksheet, items: UNKNOWN}   # FACT worksheet named for the
+                                                                               # estimation data; line items UNNAMED (FACT absence, PDF p. 225)
+      project_mapping: TO_BE_CONFIRMED             # elicitation open — physical row label + D-006 scale; refuses to run unconfirmed
+      dims: [firm]
+      units: USD
+      timing: launchpoint average balance
+    - name: trading_liabilities_avg_balance_launchpoint
+      fed_item: {schedule: FR Y-14Q Schedule G NII Worksheet, items: UNKNOWN}
+      project_mapping: TO_BE_CONFIRMED
+      dims: [firm]
+      units: USD
+      timing: launchpoint average balance
+    - name: net_trading_assets_launchpoint        # NetTA(b,0)
+      derivation: trading_assets_avg_balance_launchpoint - trading_liabilities_avg_balance_launchpoint
+        # FACT netting definition "net trading assets (assets minus liabilities)" (PDF p. 225);
+        # INT that the projection multiplicand is this PQ0 value held constant (OQ-007 — the source
+        # states no projection balance basis at all)
+      dims: [firm]
+      units: USD
+      timing: launchpoint, held constant over horizon   # INT (OQ-007), never source-stated
+  estimation_context_only:                        # documentation of the Fed's data build — NOT projection inputs (PID-TRD-1)
+    note: numerators = reported average asset (liability) balance x reported average asset
+      (liability) rate / 4 (annual->quarterly), FR Y-14Q Schedule G NII Worksheet (FACT, PDF p. 225);
+      no PQ0 actual income, expense, or rate enters the implementation
+  scenario:
+    - name: usd_3m_treasury                       # Treasury3m(q)
+      fed_name: 3-month Treasury yield            # FACT — sole explanatory variable (PDF pp. 225, 227)
+      dims: [scenario, quarter]                   # q = 1..9; no PQ0 value required (PID-TRD-1 — no launch-point backsolve)
+      units: annualized_yield                     # percent-vs-decimal scale metadata-driven, consistent with beta's estimation scale (CODE)
+      rejected_alternatives: term spread (10y minus 3m) and BBB corporate credit spread (BBB yield
+        minus 10y Treasury) — examined, unstable under collinearity, excluded (ALT; PDF pp. 226-227)
+  project_calibration:                            # PID-TRD-1, user-confirmed 2026-08-13 — project-supplied; never Fed-stated
+    - name: frb_total_interest_income             # FRBIncome(b,q)
+      fed_item: UNKNOWN                           # FACT absence — the source states no total-interest-income
+                                                  # aggregation for the proposed suite (Section v is bottom-up)
+      physical_source: D-007 quarterly sheet (family-level; already loading); reference-workbook
+        lineage = hardcoded summary-level numbers (user-stated 2026-08-13); the income path's
+        inclusion of the net trading item is IMPLIED BY the residual construction itself, not
+        independently documented — OQ-023 extended
+      sign_convention: D-008 — income passes through as-entered
+      dims: [firm, scenario, quarter]             # q = 1..9
+      units: USD_per_quarter
+      role: nine-quarter residual target for the alpha_b calibration (fixed_effect block)
+    - name: sibling_income_paths                  # the six completed sibling model outputs
+      source: outputs of ii_loans (six-portfolio total incl. Table A8 scalars), ii_dep_banks_other,
+        ii_ust, ii_mbs, ii_other_sec, ii_other_ida — supplied by the income orchestrator after
+        those models complete (execution-order note in dependencies)
+      dims: [firm, scenario, quarter]             # q = 1..9
+      units: USD_per_quarter
+      role: subtracted from frb_total_interest_income to form the implied trading-NII path
+      compare_basis_notes:                        # CODE — the residual is only as aligned as the subtraction basis
+        - the reference workbook's securities income columns EXCLUDE reinvestment income (PID-SEC-8)
+        - auto compare basis = workbook 0.948 scalar vs published 0.865 in production (PID-LOAN-32; one config line)
+        - the rows the user's own subtraction references are an OPEN elicitation item
+
+parameters:
+  - name: beta_treasury3m                         # beta
+    kind: supplied                                # FACT — Board WLS estimate
+    value: 0.278
+    significance: "*** (1% level)"                # metadata only — never used numerically
+    source: Table A9 (PDF p. 234; verified against the page image 2026-08-13)
+  - name: trading_firm_fixed_effect               # alpha_b
+    kind: calibrated_per_project_decision         # PID-TRD-1 — see fixed_effect block; NOT published by the Fed
+    fed_value: UNKNOWN                            # FACT — "Estimated coefficients for firm fixed-effects are not included in the table" (PDF p. 234)
+    dims: [firm]
+    units: quarterly_ratio_intercept              # NOT an annualized rate — see quarterly_dollar_calculation
+    constant_over_horizon: true                   # FACT — no time subscript on alpha_b in A52
+
+estimation:                                       # documentation only — the project never re-estimates
+  method: WLS                                     # FACT — "weighted least squares (WLS) regression, weighted by the
+                                                  # net trading asset balance ... in each firm-quarter" (PDF p. 226)
+  ols_convention: DOES NOT APPLY                  # CODE — ie_other_borrowing's OLS must not be copied here; each
+                                                  # regression states its own estimator
+  sample: unbalanced panel of all FR Y-14Q reporters; window dates UNKNOWN   # FACT + FACT absence —
+                                                  # "estimated over a relatively long time period" (PDF pp. 226, 228);
+                                                  # contrast: v.d(2) states 2020:Q2-2021:Q4
+  weighting_rationale: capture all firms while avoiding undue influence from firm-quarters with
+    very small trading positions that may generate volatile ratios   # FACT (PDF p. 226)
+  constant_beta_evidence: firm-specific regressions for all large trading firms generally fell
+    within the 95% CI of the panel estimate   # FACT (PDF p. 228)
+  error_term: epsilon(b,t) present in A52 at estimation; the projection restatement excludes it
+    (INT — no projection form exists in the source)
+
+equations:
+  A52_ratio:                                      # FACT (PDF pp. 225-226, verified against the page image)
+    formula: ratio[b,t] = beta_treasury3m * usd_3m_treasury[t] + alpha[b] + eps[b,t]
+    dependent_variable: ratio = quarterly net trading interest income / net trading assets
+      # FACT for the netting and the /4-inside-numerator data build (PDF p. 225); the where-list
+      # does NOT define Ratio(b,t) — SQ-26; quarterly-ratio units are INT (strong basis: the
+      # stated /4 numerator build; beta = 0.278 ~ 1.11/4 corroborates quarterly-LHS scaling)
+    projection_form: trading_ratio[b,q] = beta_treasury3m * usd_3m_treasury[q]
+      + trading_firm_fixed_effect[b]              # INT — OQ-007/PID-TRD-1; NOT source-stated (no
+                                                  # projection equations are printed for this model,
+                                                  # unlike Eq A53); no error term
+  dollar_output:
+    formula: trading_net_interest_income[b,q] = trading_ratio[b,q] * net_trading_assets_launchpoint[b]
+      # INT (OQ-007) — multiplication step never source-stated; NO /4 here (the /4 sits inside the
+      # Fed's ratio construction — FACT, PDF p. 225; source governs over D-004)
+    constraints: none — no floor, cap, or non-negativity term exists (FACT absence); a net item
+      may legitimately be negative in any quarter — log, never clamp
+  structure_absences:                             # FACT — verified against the PDF page images (pp. 225-230, 2026-08-13)
+    autoregressive_term: none                     # contrast — current iv.g/iv.i(4) carry a Year AR term
+    rolling_fixed_effect: none                    # considered and rejected by the Board (PDF p. 228)
+    second_macro_factor: none                     # term spread and BBB credit spread rejected (PDF pp. 226-227)
+    seasonality_term: none
+    firm_grouping: none                           # contrast — current iv.i(4) uses large/small groups
+    projection_equations: none                    # the section states no projection mechanics at all (OQ-007)
+
+fixed_effect:
+  fed_status: estimated by the Board, values NOT disclosed (Table A9 marks "Yes" only)   # FACT (PDF p. 234)
+  fed_rationale: firms' individual preferences for holding trading assets (risk, origination date,
+    fixed vs variable terms, duration) leave average-yield LEVEL differences across firms; fixed
+    effects capture level, not sensitivity   # FACT (PDF pp. 227-228)
+  project_method: PROJECT IMPLEMENTATION DECISION — USER CONFIRMED (PID-TRD-1, 2026-08-13);
+    nine-quarter cumulative calibration against the FRB total-interest-income residual — the
+    income-side mirror of PID-OB-5; never attributable to the Federal Reserve
+  supersedes: D-002 launch-point working method for this model (D-002 now has no remaining scope)
+  pq0_actuals: never used                         # PID-TRD-1 — no PQ0 income/expense/rate input exists in this spec
+  implied_residual: implied_trading_nii[b,q] = frb_total_interest_income[b,q]
+    - loans_income[b,q] - dep_banks_other_income[b,q] - ust_income[b,q]
+    - mbs_income[b,q] - other_sec_income[b,q] - other_ida_income[b,q]
+    # q = 1..9, USD_per_quarter; negative quarters legal — log, never clamp
+  pre_alpha_ratio: r0[b,q] = beta_treasury3m * usd_3m_treasury[q]   # quarterly ratio — the A52
+    # projection restatement with alpha_b excluded
+  calibration_constraint: sum over q=1..9 of net_trading_assets[b,q]*(r0[b,q] + alpha_b) equals
+    sum over q=1..9 of implied_trading_nii[b,q]   # cumulative match ONLY — individual quarters not forced
+  closed_form: alpha_b = (sum_q(implied_trading_nii[b,q]) - sum_q(net_trading_assets[b,q]*r0[b,q]))
+    / sum_q(net_trading_assets[b,q])
+    # linear objective — closed form; no numerical optimization; NO x4 FACTOR — alpha_b is a
+    # quarterly-ratio intercept (the /4 sits inside the Fed's ratio construction). TRIPWIRE (CODE):
+    # the ie_other_borrowing closed form carries x4 because its rates are annualized under D-004;
+    # copying it here overstates alpha_b by a factor of four
+  flat_balance_reduction: alpha_b = sum_q(implied)/(9*net_trading_assets_launchpoint)
+    - beta_treasury3m * mean_q(usd_3m_treasury)   # under the OQ-007 constant-NetTA interpretation
+  rules:
+    - one alpha_b per firm, constant across PQ1-PQ9 (never a per-quarter alpha)
+    - published beta unchanged (Table A9)
+    - alpha_b is a project calibration parameter, never a Fed published coefficient
+    - no floor or cap on alpha_b
+    - sum of PQ1-PQ9 net trading assets zero or invalid -> validation error; no fallback
+  diagnostics_preserved: [implied quarterly path, modeled quarterly path, per-quarter differences,
+    nine-quarter cumulative reconciliation difference, abs(alpha_b) >= 0.125 quarterly-ratio screen]
+  user_stated_basis: >-
+    2026-08-13 (verbatim intent): the workbook backsolves the fixed effect "similar to how we did
+    it for [GIE] Other Borrowings ... we have the private results from FRB for Interest Income,
+    and we can use that minus all the other component we have calculated ... find the fixed effect
+    such that [the trading NII] 9Q is same as the implied FRB result, not necessarily each Quarter
+    are the same."
+  unresolved_mechanics:                           # OQ-023 (extended 2026-08-13)
+    - frb_income_scope: the FRB paths are hardcoded summary-level numbers; the income path's
+        inclusion of the net trading item is implied by the residual construction, not
+        independently documented; per-path scope alignment TO_BE_CONFIRMED
+    - subtraction_basis: which component rows the workbook's residual references (securities
+        reinvestment; auto scalar basis) — elicitation open
+  spec_rule: calibration failure blocks the firm; alpha_b never defaulted to zero
+
+initial_conditions: none                          # no lag structure in A52; no PQ0 scenario values consumed (PID-TRD-1)
+
+balance_behavior:
+  net_trading_assets: constant at launchpoint value NetTA(b,0)   # INT — OQ-007 working
+    # interpretation; the source states NO projection balance basis (FACT absence)
+  varying_over_horizon: [usd_3m_treasury, trading_ratio, trading_net_interest_income]
+
+constraints_and_floors:
+  all: none                                       # FACT absence — no floor, cap, or non-negativity term in A52;
+                                                  # negative ratio and negative net income are legal — log, never clamp (CODE)
+
+quarterly_dollar_calculation:
+  formula: trading_net_interest_income[b,q] = trading_ratio[b,q] * net_trading_assets_launchpoint[b]
+  convention: NO final /4 — the annual->quarterly conversion is source-stated INSIDE the ratio's
+    data construction ("divided by four to convert annual to quarterly rates", FACT, PDF p. 225);
+    per asset-side conventions section 4 the source governs over D-004. The output multiplication
+    is itself INT (OQ-007) — the source states no output step at all
+  source_status: the ratio's units are never stated (FACT absence); quarterly-ratio reading is INT
+    with the stated basis above
+
+outputs:
+  - name: trading_net_interest_income
+    dims: [firm, scenario, quarter]
+    units: USD_per_quarter
+    description: quarterly NET interest income on trading assets and liabilities (income minus
+      expense; may be negative); deliberately not suffixed like one-sided outputs (conventions section 3)
+
+validations:                                      # CODE — non-normative; no invented fallbacks; failures surface
+  - both PQ0 trading-balance inputs present per firm; TO_BE_CONFIRMED physical rows refuse to run
+    until user-confirmed (require_confirmed discipline)
+  - frb_total_interest_income and all six sibling income paths complete for q = 1..9 and aligned
+    on firm, scenario, and quarter before calibration (PID-TRD-1; missing -> block firm)
+  - net_trading_assets_launchpoint != 0 (zero breaks the ratio and the calibration divisor);
+    negative NetTA surfaces as a validation failure pending user direction (INT — the WLS
+    weighting context treats net trading assets as a magnitude; no source statement covers a
+    net-liability trading book)
+  - usd_3m_treasury complete for q = 1..9; full nine-quarter scenario alignment, no gaps; no PQ0
+    value required (PID-TRD-1)
+  - percent-vs-decimal rate scale metadata-driven, consistent between the 3M series and beta's
+    estimation scale
+  - configured beta equals Table A9 exactly (0.278); verify against the PDF page; significance
+    stars stored as metadata only
+  - units screen (D-006 class) — hard-fail when cumulative abs(frb_total_interest_income) and
+    cumulative abs(sum of sibling income) differ by >= 50x (probable unit mismatch the closed-form
+    alpha_b would otherwise silently absorb)
+  - calibration succeeds per firm — sum over q=1..9 of net trading assets nonzero and finite
+    (zero or invalid -> validation error, no fallback); alpha_b never defaulted to zero
+  - nine-quarter cumulative reconciliation post-condition — abs(sum(modeled) - sum(implied))
+    within float tolerance (exact by construction; PID-TRD-1)
+  - edge monitors — negative implied quarters legal (log, never clamp); negative modeled net
+    income legal (log, never clamp); abs(alpha_b) >= 0.125 quarterly-ratio sanity screen (warn,
+    never block; the liability side's 0.5 screen is annualized — do not reuse its threshold)
+
+dependencies:
+  upstream_models: none in the Fed-proposed suite   # FACT — no proposed model's output enters Eq A52
+  project_calibration_dependencies:               # PID-TRD-1 — project-level only, never a Fed statement
+    models: [ii_loans, ii_dep_banks_other, ii_ust, ii_mbs, ii_other_sec, ii_other_ida]
+    external_path: frb_total_interest_income      # OQ-023 (extended)
+    note: the six sibling income models run first; this model runs LAST, consuming their completed
+      PQ1-PQ9 paths plus the FRB income path; no circular dependency (pure consumer) — mirror of
+      the PID-OB-5 execution order on the expense side
+  shared_inputs: [usd_3m_treasury, FR Y-14Q Schedule G NII Worksheet]
+  downstream: income orchestrator (total interest income aggregation); combined-NII monitor vs
+    frb_net_interest_income (Increment 4 scope; conventions section 10 as revised 2026-08-13)
+  hedge_interface: exposes the net income path for the cross-cutting v.c adjustment (Eqs A49-A51,
+    contingent on proposed FR Y-14Q B.2/B.3 collection; PDF pp. 220-223); no hedge term inside
+    this model (FACT absence); under PID-TRD-1 alpha_b absorbs the full residual to the FRB income
+    path, including any hedge effects embedded there — double-counting risk if v.c is later
+    applied here (CODE); allocation unresolved (OQ-005)
+
+project_decisions:                                # user-confirmed; never attributable to the Federal Reserve; registry in handbook/open-questions.md
+  - {id: D-002, scope: project_wide, summary: "launch-point backsolve working method — SUPERSEDED for this model by PID-TRD-1 (2026-08-13); D-002 now has no remaining scope"}
+  - {id: D-005, scope: project_wide, summary: launch point (PQ0) terminology; source words preserved in quotes}
+  - {id: D-006, scope: project_wide, summary: USD millions canonical; declared money scale; units-mismatch screens}
+  - {id: D-007, scope: project_wide, summary: two-sheet firm-input contract; frb_* paths on the quarterly sheet}
+  - {id: D-008, scope: project_wide, summary: FRB path sign convention — income and NII pass through as-entered}
+  - {id: PID-TRD-1, summary: "nine-quarter cumulative calibration of alpha_b against the FRB total-interest-income residual (fixed_effect block); PQ0 actuals never used; closed form with NO x4; supersedes D-002 for this model"}
+  - {id: PID-OB-5, scope: ie_other_borrowing, summary: "the mirrored expense-side calibration pattern (precedent, not an input)"}
+
+open_questions:
+  open:
+    - {id: OQ-005, topic: hedge-adjustment allocation across components}
+    - {id: OQ-007, topic: "ratio->dollar projection step implied, not stated — NARROWED 2026-08-13: multiplication confirmed operative via PID-TRD-1; multiplicand physical rows + flat-balance reading pending elicitation/compare"}
+    - {id: OQ-023, topic: "FRB path sourcing — EXTENDED 2026-08-13: hardcoded summary numbers; income-path scope implied-by-construction; per-path scope alignment TO_BE_CONFIRMED"}
+  resolved_for_project:
+    - {id: OQ-009, via: PID-TRD-1, topic: "alpha_b sourcing for this model — nine-quarter cumulative calibration (2026-08-13); Fed non-disclosure preserved as FACT; both regression models now carry project calibrations"}
+  material_implementation_items:
+    - physical PQ0 trading-balance rows (TO_BE_CONFIRMED — the only new firm inputs)
+    - residual subtraction basis (securities reinvestment; auto scalar) — elicitation open
+    - compare targets: reference trading line PQ1..PQ9 (+ implied-TATL row if separate), at the cell
+
+source_references:
+  - {claim: component name + net quantity + ratio normalization + offsetting rationale, pdf_page: 225, md: sec-215}
+  - {claim: "contemporaneous 3M + firm FE; Schedule G worksheet estimation data; avg balance x avg rate / 4 numerator build", pdf_page: 225, md: sec-216}
+  - {claim: "Eq A52 as displayed + where-list (Treasury3m, alpha_b, eps only — SQ-26)", pdf_page: "225-226", md: sec-216}
+  - {claim: WLS weighted by net trading asset balance + unbalanced panel of all FR Y-14Q reporters, pdf_page: 226, md: sec-216}
+  - {claim: variable selection — term spread and BBB credit spread rejected, pdf_page: "226-227", md: sec-217}
+  - {claim: fixed-effect rationale (level heterogeneity), pdf_page: 227, md: sec-217}
+  - {claim: assumptions and limitations 1-6, pdf_page: "227-229", md: sec-218}
+  - {claim: Question A188, pdf_page: 229, md: sec-219}
+  - {claim: Table A9 row (0.278***) + significance note + fixed effects excluded, pdf_page: 234, md: sec-224}
+  - {claim: Table A6 regression classification, pdf_page: "168-169", md: sec-148}
+  - {claim: "current iv.g comparison (Eq A8; Y-9C BHCK4069/BHCK3545; Question A32)", pdf_page: "65-68", md: "sec-54-58"}
+  - {claim: "current iv.i(4) comparison (Eqs A13/A14; reorganization paragraph incl. SQ-27; Question A66)", pdf_page: "90-96", md: "sec-80-87"}
