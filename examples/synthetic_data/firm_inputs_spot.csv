@@ -1,4 +1,6 @@
 model,field,subcomponent,scale,value
+nii_trading_al,trading_assets_avg_balance,,millions,1500
+nii_trading_al,trading_liabilities_avg_balance,,millions,500
 ie_dom_time_dep,rate_launchpoint,,percent,2.00
 ie_dom_time_dep,wal_months,,,12
 ie_dom_time_dep,balance,,millions,1000

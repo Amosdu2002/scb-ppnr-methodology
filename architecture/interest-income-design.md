@@ -43,13 +43,24 @@ src/scb_ppnr/interest_income/
   ii_ust.py / ii_mbs.py / ii_other_sec.py     Increment 2 (landed) — thin models over the engine
   loans/                 Increment 3 — subpackage: schemas, rate_machinery (A33–A38),
                          segmentation (six portfolio definitions as data), ii_loans
-  nii_trading_al.py      Increment 4 — mirrors ie_other_borrowing's factoring
-                         (pre-α path → calibrate → project); calibration policy
-                         isolated in one function so the Increment 4 gate decision
-                         (launch-point backsolve vs cumulative calibration) is a swap
-  orchestrator.py        Increment 4 — INCOME_MODEL_EXECUTION_ORDER, trading NII last;
-                         reconciliation ships MONITOR-mode vs frb_total_interest_income
-  reporting.py           Increment 4 — USD MILLIONS, pre-hedge labels
+  nii_trading_al.py      Increment 4 (LANDED 2026-08-13) — mirrors ie_other_borrowing's
+                         factoring (pre-α path → calibrate → project); calibration policy
+                         isolated in calibrate_alpha_b. Gate decided same day: cumulative
+                         calibration (PID-TRD-1) on the ANNUALIZED ÷4 basis (PID-TRD-3 —
+                         the ×4 closed form; the quarterly-LHS reading is recorded tension)
+  orchestrator.py        Increment 4 (LANDED) — INCOME_MODEL_EXECUTION_ORDER, trading NII
+                         last, results-level composition (loans/securities arrive as
+                         completed paths from their own runners). Pre-gate note said
+                         MONITOR-mode; the gate decision made reconciliation
+                         EXACT-by-construction (raise on breach = coding error, the
+                         expense-side pattern); monitor mode remains only for runs
+                         without the trading model
+  reporting.py           Increment 4 (LANDED) — USD MILLIONS, pre-hedge labels; the
+                         calibration block prints the modeled/implied/difference rows
+                         matching the reference tab's own three rows for paste-compare
+  ../nii_monitor.py      Increment 4 (LANDED) — side-neutral combined-NII roll-up
+                         (income − expense vs frb_net_interest_income; 1% identity
+                         guard; reports, never forces)
 ```
 
 Sharing rule (deposit-engine precedent, asset conventions §1/§11): **share exactly
@@ -93,8 +104,9 @@ security-level granularity is ever chosen (never a change to the two existing
 sheets). Increment 3 — compound segment ids and the one real loader surgery
 (subcomponents on quarterly rows for the time-varying `wt` paths), preceded by a
 message-pinning test commit and a pure-move split of parse machinery into
-`firm_sheets.py`. Increment 4 — `nii_trading_al` spot inputs;
-`family`/`frb_total_interest_income` already loads today.
+`firm_sheets.py`. Increment 4 (LANDED 2026-08-13) — the `nii_trading_al` spot
+pair (both rows or neither, PID-TRD-2) and the FRB income/NII paths picked up by
+`load_income_inputs` from the quarterly sheet when declared.
 
 ## Testing
 

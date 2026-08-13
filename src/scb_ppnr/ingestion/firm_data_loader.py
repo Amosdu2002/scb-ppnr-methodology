@@ -39,6 +39,7 @@ from ..interest_income.schemas import (
     DepBanksOtherInputs,
     IncomeFamilyInputs,
     OtherIdaInputs,
+    TradingNiiInputs,
 )
 from ..interest_expense.schemas import (
     FOREIGN_SUBCOMPONENTS,
@@ -72,6 +73,13 @@ _PLAIN_FIELDS: dict[str, dict[str, str]] = {
     # each loader consumes only its own rows.
     "ii_dep_banks_other": {"balance": _BALANCE},
     "ii_other_ida": {"total_balance": _BALANCE, "short_rate_share": _SHARE},
+    # nii_trading_al (Increment 4, PID-TRD-2): the Schedule G trading assets /
+    # trading liabilities average balances at the launch point (reference cells
+    # "14Q Sch G" R30 / R112; the Fed names the worksheet but no line items).
+    "nii_trading_al": {
+        "trading_assets_avg_balance": _BALANCE,
+        "trading_liabilities_avg_balance": _BALANCE,
+    },
     "family": {},
 }
 _SUBCOMPONENT_FIELDS: dict[str, str] = {"rate_launchpoint": _RATE, "balance": _BALANCE, "elb_spread": _RATE}
@@ -283,12 +291,16 @@ def load_family_inputs(config: IngestionConfig) -> FamilyInputs:
 
 
 def load_income_inputs(config: IngestionConfig) -> IncomeFamilyInputs:
-    """Family A (calculator) income inputs from the same two-sheet contract.
+    """Income-family inputs from the same two-sheet contract.
 
-    Reads only the spot sheet — the Increment 1 income models have no
-    quarterly-path inputs (the FRB family paths remain on the expense-side
-    family bundle until the Increment 4 income orchestrator consumes
-    `frb_total_interest_income` as its monitor target)."""
+    The spot sheet carries the Family A calculator inputs (required) and the
+    `nii_trading_al` trading balances (optional as a pair — both rows or
+    neither, PID-TRD-2; the income orchestrator requires them at run time).
+    When [firm_data.quarterly] is declared, the FRB family income/NII paths are
+    read from it (`frb_total_interest_income` — the PID-TRD-1 calibration
+    target — and `frb_net_interest_income` for the combined-NII monitor); both
+    pass through as-entered (D-008: only the expense path carries the sign
+    setting, and that path stays on the expense-side family bundle)."""
     if config.firm_data is None:
         raise ValidationFailure("config has no [firm_data] section")
     if config.firm_data.spot is None:
@@ -316,9 +328,42 @@ def load_income_inputs(config: IngestionConfig) -> IncomeFamilyInputs:
     if missing:
         raise ValidationFailure(f"{spot_path}: missing required inputs: {', '.join(missing)}")
 
+    # Trading balances: an optional PAIR — one row without the other is a hard
+    # error (a lone leg would silently misstate the net), absence of both is a
+    # legal calculator-only run (the orchestrator enforces presence at run time).
+    trading_values = {
+        fld: values.get(("nii_trading_al", fld, None)) for fld in _PLAIN_FIELDS["nii_trading_al"]
+    }
+    supplied = [fld for fld, value in trading_values.items() if value is not None]
+    trading = None
+    if supplied:
+        absent = sorted(fld for fld, value in trading_values.items() if value is None)
+        if absent:
+            raise ValidationFailure(
+                f"{spot_path}: nii_trading_al rows are a pair — got {sorted(supplied)} without "
+                f"{absent}; supply both trading balances or neither (PID-TRD-2)"
+            )
+
+    paths: dict[tuple[str, str], dict[int, float]] = {}
+    if config.firm_data.quarterly is not None:
+        quarterly_path, quarterly_rows = _read_sheet(
+            config, config.firm_data.quarterly, role="quarterly",
+            required_columns={"model", "field", *_PQ_COLUMNS},
+        )
+        paths = _parse_quarterly_rows(quarterly_rows, quarterly_path)
+
     firm_id = config.firm_data.firm_id
+    if supplied:
+        trading = TradingNiiInputs(
+            firm_id,
+            trading_assets_avg_balance=trading_values["trading_assets_avg_balance"],
+            trading_liabilities_avg_balance=trading_values["trading_liabilities_avg_balance"],
+        )
     return IncomeFamilyInputs(
         firm_id=firm_id,
         dep_banks_other=DepBanksOtherInputs(firm_id, **dep_banks),
         other_ida=OtherIdaInputs(firm_id, **other_ida),
+        trading=trading,
+        frb_total_interest_income=paths.get(("family", "frb_total_interest_income")),
+        frb_net_interest_income=paths.get(("family", "frb_net_interest_income")),
     )

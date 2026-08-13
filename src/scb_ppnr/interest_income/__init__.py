@@ -1,8 +1,9 @@
 """Proposed 2026 Fed PPNR interest-income model family — canonical-input reference
-implementation. Increment 1: the two Family A calculators. Later increments add
-the securities family (shared three-term engine), the loans subpackage, trading
-NII (mirroring the ie_other_borrowing calibration factoring), and the income
-orchestrator. See architecture/interest-income-design.md."""
+implementation. Increment 1: the two Family A calculators; Increment 2: the
+securities family (shared three-term engine); Increment 3: the loans layers;
+Increment 4: trading NII (mirroring the ie_other_borrowing calibration
+factoring, PID-TRD-1/2/3) plus the income orchestrator and reporting.
+See architecture/interest-income-design.md."""
 
 from ..core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from .common import build_income_result, quarterly_income
@@ -11,15 +12,34 @@ from .ii_mbs import project_mbs
 from .ii_other_ida import project_other_ida
 from .ii_other_sec import project_other_sec
 from .ii_ust import project_ust
+from .nii_trading_al import (
+    SIBLING_MODEL_IDS,
+    calibrate_alpha_b,
+    implied_trading_path,
+    net_trading_asset_path,
+    pre_alpha_rate_path,
+    project_trading_nii,
+    run_trading_nii,
+    sibling_paths_from_results,
+)
+from .orchestrator import INCOME_MODEL_EXECUTION_ORDER, run_interest_income_family
+from .reporting import income_family_report
 from .schemas import (
+    TABLE_A9_TRADING,
     DepBanksOtherInputs,
     DepBanksOtherQuarterDiagnostics,
     IncomeFamilyInputs,
+    IncomeFamilyReconciliation,
+    IncomeFamilyResult,
     IncomeModelResult,
     IncomeQuarterResult,
     IncomeScenarioPaths,
     OtherIdaInputs,
     OtherIdaQuarterDiagnostics,
+    TradingAlphaCalibration,
+    TradingNiiInputs,
+    TradingNiiParams,
+    TradingQuarterDiagnostics,
 )
 from .securities_engine import INTERIM_CHOICES, reinvestment_income
 from .securities_schemas import (
@@ -55,6 +75,24 @@ __all__ = [
     "CATEGORY_MODEL_MAP",
     "DepBanksOtherInputs",
     "DepBanksOtherQuarterDiagnostics",
+    "INCOME_MODEL_EXECUTION_ORDER",
+    "IncomeFamilyReconciliation",
+    "IncomeFamilyResult",
+    "SIBLING_MODEL_IDS",
+    "TABLE_A9_TRADING",
+    "TradingAlphaCalibration",
+    "TradingNiiInputs",
+    "TradingNiiParams",
+    "TradingQuarterDiagnostics",
+    "calibrate_alpha_b",
+    "implied_trading_path",
+    "income_family_report",
+    "net_trading_asset_path",
+    "pre_alpha_rate_path",
+    "project_trading_nii",
+    "run_interest_income_family",
+    "run_trading_nii",
+    "sibling_paths_from_results",
     "FLOAT_PROJECTION_BLEND13",
     "FLOAT_PROJECTION_FLAT_C0",
     "FLOAT_PROJECTION_FREEZE1",

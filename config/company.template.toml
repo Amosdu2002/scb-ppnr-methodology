@@ -261,11 +261,22 @@ wal_column = "<WAL_COLUMN>"                     # years (decimal)
 #   months rows            : scale blank (already canonical)
 # FRB-provided firm projection paths (quarterly tab, model "family"; OQ-023):
 #   frb_total_interest_expense — REQUIRED: the PID-OB-5 calibration target
-#   frb_total_interest_income  — optional companion (future asset-side counterpart)
-#   frb_net_interest_income    — optional; with all three present, the
-#                                NII = income − expense identity is checked as a
-#                                wiring guard before any model runs
-# Confirm the physical file mapping of these paths before reliance.
+#   frb_total_interest_income  — the PID-TRD-1 calibration target (Increment 4):
+#                                required for the income-family/trading-NII run;
+#                                passes through as-entered (D-008)
+#   frb_net_interest_income    — optional; feeds the combined-NII monitor, and
+#                                with all three present the NII = income − expense
+#                                identity is checked as a wiring guard before any
+#                                model runs
+# Confirm the physical file mapping of these paths before reliance (the reference
+# workbook carries them as hardcoded summary-level numbers — OQ-023 extension).
+#
+# Trading NII spot rows (spot tab, model "nii_trading_al"; PID-TRD-2 — a PAIR,
+# both rows or neither; reference cells "14Q Sch G" R30 / R112):
+#   trading_assets_avg_balance       — Schedule G trading assets average balance at PQ0
+#   trading_liabilities_avg_balance  — Schedule G trading liabilities average balance at PQ0
+# Net trading assets = assets − liabilities must be > 0 (a negative net trading
+# book has no user-directed treatment yet — surfaced, never defaulted).
 
 # ---------------------------------------------------------------------------
 # Corporate wholesale loans (PID-LOAN-8..11) — ONE workbook carrying CORP H.1,
