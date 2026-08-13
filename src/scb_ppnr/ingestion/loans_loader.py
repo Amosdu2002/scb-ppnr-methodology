@@ -20,6 +20,7 @@ from __future__ import annotations
 import datetime as _dt
 import math
 import re
+import warnings
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -291,6 +292,33 @@ def _is_nan_cell(value: object) -> bool:
     return isinstance(value, float) and not math.isfinite(value)
 
 
+def _load_rows(path: Path, sheet_name: str) -> tuple[list[list[object]], int]:
+    """Materialize one sheet's rows with openpyxl's per-cell UserWarnings quieted.
+
+    The company sheets carry junk date-formatted cells (huge serials near the
+    H.2 sheet's bottom, rows ~33051-33064) that openpyxl warns about once per
+    cell — screens of stderr for values that already read as missing. The
+    warnings are captured and COUNTED, never merely discarded: the facility and
+    M.1 loaders put the count in their censuses (callers without a census may
+    drop it — the same cells produce their notes where the data actually
+    lands). Warnings raised from anywhere other than openpyxl inside the read
+    window are re-emitted untouched."""
+    workbook = _open(path)
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            rows = [list(row) for row in _sheet(workbook, sheet_name, path).values]
+    finally:
+        workbook.close()
+    quieted = 0
+    for entry in caught:
+        if "openpyxl" in (entry.filename or ""):
+            quieted += 1
+        else:
+            warnings.warn_explicit(entry.message, entry.category, entry.filename, entry.lineno)
+    return rows, quieted
+
+
 def _optional_rate(value: object, scale: str, *, context: str) -> float | None:
     if _is_missing(value):
         return None
@@ -352,14 +380,16 @@ def load_facilities(spec: LoansSheetSpec) -> tuple[list[LoanFacility], LoaderCen
     Rows whose Fed Category has no H.1 code cannot appear here by construction —
     Categories 9, 10 and 11 carry no code at all and arrive via
     `load_merged_bucket_balance` instead (PID-LOAN-10)."""
-    workbook = _open(spec.workbook)
-    try:
-        rows = [list(row) for row in _sheet(workbook, spec.h1_sheet, spec.workbook).values]
-    finally:
-        workbook.close()
+    rows, quieted_warnings = _load_rows(spec.workbook, spec.h1_sheet)
 
     context = f"{spec.workbook.name}:{spec.h1_sheet}"
     census = LoaderCensus()
+    if quieted_warnings:
+        census.warnings.append(
+            f"{quieted_warnings} openpyxl cell warning(s) quieted while reading "
+            f"{spec.h1_sheet!r} (date-formatted cells holding non-date values and the like; "
+            f"each such cell reads as missing)"
+        )
     header = _header_index(rows, spec.h1_header_row, context)
 
     idx_id = _column(header, spec.col_facility_id, context)
@@ -510,11 +540,7 @@ def load_merged_bucket_balance(spec: LoansSheetSpec) -> tuple[float, Mapping[str
     Those three portfolios carry no H.1 code, so their balance comes from the two
     MDRM line items and they are modelled as ONE merged bucket. Returns the total
     in canonical USD millions plus the per-MDRM parts for the census."""
-    workbook = _open(spec.workbook)
-    try:
-        rows = [list(row) for row in _sheet(workbook, spec.fry9c_sheet, spec.workbook).values]
-    finally:
-        workbook.close()
+    rows, _ = _load_rows(spec.workbook, spec.fry9c_sheet)
 
     context = f"{spec.workbook.name}:{spec.fry9c_sheet}"
     header = _header_index(rows, spec.fry9c_header_row, context)
@@ -578,14 +604,15 @@ def load_category_balances(
 
     Cross-check available to the reader: these totals should reproduce the
     `Sch M bal` column on the FRB SCALARS sheet."""
-    workbook = _open(spec.workbook)
-    try:
-        rows = [list(row) for row in _sheet(workbook, spec.m1_sheet, spec.workbook).values]
-    finally:
-        workbook.close()
+    rows, quieted_warnings = _load_rows(spec.workbook, spec.m1_sheet)
 
     context = f"{spec.workbook.name}:{spec.m1_sheet}"
     census = LoaderCensus()
+    if quieted_warnings:
+        census.warnings.append(
+            f"{quieted_warnings} openpyxl cell warning(s) quieted while reading "
+            f"{spec.m1_sheet!r} (such cells read as missing)"
+        )
     totals: dict[int, float] = {}
     by_side: dict[tuple[int, str], float] = {}
     _SIDE_BY_POSITION = ("HFI", "FVO_HFS")   # first column of each pair = HFI at AC
@@ -667,14 +694,16 @@ def load_cre_facilities(spec: LoansSheetSpec) -> tuple[list["LoanFacility"], Loa
             "cre_h2_sheet is not configured — the CRE run is enabled by naming the H.2 sheet "
             "in [firm_data.loans]"
         )
-    workbook = _open(spec.workbook)
-    try:
-        rows = [list(row) for row in _sheet(workbook, spec.cre_h2_sheet, spec.workbook).values]
-    finally:
-        workbook.close()
+    rows, quieted_warnings = _load_rows(spec.workbook, spec.cre_h2_sheet)
 
     context = f"{spec.workbook.name}:{spec.cre_h2_sheet}"
     census = LoaderCensus(title="CRE LOANS LOADER CENSUS")
+    if quieted_warnings:
+        census.warnings.append(
+            f"{quieted_warnings} openpyxl cell warning(s) quieted while reading "
+            f"{spec.cre_h2_sheet!r} (date-formatted cells holding non-date values and the like; "
+            f"each such cell reads as missing)"
+        )
     header = _header_index(rows, spec.cre_h2_header_row, context)
 
     idx_code = None
@@ -830,11 +859,7 @@ def load_cre_side_balances(
     from .loans_cre_mapping import CRE_CATEGORY_NAMES, M1_CRE_ROLE_PREFIX
     from .loans_mapping import normalize_role
 
-    workbook = _open(spec.workbook)
-    try:
-        rows = [list(row) for row in _sheet(workbook, spec.m1_sheet, spec.workbook).values]
-    finally:
-        workbook.close()
+    rows, quieted_warnings = _load_rows(spec.workbook, spec.m1_sheet)
     context = f"{spec.workbook.name}:{spec.m1_sheet}"
 
     configured = (
@@ -853,6 +878,11 @@ def load_cre_side_balances(
 
     balances: dict[tuple[str, str], float] = {}
     notes: list[str] = []
+    if quieted_warnings:
+        notes.append(
+            f"{quieted_warnings} openpyxl cell warning(s) quieted while reading "
+            f"{spec.m1_sheet!r} (such cells read as missing)"
+        )
     for category, row_number in configured:
         if row_number > len(rows):
             raise ValidationFailure(
@@ -895,11 +925,7 @@ def load_3m_treasury(
     quarter for the median-origination lookup; projection rows carry `scenario`
     and are mapped onto PQ1..PQn in sheet order. Also returns the launch-point
     value, read from the history at `launch_point` (e.g. `2024Q4`)."""
-    workbook = _open(spec.workbook)
-    try:
-        rows = [list(row) for row in _sheet(workbook, spec.mev_sheet, spec.workbook).values]
-    finally:
-        workbook.close()
+    rows, _ = _load_rows(spec.workbook, spec.mev_sheet)
 
     context = f"{spec.workbook.name}:{spec.mev_sheet}"
     header = _header_index(rows, spec.mev_header_row, context)
@@ -1018,11 +1044,7 @@ def load_reference_results(
     if sheet_name is None:
         raise ValidationFailure("results_sheet is not configured — nothing to compare against")
 
-    workbook = _open(spec.workbook)
-    try:
-        rows = [list(row) for row in _sheet(workbook, sheet_name, spec.workbook).values]
-    finally:
-        workbook.close()
+    rows, _ = _load_rows(spec.workbook, sheet_name)
     context = f"{spec.workbook.name}:{sheet_name}"
 
     quarter_columns: dict[int, int] = {}

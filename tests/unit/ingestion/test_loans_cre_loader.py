@@ -211,3 +211,24 @@ def test_is_missing_treats_non_finite_floats_as_absent():
     assert _is_missing("NaN")
     assert not _is_missing(0.0)
     assert not _is_missing(-1.5)
+
+
+def test_openpyxl_junk_date_warnings_are_quieted_and_counted(tmp_path):
+    import warnings as _warnings
+
+    target = _workbook(tmp_path)
+    book = openpyxl.load_workbook(target)
+    sheet = book["CRE H.2"]
+    # the company H.2 sheet's bottom carries date-FORMATTED cells holding huge
+    # non-date numbers (openpyxl: "serial value ... outside the limits for
+    # dates ... treated as an error") — reproduce one on a data row, in a
+    # column the loader does not consume
+    junk = sheet.cell(row=8, column=30, value=11415715775400)
+    junk.number_format = "mm/dd/yyyy"
+    book.save(target)
+
+    with _warnings.catch_warnings():
+        _warnings.simplefilter("error")        # any leaked warning fails the test
+        facilities, census = load_cre_facilities(_spec(target))
+    assert len(facilities) == 3                # data unaffected
+    assert any("openpyxl cell warning(s) quieted" in note for note in census.warnings)
