@@ -872,6 +872,14 @@ def load_line_item_rates(spec: LoansSheetSpec) -> tuple[Mapping[str, float], Ret
     def row_text(row: Sequence[object]) -> str:
         return " ".join(str(cell).strip() for cell in row if not _is_missing(cell)).lower()
 
+    def column_letter(index: int) -> str:
+        letters = ""
+        index += 1
+        while index:
+            index, remainder = divmod(index - 1, 26)
+            letters = chr(65 + remainder) + letters
+        return letters
+
     start = end = None
     for index, row in enumerate(rows):
         text = row_text(row)
@@ -882,17 +890,23 @@ def load_line_item_rates(spec: LoansSheetSpec) -> tuple[Mapping[str, float], Ret
             break
     if start is None:
         raise ValidationFailure(f"{context}: no 'Average Rates Earned' section header found")
-    section = rows[start:end if end is not None else len(rows)]
+    end_index = end if end is not None else len(rows)
+    section = list(enumerate(rows))[start:end_index]
+    census.notes.append(
+        f"Average Rates Earned section: sheet rows {start + 1}..{end_index}; "
+        f"PQ0 column {column_letter(pq0_column)}"
+    )
 
     rates: dict[str, float] = {}
     for key, pattern in LINE_LABEL_PATTERNS.items():
-        hits = [row for row in section if pattern in row_text(row)]
+        hits = [(index, row) for index, row in section if pattern in row_text(row)]
         if len(hits) != 1:
             raise ValidationFailure(
                 f"{context}: line pattern {pattern!r} matched {len(hits)} row(s) inside the "
                 f"Average Rates Earned section — each mapped line must match exactly once"
             )
-        cell = hits[0][pq0_column] if pq0_column < len(hits[0]) else None
+        row_index, row = hits[0]
+        cell = row[pq0_column] if pq0_column < len(row) else None
         value = apply_rate_scale(
             spec.line_items_rate_scale, to_float(cell, context=f"{context}: {key} PQ0"),
             context=f"{context}: {key} PQ0",
@@ -904,6 +918,13 @@ def load_line_item_rates(spec: LoansSheetSpec) -> tuple[Mapping[str, float], Ret
             )
         rates[key] = value
         census.bump("lines read")
+        # Per-line provenance: which physical cell fed each rate. When a rate
+        # reads 0 or junk, this line points at the exact cell to inspect.
+        label = next((str(c).strip() for c in row if not _is_missing(c)), "<no label>")
+        census.notes.append(
+            f"{key:<14} <- sheet row {row_index + 1}, cell "
+            f"{column_letter(pq0_column)}{row_index + 1} = {value:.4%}  ({label[:60]!r})"
+        )
     return MappingProxyType(rates), census
 
 
