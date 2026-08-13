@@ -2,7 +2,7 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Component: **Interest Income on Loans**, Section v.a(1) (PDF pp. 173–188; md sec-150–172). Model type per Table A6: **Structural** (PDF pp. 168–169; md sec-148).
-> Deliverable: loans workstream (asset-side Increment 3), slice 1 per the approved plan of 2026-07-30 — **common-framework brief**, first of the sibling set {common, wholesale, corporate, CRE}. Review state: **DRAFT — awaiting user review.** This brief is not the handbook chapter; the eventual chapter remains **one chapter with six portfolio sections (decision D-003)**.
+> Deliverable: loans workstream (asset-side Increment 3), slice 1 per the approved plan of 2026-07-30 — **common-framework brief**, first of the sibling set {common, wholesale, corporate, CRE}. Review state: **APPROVED 2026-08-03** *(recorded in `inventory/model-inventory.md` at approval; banner updated 2026-08-12 from "DRAFT — awaiting user review", per the user's 2026-08-12 confirmation — amendment recorded, not silent)*. This brief is not the handbook chapter; the eventual chapter remains **one chapter with six portfolio sections (decision D-003)**.
 > Scope rule: this brief carries only methodology that is **actually common** across the loan portfolios — a rule is not common merely because it appears in the loan section (§3 register). Wholesale-shared rules live in `ii_loans_wholesale.source-brief.md`; Corporate/CRE/Retail-specific rules are identified, cited, and deferred.
 > Integrity flags in v.a(1): SQ-5, SQ-6, SQ-7, SQ-11 (source quirks); CA-2b (md-only stray pipe); new this session: SQ-18, SQ-19, SQ-20 (filed 2026-07-30). Related OQs: OQ-001, OQ-002, OQ-003, OQ-010, OQ-011, OQ-012, OQ-014, OQ-015, OQ-033, OQ-034, OQ-035.
 > Verification: **PDF pp. 173–188 read as page images 2026-07-30** (full fresh pass; §9 of `inventory/source-integrity-review.md` updated); equations A32–A38 and Table A8 previously verified 2026-07-16. Citation format: (PDF p. N; md sec-M).
@@ -509,4 +509,4 @@ Nothing here is Fed methodology. No production Python in this phase.
 - [x] Retail content identified + deferred only; wholesale detail delegated to `ii_loans_wholesale.source-brief.md`.
 - [x] Conversion artifacts corrected per integrity review (CA-2b); source quirks preserved verbatim with [INT] notes (SQ-5/6/7/11/18/19/20).
 - [x] No production Python; no confidential workbook content.
-- [ ] Review state: DRAFT — awaiting user review (checklist final item closes at approval).
+- [x] Review state: **APPROVED 2026-08-03** (banner and checklist updated 2026-08-12).

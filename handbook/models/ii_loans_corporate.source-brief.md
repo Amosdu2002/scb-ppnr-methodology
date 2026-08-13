@@ -2,7 +2,7 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Component: **Interest Income on Loans**, Section v.a(1) (PDF pp. 173–188; md sec-150–172); this brief covers the **Corporate** part of Wholesale (PDF pp. 175–176; md sec-154), plus the Corporate-relevant passages of the Wholesale Portfolio limitations (PDF p. 186; md sec-171), Question A153 (PDF p. 187; md sec-172), and Table A8 (PDF p. 220; md sec-209). Model type per Table A6: **Structural**.
-> Deliverable: loans workstream (asset-side Increment 3), slice 2 per the approved plan of 2026-08-03 — third of the sibling set {common, wholesale, **corporate**, CRE}. Review state: **DRAFT — awaiting user review.**
+> Deliverable: loans workstream (asset-side Increment 3), slice 2 per the approved plan of 2026-08-03 — third of the sibling set {common, wholesale, **corporate**, CRE}. Review state: **APPROVED 2026-08-12** *(user statement 2026-08-12; banner updated from "DRAFT — awaiting user review" the same day — amendment recorded, not silent)*.
 > Scope: **Corporate only.** CRE and Retail appear solely where the source draws an explicit boundary against them (§2.3); neither is analyzed. Equations are **not** transcribed here — D-010(b) puts all of A32–A38 verbatim in `ii_loans_common.source-brief.md` §7; rules shared by Corporate and CRE live in `ii_loans_wholesale.source-brief.md`. This brief owns only what the source states for Corporate.
 > Integrity flags: SQ-5 (truncated "sourced from FR.", p. 175), SQ-18/OQ-033 (fixed-rate subscripts), SQ-19 ("farm"/"farmland", p. 186), footnotes 61–62; **filed with this brief:** SQ-21 ("Schedule H.1 schedule" doubling), SQ-22 (owner-occupancy naming variants). Open questions: OQ-001, OQ-002, OQ-003, OQ-010, OQ-033, OQ-034, OQ-035, OQ-037, OQ-038; **OQ-036 resolved for project implementation** by **PID-LOAN-1** (§0.1) — the first loans PID.
 > Verification: **PDF pp. 175–176 and 220 re-read as page images at high zoom 2026-08-03** for this brief (11-item enumeration, NPML paragraph, Table A8 row text, footnote 62); pp. 173–188 had a full image pass 2026-07-30. Citation format: (PDF p. N; md sec-M).
@@ -398,4 +398,4 @@ Nothing in this section is Fed methodology. No production Python.
 - [x] Source quirks preserved verbatim (SQ-19, SQ-21, SQ-22); no silent corrections.
 - [x] The FR Y-9C cross-walk is confined to §13, labeled non-normative and unverified, with no item numbers or codes invented.
 - [x] No production Python; no confidential workbook content.
-- [ ] Review state: DRAFT — awaiting user review (closes at approval).
+- [x] Review state: **APPROVED 2026-08-12** (banner and checklist updated 2026-08-12).

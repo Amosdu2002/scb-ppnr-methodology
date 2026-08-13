@@ -2,7 +2,7 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Component: **Interest Income on Loans**, Section v.a(1) (PDF pp. 173–188; md sec-150–172); this brief covers the **methodology shared by the two wholesale parts, Corporate and CRE** (PDF pp. 175–177, 181–183, 185–186; md sec-153–155, sec-163–165, sec-171). Model type per Table A6: **Structural**.
-> Deliverable: loans workstream (asset-side Increment 3), slice 1 per the approved plan of 2026-07-30 — **wholesale-framework brief**, companion to `ii_loans_common.source-brief.md`. Review state: **DRAFT — awaiting user review.** Portfolio-specific rules are identified and **deferred** to the future Corporate and CRE briefs (§11); nothing retail is elaborated.
+> Deliverable: loans workstream (asset-side Increment 3), slice 1 per the approved plan of 2026-07-30 — **wholesale-framework brief**, companion to `ii_loans_common.source-brief.md`. Review state: **APPROVED 2026-08-03** *(recorded in `inventory/model-inventory.md` at approval; banner updated 2026-08-12 from "DRAFT — awaiting user review", per the user's 2026-08-12 confirmation — amendment recorded, not silent)*. Portfolio-specific rules are identified and **deferred** to the Corporate and CRE briefs (§11); nothing retail is elaborated.
 > Equation-ownership rule (user decision 2026-07-30): **this brief transcribes no equations.** All Equations A32–A38 live verbatim in the common brief §7; this brief documents their wholesale application and cites them.
 > Integrity flags relevant here: SQ-5 (truncated "sourced from FR.", OQ-015), SQ-6 (A37 typography), SQ-18/OQ-033 (fixed-rate subscripts), SQ-19 ("farm"/"farmland" variant), footnotes 61–62. Related OQs: OQ-001, OQ-002, OQ-003, OQ-010, OQ-015, OQ-033, OQ-034, OQ-035.
 > Verification: **PDF pp. 173–188 read as page images 2026-07-30**; citation format (PDF p. N; md sec-M).
@@ -222,4 +222,4 @@ Verbatim census in the common brief §13; this brief's three (pointers):
 - [x] Placement facts distinguished from scope extensions (mixed/demand/fee-only — §4; revolver paragraph — §12.6).
 - [x] Source quirks preserved verbatim (SQ-5, SQ-19; the "Schedule H.1 schedule" doubling); conversion policy per integrity review.
 - [x] No production Python; no confidential workbook content.
-- [ ] Review state: DRAFT — awaiting user review (closes at approval).
+- [x] Review state: **APPROVED 2026-08-03** (banner and checklist updated 2026-08-12).
