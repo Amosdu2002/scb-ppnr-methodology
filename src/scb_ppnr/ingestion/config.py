@@ -260,14 +260,14 @@ class LoansConfig:
                                 # of this column over a segment's reference keys,
                                 # user-clarified 2026-08-12), or "outstanding" (a separate
                                 # per-row column, if an extract ever carries one)
-    cre_orig_date_statistic: str = "weighted_mean"
-                                # PID-LOAN-22 (CRE only): the workbook weights origination
-                                # dates by OUTSTANDING balance; whether its statistic is a
-                                # median or a mean is a cell-formula detail still unread.
-                                # "weighted_mean" (default — the sheet carries a sumproduct
-                                # column, direct evidence of a mean) | "weighted_median".
-                                # The CRE compare settles it. Corporate is unaffected
-                                # (PID-LOAN-4's unweighted median stands there).
+    cre_orig_date_statistic: str = "weighted_median"
+                                # PID-LOAN-22 (CRE only, as amended): the workbook weights
+                                # origination dates by OUTSTANDING balance, and the compare
+                                # identified the statistic as the weighted MEDIAN (its
+                                # median-date cells are observed dates; the mean missed
+                                # construction/HFI fixed by a quarter, ratio 1.0447).
+                                # "weighted_mean" is kept for A/B only. Corporate is
+                                # unaffected (PID-LOAN-4's unweighted median stands there).
 
 
 _LOANS_RUN_KEYS = ("workbook", "scenario", "launch_point", "floor_collapse", "apply_scalar", "share_basis", "balance_source", "engine", "cre_orig_date_statistic")

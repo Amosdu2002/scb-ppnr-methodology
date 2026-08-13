@@ -54,12 +54,12 @@ Per CRE category × LOCOM, identical machinery to Corporate (PID-LOAN-3 pattern;
 | Rate type | Initial rate used | Base rate subtracted | Spread |
 |---|---|---|---|
 | `2` Floating | FloatPoolRate | 3M Treasury at **PQ0** | FloatPoolRate − 3M(PQ0) |
-| `1` Fixed | FixedPoolRate | 3M at the v1 rows' **outstanding-weighted origination quarter** | FixedPoolRate − 3M(weighted qtr, v1) |
-| `3` Mixed | **FixedPoolRate** | 3M at the v3 rows' **own** outstanding-weighted origination quarter | FixedPoolRate − 3M(weighted qtr, v3) |
+| `1` Fixed | FixedPoolRate | 3M at the v1 rows' **outstanding-weighted median origination quarter** | FixedPoolRate − 3M(weighted median qtr, v1) |
+| `3` Mixed | **FloatPoolRate** *(amended)* | 3M Treasury at **PQ0** | FloatPoolRate − 3M(PQ0) — same rate as the block's floating segment |
 | `0`, `4` | — | — | none — no income (§6.2) |
 
-- **The hybrid mixed spread is PID-LOAN-23** — the original PID-LOAN-4-style construction, which Corporate's converged reference engine had superseded (PID-LOAN-15 merges mixed at the floating spread). The two wholesale parts differ on evidence; a Mixed segment whose block has no Fixed rows has no pool to borrow and **stops with a named error** (the known Corporate edge, same treatment).
-- **The origination-date statistic is outstanding-balance-weighted** (PID-LOAN-22; sheet-stated "balance weighted orig date based on: outstanding"). Whether the workbook's statistic is a **median or a mean** is a cell-formula detail still unread, so both are implemented behind `cre_orig_date_statistic` = `weighted_mean` (default — the sheet carries an "outstanding balance × orig date" sumproduct column, direct evidence of a mean) | `weighted_median` (the first observed date whose cumulative weight reaches half). The CRE compare settles it (§9). Zero-weight dated rows degenerate to the unweighted row median — the limit of the weighted form.
+- **Mixed at the floating spread — PID-LOAN-23 as AMENDED by the first real compare (2026-08-12, grand 1.0008).** The reference's implied variable spread equalled the pure v2 spread exactly (multifamily/HFI: theirs 2.3486% vs our hybrid blend 2.3545%, ratio 1.0022 on the only block carrying mixed balance) — the launch sheet's hybrid mixed-spread columns (fixed pool at mixed's own quarter) are **computed but unused** in the income, precisely the pattern by which PID-LOAN-15 superseded PID-LOAN-4's hybrid for Corporate. Mixed keeps its own segment for visibility; since it feeds the float pool itself, a block with mixed rows but no fixed rows now prices normally — the run stops only if the pool has no usable rate at all.
+- **The origination-date statistic is the outstanding-weighted MEDIAN — PID-LOAN-22 as amended by the same compare.** The reference's median-date cells are actually observed dates, and the mean missed construction/HFI fixed by one quarter (ratio 1.0447: mean → 2022Q2 base 1.1%, reference 8/29/2022 → 2022Q3 base 2.7%). `cre_orig_date_statistic` defaults to `weighted_median` (the first observed date whose cumulative weight reaches half); `weighted_mean` is kept for A/B only. Zero-weight dated rows degenerate to the unweighted row median — the limit of the weighted form.
 - Base-rate lookup misses fall back to **0 with a censused cause** (outside-MEV vs missing date), exactly as Corporate's PID-LOAN-4 amendment — the fallback overstates that segment's new-origination rate by the omitted base-rate level and must be visible.
 
 ## 6. Projection
@@ -134,13 +134,13 @@ Domestic construction / multifamily / non-owner-occupied → **"Domestic CRE" (1
 
 | Item | Status |
 |---|---|
-| **Weighted origination statistic: median or mean** | `cre_orig_date_statistic` config, default `weighted_mean` (sumproduct evidence); the compare decides — then a PID amendment fixes it |
-| **Rate pools committed-weighted** (residual i) | Observed on the launch sheet (P = exposure×rate ÷ committed), not yet word-confirmed |
-| **HFS/FVO "Launchpoint Value" column** (residual ii) | `cre_col_value` config, unset by default (Outstanding weights both sides); identify the column if the HFS/FVO blocks drift in the compare |
-| **Fixed floor exactly 0** (residual iii) | Carried from the PID-LOAN-15 family; unobserved for CRE directly |
-| **H.2 unit scales** (residual iv) | Reused from the Corporate-confirmed workbook scales; confirm on the first real run (D-006) |
-| **wt construction for CRE** | OQ-001-CRE open; §6.4 is the flagged PID-LOAN-6 analogue, judged by the compare |
-| **Mixed block with no Fixed siblings** | Named hard stop (same as Corporate spec §9); ask if the real run hits it |
+| **Weighted origination statistic** | **RESOLVED 2026-08-12 (compare round 1): weighted MEDIAN** — PID-LOAN-22 amended; `weighted_mean` retained for A/B only |
+| **Mixed spread** | **RESOLVED 2026-08-12 (compare round 1): floating spread** — PID-LOAN-23 amended; the lone-mixed hard stop is obsolete (mixed feeds its own float pool) |
+| **Rate pools committed-weighted** (residual i) | **Compare-corroborated round 1**: every floating stream's implied spread matched the reference to the digit, so the pool construction agrees; formally still a flagged observation |
+| **HFS/FVO "Launchpoint Value" column** (residual ii) | Round 1: every FVO_HFS block landed 1.0000 with Outstanding weighting both sides — the distinct Value column, if it exists, is numerically equivalent here; `cre_col_value` stays available |
+| **Fixed floor exactly 0** (residual iii) | Round 1: no fixed floor bind occurred either side; carried from the PID-LOAN-15 family, still unobserved directly |
+| **H.2 unit scales** (residual iv) | Round-1 censuses clean at the Corporate-confirmed scales — consistent with same-workbook reuse; watch on future extracts (D-006) |
+| **wt construction for CRE** | OQ-001-CRE formally open; round 1 corroborates it — the fixed blocks whose base rates matched landed 1.0000/0.9991 with nonzero wt (multifamily sum-wt 0.015, non-OO 0.071) |
 
 ## 10. Implementation status
 
@@ -153,7 +153,7 @@ Domestic construction / multifamily / non-owner-occupied → **"Domestic CRE" (1
 | Config | `ingestion/config.py` (`cre_orig_date_statistic`), `[firm_data.loans]` cre_* keys | **Landed** |
 | Runner + compare | `examples/run_loans.py` (CRE section; `_compare` takes the scalar map) | **Landed** — synthetic demo runs Corporate + CRE end to end |
 | Tests | `tests/unit/interest_income/test_loans_cre.py`, `tests/unit/ingestion/test_loans_cre_loader.py`, integration demo markers | **370 passed** (2026-08-12); arithmetic worked by hand in the assertions |
-| Reference compare vs the company workbook | — | **PENDING the first real run** (config: `cre_h2_sheet`, `cre_results_sheet`, `apply_scalar = false` for the compare basis) |
+| Reference compare vs the company workbook | — | **Round 1 (2026-08-12): GRAND 1.0008** — every implied balance identical to the digit; most blocks 1.0000; the two residual ratios (construction fixed 1.0447; multifamily variable 1.0022) identified the two amendments above. **Round 2 after the amendments expected ≈ 1.0000** |
 
 ## 11. PID index
 

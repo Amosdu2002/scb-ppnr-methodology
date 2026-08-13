@@ -39,9 +39,11 @@ def test_synthetic_demo_runs_and_reports(tmp_path, capsys):
         assert marker in printed
     # the merged bucket borrows the depository rate, not the 9% nondepository row
     assert "donor pool rate (depository floating) : 5.5000%" in printed
-    # the CRE hybrid mixed spread (PID-LOAN-23): fixed pool 5.0% less the 3M at
-    # mixed's own weighted origination quarter (2022Q2 = 0.8%)
-    assert "0.8000%@2022Q2" in printed and "4.2000%" in printed
+    # PID-LOAN-22 as amended: the weighted MEDIAN is the default statistic
+    assert "orig-date statistic: weighted_median on outstanding" in printed
+    # PID-LOAN-23 as amended: mixed prices at the FLOATING spread — the demo's
+    # multifamily float pool is the mixed row alone (5.5%) less 3M(PQ0) 4.4%
+    assert "1.1000%" in printed
     # PID-LOAN-21: domestic CRE categories x1.081, the merged international x1.113
     assert "CRE Dom multifamily  x1.0810" in printed
     assert "CRE International (Fed 4-6 merged)  x1.1130" in printed

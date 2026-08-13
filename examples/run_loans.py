@@ -70,7 +70,7 @@ from scb_ppnr.interest_income.loans_schemas import projection_quarter_index
 def _run(spec: LoansSheetSpec, scenario: str, launch_point: str,
          floor_collapse: str = "balance_weighted", apply_scalar: bool = True,
          share_basis: str = "committed", balance_source: str = "m1",
-         engine: str = "pid", cre_orig_date_statistic: str = "weighted_mean",
+         engine: str = "pid", cre_orig_date_statistic: str = "weighted_median",
          collected: list[str] | None = None) -> str:
     """Each section PRINTS the moment it is produced (the securities-loop
     lesson): a failure deep in the run must never hide the censuses that

@@ -584,17 +584,26 @@ def build_cre_launch_point(
     historical_3m: Mapping[str, float],
     quarters: Sequence[int],
     quarter_of_maturity,
-    orig_date_statistic: str = ORIG_DATE_WEIGHTED_MEAN,
+    orig_date_statistic: str = ORIG_DATE_WEIGHTED_MEDIAN,
 ) -> tuple[Mapping[SegmentKey, SegmentLaunchPoint], LaunchPointDiagnostics]:
-    """Assemble the CRE launch point (PID-LOAN-18..25).
+    """Assemble the CRE launch point (PID-LOAN-18..25, as amended).
 
-    The CRE construction is NEITHER Corporate engine. It shares the reference
+    The CRE construction is NEITHER Corporate engine: it shares the reference
     engine's balance side (per-LOCOM M.1 balances, all-rate-type share
     denominators, fixed path floored at 0, zeros-included weighted variable
-    floor) but keeps Mixed as its OWN segment on the pid-style hybrid spread —
-    the CRE workbook computes fixed-pool rate minus the base rate at mixed's
-    own weighted origination date (PID-LOAN-23), which the Corporate reference
-    engine had superseded. Per wholesale part, per the evidence.
+    floor) while its spreads and wt are built per rate type below.
+
+    Two rules were AMENDED by the first real compare (2026-08-12, grand 1.0008):
+
+    - Mixed keeps its own segment for visibility but prices at the FLOATING
+      spread (float pool minus the launch-point 3M) — the reference's implied
+      variable spread equalled the v2 spread exactly, so the launch sheet's
+      hybrid mixed-spread columns are computed but unused, precisely as
+      Corporate's were (PID-LOAN-23 amended; the PID-LOAN-15 pattern again).
+    - The origination-date statistic defaults to the weighted MEDIAN: the
+      reference's median-date cells are actually observed dates, and the mean
+      missed construction/HFI fixed by one quarter (ratio 1.0447 -> the
+      PID-LOAN-22 amendment).
 
     Piece by piece:
 
@@ -605,9 +614,10 @@ def build_cre_launch_point(
         rate pools        committed-weighted, Float = v2+v3, Fixed = v1
                           (observed on the CRE launch sheet; the PID-LOAN-3
                           pattern — residual item (i) of the CRE brief)
-        spreads           floating vs 3M(PQ0); fixed and mixed vs the 3M of
-                          their own outstanding-WEIGHTED origination quarter
-                          (PID-LOAN-22; mean-vs-median is `orig_date_statistic`)
+        spreads           floating AND mixed vs 3M(PQ0) at the float-pool rate;
+                          fixed vs the 3M of its outstanding-WEIGHTED
+                          origination quarter (PID-LOAN-22, median default;
+                          `orig_date_statistic` keeps the mean for A/B)
         variable floor    per (category, LOCOM) block over floating + mixed
                           rows together, outstanding-weighted with blank floors
                           counting as ZERO, then max(.., 0) — one value shared
@@ -683,16 +693,22 @@ def build_cre_launch_point(
 
         spread: SegmentSpread | None = None
         if segment.treatment != TREATMENT_NO_INCOME:
-            pool = SPREAD_POOL_BY_CODE[segment.variable_type]
+            if segment.variable_type == VT_MIXED:
+                # PID-LOAN-23 as amended (compare round 1): mixed prices at the
+                # FLOATING spread — float pool (which already contains the mixed
+                # rows) minus the launch-point 3M. The hybrid fixed-pool spread
+                # the launch sheet computes is unused in the reference's income.
+                pool, basis = "float", BASE_AT_LAUNCH_POINT
+            else:
+                pool = SPREAD_POOL_BY_CODE[segment.variable_type]
+                basis = SPREAD_BASE_BY_CODE[segment.variable_type]
             pool_rate = pool_rates.get((segment.category, segment.locom, pool))
             if pool_rate is None:
                 raise ValidationFailure(
                     f"{segment}: the {pool!r} pool for {segment.category}/{segment.locom} has no "
                     f"usable interest rates, so no spread can be formed. Surfaced rather than "
-                    f"defaulted — a zero spread here would silently reprice the whole segment. "
-                    f"(A Mixed segment with no Fixed siblings in its block is the known case.)"
+                    f"defaulted — a zero spread here would silently reprice the whole segment."
                 )
-            basis = SPREAD_BASE_BY_CODE[segment.variable_type]
             if basis == BASE_AT_LAUNCH_POINT:
                 base, base_quarter, fallback = launch_point_3m, None, None
             else:

@@ -208,14 +208,17 @@ def test_floating_spread_is_committed_pool_rate_less_the_launch_point_base():
     assert spread.spread == pytest.approx(pool - LAUNCH_3M)
 
 
-def test_the_mixed_hybrid_spread_uses_the_fixed_pool_at_mixeds_own_quarter():
+def test_mixed_prices_at_the_floating_spread_not_the_hybrid():
     launch, _ = _build()
     mixed = launch[SegmentKey(MULTIFAMILY, "HFI", VT_MIXED)].spread
-    # PID-LOAN-23: fixed-pool rate (5%), base at MIXED's own weighted origination
-    # quarter (2022Q2 -> 0.8%), NOT the floating pool and NOT the fixed rows' quarter
-    assert mixed.pool_rate == pytest.approx(0.050)
-    assert mixed.base_quarter == "2022Q2"
-    assert mixed.spread == pytest.approx(0.050 - 0.008)
+    # PID-LOAN-23 as AMENDED by the first compare (2026-08-12): mixed prices at
+    # the FLOATING spread — the float pool (here the mixed row alone, 5.5%)
+    # minus the launch-point 3M. The reference's implied variable spread
+    # equalled the v2 spread exactly, so the launch sheet's hybrid columns
+    # (fixed pool at mixed's own quarter) are computed but unused.
+    assert mixed.pool_rate == pytest.approx(0.055)
+    assert mixed.base_rate == LAUNCH_3M and mixed.base_quarter is None
+    assert mixed.spread == pytest.approx(0.055 - LAUNCH_3M)
 
 
 def test_the_fixed_spread_uses_the_weighted_origination_quarter():
@@ -256,9 +259,21 @@ def test_wt_is_outstanding_weighted_maturities_over_the_fixed_block_balance():
     assert all(weights[q] == 0.0 for q in QUARTERS if q != 5)
 
 
-def test_a_mixed_segment_with_no_fixed_siblings_is_refused_not_defaulted():
+def test_a_lone_mixed_segment_prices_off_its_own_floating_pool():
+    # under the amended PID-LOAN-23 a mixed row feeds the float pool itself,
+    # so a block with no fixed siblings no longer stops the run
     rows = [
         _facility("M1", CONSTRUCTION, VT_MIXED, 50.0, 40.0, rate=0.06,
+                  originated=date(2022, 5, 17)),
+    ]
+    launch, _ = _build(rows)
+    mixed = launch[SegmentKey(CONSTRUCTION, "HFI", VT_MIXED)].spread
+    assert mixed.spread == pytest.approx(0.06 - LAUNCH_3M)
+
+
+def test_a_lone_mixed_row_without_a_rate_is_still_refused():
+    rows = [
+        _facility("M1", CONSTRUCTION, VT_MIXED, 50.0, 40.0, rate=None,
                   originated=date(2022, 5, 17)),
     ]
     with pytest.raises(ValidationFailure):

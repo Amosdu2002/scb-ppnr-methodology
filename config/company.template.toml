@@ -374,13 +374,14 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # = sum of I/K over the SAME three rows.
 #                                           # The role labels on those rows print,
 #                                           # and a non-"Wholesale - CRE" role WARNs
-# cre_orig_date_statistic = "weighted_mean" # PID-LOAN-22: the origination-date
-#                                           # statistic is OUTSTANDING-weighted;
-#                                           # median-vs-mean is unread in the cell
-#                                           # formula — "weighted_mean" (default;
-#                                           # the sheet's sumproduct column is mean
-#                                           # evidence) | "weighted_median". The
-#                                           # CRE compare settles it
+# cre_orig_date_statistic = "weighted_median"   # PID-LOAN-22 as amended: the
+#                                           # origination-date statistic is the
+#                                           # OUTSTANDING-weighted MEDIAN —
+#                                           # identified by the first compare
+#                                           # (the reference's median-date cells
+#                                           # are observed dates; the mean missed
+#                                           # construction fixed by one quarter,
+#                                           # 1.0447). "weighted_mean" kept for A/B
 # cre_results_sheet = "<CRE_RESULTS_SHEET>" # COMPARE MODE for CRE: blocks
 #                                           # "1 - HFI".."4 - HFS/FVO" (no merged
 #                                           # block), Fixed/Variable/Total rows over
