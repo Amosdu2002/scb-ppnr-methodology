@@ -127,7 +127,22 @@ RETAIL SUMMARY against the user's summary table via paste-back; a sheet reader f
 wanted); (d) whether HFS/FVO mortgage blocks reproduce (the query "Loan Type" column is the
 classification — naming trap documented in the loader).
 
-## 9. Test anchors
+## 9. Convergence record (compare vs the firm's reference results, 2026-08-13)
+
+Three rounds, same-day. **Round 3: mortgage, card, and other consumer all match the
+reference EXACTLY at the summary's display precision (family 4Q-cum and 9Q-cum ratios
+≈ 1.000)** — mortgage converged under `heloc_spread_anchor = "prime_pq9"` (the round-2
+arithmetic identification; the HELOC spread-cell reference confirmation is still owed) and
+other consumer under the leftmost-PQ0-group fix (the sheet's header carries NINE PQ0..PQ9
+groups; the rates live under the first). **Auto: ours/reference = 0.912 on both horizons —
+scalar-only by construction**: the machinery reproduces the workbook's unscaled New/Old
+streams, and the panel's own PQ0 cells imply the workbook multiplies by ≈ **0.9481** (a
+computed, non-round value — the firm-computed true-up, not Table A8's published 0.865 that
+production uses per PID-LOAN-32). Round-1/2 fix history: HELOC base and spread anchor
+(§3); the line-item PQ-column anchoring (§2). Floor binds fell 82 → 27 once HELOC left the
+Prime path (its ARM floor no longer binds).
+
+## 10. Test anchors
 
 `tests/unit/interest_income/test_loans_retail.py` — hand-computed goldens per family (A38
 blend arithmetic, ARM-floor binds, own-rate fallback, revolver arithmetic, zero-floor binds,
