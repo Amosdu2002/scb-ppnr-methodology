@@ -194,6 +194,9 @@ class LoansSheetSpec:
     line_items_sheet: str | None = None     # the PPNR line-item projections sheet — its name
     line_items_workbook: str | None = None  # references an institution and stays config-local
     line_items_rate_scale: str = "decimal"  # percent-FORMATTED cells store decimal values
+    line_items_section: int = 1             # which "Average Rates Earned" occurrence to read
+                                            # (1-based) — sheets in this workbook family stack
+                                            # multiple launch sections (the MORT precedent)
 
 
 @dataclass

@@ -19,7 +19,7 @@ wholesale Equation A33/A38 machinery (`loans_projection.project_variable_rate` /
 
 | Family | Engine(s) | Base rate | Grain |
 |---|---|---|---|
-| Mortgage | fixed (A38) + variable (A33) per block | **mortgage rate** for first-lien and home-equity blocks, **Prime** for HELOC (PID-LOAN-33; OQ-040 resolved-for-project) | {first lien, home equity, HELOC} × {HFI, FVO/HFS} × {fixed, variable} — 12 segments (PID-LOAN-27) |
+| Mortgage | fixed (A38) + variable (A33) per block | **mortgage rate for ALL blocks incl. HELOC** (PID-LOAN-33 as amended, round 1 — diverges from the Fed's HELOC-on-Prime register entry, §7.7; OQ-040 resolved-for-project) | {first lien, home equity, HELOC} × {HFI, FVO/HFS} × {fixed, variable} — 12 segments (PID-LOAN-27) |
 | Auto | fixed only (A33 never runs) | Prime | New / Used vehicle (PID-LOAN-29) |
 | Card | variable only (A38 never runs) | Prime | consumer / SME × bank / charge (PID-LOAN-28) |
 | Other consumer | variable only, floored at zero | Prime | product types: A.7 + A.9 sub-products + the M.1-direct rows (PID-LOAN-30) |
@@ -52,7 +52,8 @@ WEIGHTED_AVERAGE_RATE; new-origination spread = window rate − base(PQ0), windo
 ÷ segment UPB (guarded ≤ 1); no fixed-leg floor. **Missing-window fallback:** a fixed segment
 with "x" in the active window takes its **own current rate** as the new-origination rate
 (PID-LOAN-33 working assumption — hardcoded query lineage, no formula to audit; censused per
-segment). Variable leg: Eq A33 at spread = WAR − base(PQ0), floored at WEIGHTED_ARM_FLOOR.
+segment). Variable leg: Eq A33 at spread = WAR − base(PQ0), floored at WEIGHTED_ARM_FLOOR — for HELOC:
+max(mortgage(t) + spread, query floor), user-stated round 1.
 Block Total = (fixed + variable) × **1.014**.
 
 **Auto (PID-LOAN-29/32).** Balances = M.1 auto row × pivot D_OS shares. Fixed leg per segment:
@@ -110,6 +111,7 @@ scalars constant every quarter (PID-LOAN-16 semantics).
 | 4 | Auto scalar = published **0.865** while the reference workbook's own panel applies 0.948 (PID-LOAN-32, user-directed) — a compare-basis divergence, not a Fed one | auto Totals ≈ 0.91 × reference |
 | 5 | The missing-window fallback (own current rate as the new-origination rate) is a project convention; the Fed defines no empty-window behavior | spread ≈ 0 vs base for those segments |
 | 6 | Line-item jump-off rates come from a projections-format sheet's PQ0 column; the Fed says "the FR Y-14Q pre-provision net revenue line-item report" (OQ-011 source side open) | as observed in the workbook |
+| 7 | **HELOC reprices on the MORTGAGE rate** (round-1 elicitation, user-stated) where the Fed's base-rate register puts HELOC on **Prime** (PDF p. 181) | HELOC keeps a mortgage-rate sensitivity |
 
 ## 8. Open items for the first compare round
 

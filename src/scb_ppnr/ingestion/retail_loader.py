@@ -856,19 +856,6 @@ def load_line_item_rates(spec: LoansSheetSpec) -> tuple[Mapping[str, float], Ret
     if quieted:
         census.notes.append(f"{quieted} openpyxl cell warning(s) quieted")
 
-    pq0_column: int | None = None
-    for row in rows[:40]:
-        found = {
-            str(cell).strip().upper(): index
-            for index, cell in enumerate(row)
-            if isinstance(cell, str) and re.fullmatch(r"PQ[0-9]", str(cell).strip())
-        }
-        if len(found) >= 10:
-            pq0_column = found["PQ0"]
-            break
-    if pq0_column is None:
-        raise ValidationFailure(f"{context}: no PQ0..PQ9 header row found in the first 40 rows")
-
     def row_text(row: Sequence[object]) -> str:
         return " ".join(str(cell).strip() for cell in row if not _is_missing(cell)).lower()
 
@@ -880,21 +867,53 @@ def load_line_item_rates(spec: LoansSheetSpec) -> tuple[Mapping[str, float], Ret
             letters = chr(65 + remainder) + letters
         return letters
 
-    start = end = None
+    # Every PQ0..PQ9 header row on the sheet — these workbooks stack sections
+    # (the MORT precedent), and different sections may lay their columns out
+    # differently, so the header is chosen NEAREST the rates section below,
+    # never simply the first one on the sheet.
+    header_rows: list[tuple[int, int]] = []      # (row index, PQ0 column)
     for index, row in enumerate(rows):
-        text = row_text(row)
-        if start is None and "average rates earned" in text:
-            start = index + 1
-        elif start is not None and "total interest income" in text:
-            end = index
-            break
-    if start is None:
+        found = {
+            str(cell).strip().upper(): column
+            for column, cell in enumerate(row)
+            if isinstance(cell, str) and re.fullmatch(r"PQ[0-9]", str(cell).strip())
+        }
+        if len(found) >= 10:
+            header_rows.append((index, found["PQ0"]))
+    if not header_rows:
+        raise ValidationFailure(f"{context}: no PQ0..PQ9 header row found anywhere on the sheet")
+
+    # The requested "Average Rates Earned" occurrence (line_items_section,
+    # 1-based), ended by the next "Total Interest Income" AFTER it.
+    titles = [index for index, row in enumerate(rows) if "average rates earned" in row_text(row)]
+    if not titles:
         raise ValidationFailure(f"{context}: no 'Average Rates Earned' section header found")
-    end_index = end if end is not None else len(rows)
+    if spec.line_items_section < 1 or spec.line_items_section > len(titles):
+        raise ValidationFailure(
+            f"{context}: line_items_section = {spec.line_items_section} but the sheet carries "
+            f"{len(titles)} 'Average Rates Earned' section(s) (at sheet rows "
+            f"{[t + 1 for t in titles]})"
+        )
+    title_index = titles[spec.line_items_section - 1]
+    start = title_index + 1
+    end_index = next(
+        (index for index, row in enumerate(rows[start:], start=start)
+         if "total interest income" in row_text(row)),
+        len(rows),
+    )
     section = list(enumerate(rows))[start:end_index]
+
+    _, pq0_column = min(header_rows, key=lambda entry: abs(entry[0] - title_index))
+    if len(titles) > 1:
+        census.notes.append(
+            f"{len(titles)} 'Average Rates Earned' sections on the sheet (rows "
+            f"{[t + 1 for t in titles]}); reading section {spec.line_items_section} "
+            f"(line_items_section)"
+        )
     census.notes.append(
         f"Average Rates Earned section: sheet rows {start + 1}..{end_index}; "
-        f"PQ0 column {column_letter(pq0_column)}"
+        f"PQ0 column {column_letter(pq0_column)} (header nearest the section, of "
+        f"{len(header_rows)} PQ header row(s))"
     )
 
     rates: dict[str, float] = {}

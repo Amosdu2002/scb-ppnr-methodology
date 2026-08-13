@@ -129,7 +129,11 @@ def _reconciliation_note(diagnostics: RetailDiagnostics, what: str,
 _MORTGAGE_BASE_BY_PRODUCT = MappingProxyType({
     "first_lien": "mortgage_rate",
     "home_equity": "mortgage_rate",     # PID-LOAN-33: the p. 185 exception covers home equity
-    "heloc": "prime_rate",              # stated directly (PDF p. 181)
+    "heloc": "mortgage_rate",           # PID-LOAN-33 as amended (round 1, user-stated): the
+                                        # workbook prices HELOC on the MORTGAGE rate too, with
+                                        # the query ARM floor — a RECORDED DIVERGENCE from the
+                                        # Fed's base-rate register, which puts HELOC on Prime
+                                        # (PDF p. 181); the engine follows the workbook
 })
 
 

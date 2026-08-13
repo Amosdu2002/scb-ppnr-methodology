@@ -188,6 +188,10 @@ def _write_oc(workbook):
 
 def _write_line_items(workbook):
     sheet = workbook.create_sheet("Peer results")
+    # decoy PQ header at DIFFERENT columns — the anchoring must ignore it in
+    # favor of the header nearest the rates section
+    for quarter in range(10):
+        sheet.cell(row=1, column=8 + quarter, value=f"PQ{quarter}")
     for quarter in range(10):
         sheet.cell(row=3, column=4 + quarter, value=f"PQ{quarter}")
     sheet.cell(row=4, column=2, value="Average Asset Balances ($Millions)")
@@ -207,6 +211,15 @@ def _write_line_items(workbook):
     sheet.cell(row=16, column=2, value="Total Interest Income")
     sheet.cell(row=18, column=2, value="Credit Cards")         # decoy: GII section, after the end
     sheet.cell(row=18, column=4, value=9.99)
+    # a SECOND stacked section (the MORT stacking precedent) with its own header
+    # and different values — read only under line_items_section = 2
+    for quarter in range(10):
+        sheet.cell(row=20, column=4 + quarter, value=f"PQ{quarter}")
+    sheet.cell(row=21, column=2, value="Average Rates Earned (%)")
+    for offset, (label, _) in enumerate(rates, start=22):
+        sheet.cell(row=offset, column=2, value=label)
+        sheet.cell(row=offset, column=4, value=0.05)
+    sheet.cell(row=30, column=2, value="Total Interest Income")
 
 
 def _write_mev(workbook):
@@ -351,13 +364,16 @@ def test_mortgage_engine_hand_golden(spec, m1):
     assert variable.rate_path[1] == pytest.approx(0.035)
     assert variable.floor_binds == QUARTERS
     assert variable.income_path[9] == pytest.approx(400 * 0.035 / 4)
-    # HELOC runs on PRIME: variable spread = 0.077 - 0.08 = -0.003;
-    # PQ1 = 0.047 (no bind), PQ2..9 = 0.027 -> floored at 0.04
+    # HELOC runs on the MORTGAGE rate too (PID-LOAN-33 as amended, round 1 —
+    # a recorded divergence from the Fed's HELOC-on-Prime register entry):
+    # variable spread = 0.077 - 0.06 = 0.017; path = 0.04 + 0.017 = 0.057 every
+    # quarter; the 0.04 floor never binds
     heloc = by_name["heloc/HFI"]
     heloc_variable = next(s for s in heloc.streams if s.name == "variable")
-    assert heloc_variable.rate_path[1] == pytest.approx(0.047)
-    assert heloc_variable.rate_path[2] == pytest.approx(0.04)
-    assert heloc_variable.floor_binds == tuple(range(2, 10))
+    assert heloc_variable.spread == pytest.approx(0.017)
+    assert heloc_variable.rate_path[1] == pytest.approx(0.057)
+    assert heloc_variable.rate_path[9] == pytest.approx(0.057)
+    assert heloc_variable.floor_binds == ()
     # the block total applies the Mortgage scalar 1.014 (PID-LOAN-32)
     totals = fl.total_path(QUARTERS)
     unscaled = fl.unscaled_path(QUARTERS)
@@ -441,6 +457,14 @@ def test_oc_products_and_line_rates(spec):
     assert rates["credit_cards"] == pytest.approx(0.14)
     assert rates["non_purpose"] == pytest.approx(0.06)
     assert len(rates) == 7
+
+
+def test_line_items_section_selection(spec):
+    from dataclasses import replace
+    rates, census = load_line_item_rates(replace(spec, line_items_section=2))
+    assert rates["credit_cards"] == pytest.approx(0.05)
+    assert all(v == pytest.approx(0.05) for v in rates.values())
+    assert any("reading section 2" in note for note in census.notes)
 
 
 def test_other_consumer_engine_hand_golden(spec, m1):

@@ -422,3 +422,6 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # (name references an institution — keep it
 #                                           # HERE, config-local; PQ0 rates drive the
 #                                           # other-consumer jump-offs, PID-LOAN-30)
+# line_items_section = 1                    # which "Average Rates Earned" occurrence
+#                                           # (1-based) when the sheet stacks sections;
+#                                           # the census prints every occurrence's row
