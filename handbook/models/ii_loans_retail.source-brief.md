@@ -2,7 +2,7 @@
 
 > **STATUS: Proposed for the 2026 stress test — public-comment stage, NOT adopted.**
 > Component: **Interest Income on Loans**, Section v.a(1) (PDF pp. 173–188; md sec-150–172); this brief covers the **methodology shared by the four Retail families — Mortgage, Auto Loan, Consumer and Small Business Credit Card, and Other Consumer Products** (PDF p. 177; md sec-156), plus the retail-located passages elsewhere in v.a(1): the retail base-rate entries (PDF p. 181; md sec-163), the Equation A36 retail spread branch and the retail fixed-rate prevalence note (PDF pp. 182–183; md sec-165), the non-core expert-judgment sentence (PDF p. 181; md sec-164), the Retail Portfolio limitations (PDF p. 185; md sec-170), Question A156 (PDF p. 187; md sec-172), Table A8's retail rows (PDF p. 220; md sec-209), and footnote 63's retail categories (PDF p. 184 footer; md 5354). Model type per Table A6: **Structural**.
-> Deliverable: loans workstream (asset-side Increment 3), retail slice R1 per the approved plan of 2026-08-12 — **retail-framework brief**, fifth of the sibling set {common, wholesale, corporate, CRE, **retail** + family briefs}; drafted in one slice with `ii_loans_auto.source-brief.md` (user-confirmed bundling 2026-08-12). Review state: **DRAFT — awaiting user review.**
+> Deliverable: loans workstream (asset-side Increment 3), retail slice R1 per the approved plan of 2026-08-12 — **retail-framework brief**, fifth of the sibling set {common, wholesale, corporate, CRE, **retail** + family briefs}; drafted in one slice with `ii_loans_auto.source-brief.md` (user-confirmed bundling 2026-08-12). *(Amended same day: the user directed the mortgage, card, and other-consumer briefs be drafted immediately as well — all four family briefs now exist, drafted 2026-08-12, one combined review gate; SQ-25 and OQ-043 were filed with the card brief, and the user-supplied input contracts are PID-LOAN-26/27/28. Amendment recorded, not silent.)* Review state: **DRAFT — awaiting user review.**
 > Scope rule: this brief carries only methodology the source states **for retail as a whole** or for more than one retail family; family-specific rules are identified, cited, and **deferred** to the four family briefs (§3 register — the placement authority for the retail sibling set). Wholesale content appears solely where the source draws an explicit boundary; nothing wholesale is analyzed. Equation-ownership rule (D-010(b)): **this brief transcribes no equations** — all of Equations A32–A38 live verbatim in `ii_loans_common.source-brief.md` §7.
 > Integrity flags relevant here: SQ-20 (A33 where-list), SQ-18/OQ-033 (fixed-rate subscripts); **filed with this brief: SQ-23** (p. 182 names Prime as *the* retail base rate, omitting the mortgage exception) and **SQ-24** ("non-core retails products", p. 185). Related OQs: OQ-001, OQ-002, OQ-010, OQ-011, OQ-012, OQ-033 (evidence strengthened with this brief); **filed with this brief: OQ-040** (mortgage-family base-rate boundary) and **OQ-041** (other-consumer engine assignment); OQ-042 is filed with the auto brief.
 > Verification: **PDF pp. 177–180 read as page images 2026-08-12** (retail scoping + this drafting session — census, all four family subsections, and the sec-161 boundary confirmed; md conversion faithful, no discrepancies) and **p. 185 re-read as a page image at high zoom 2026-08-12** (the Retail Portfolio limitations — this brief's load-bearing base-rate sentence confirmed verbatim; SQ-24 found); pp. 173–188 had a full image pass 2026-07-30. Citation format: (PDF p. N; md sec-M).
@@ -24,7 +24,7 @@ Ownership rule for the sibling set (D-010, extended to retail at the approved 20
 | Common | Eqs A32–A38 verbatim; balance construction; segmentation principle; base-rate register (transcription); spread definition; floors rule; scalar mechanism and Table A8 values; assumptions (1)–(7); question census; hedge exclusion | `ii_loans_common.source-brief.md` |
 | Wholesale | Corporate∩CRE shared framework (3M Treasury; Eq A37 t−a; H.1 facility basis; wholesale limitations) | `ii_loans_wholesale.source-brief.md` |
 | **Retail framework (this brief)** | The four-section census and retail segmentation drivers; the retail data-basis statement; the retail base-rate application (Prime-except-mortgages); the Eq A36 retail-branch application; the retail fixed-rate prevalence note; the Retail Portfolio limitations; Table A8 retail-row census; the retail-boundary register (§3) | this file |
-| Family briefs | Per-family census, grids, data grain, spread mechanics, family-specific rules and elicitation items | `ii_loans_auto` (this slice), `ii_loans_mortgage`, `ii_loans_card`, `ii_loans_other_consumer` (deferred to their slices) |
+| Family briefs | Per-family census, grids, data grain, spread mechanics, family-specific rules and elicitation items | `ii_loans_auto`, `ii_loans_mortgage`, `ii_loans_card`, `ii_loans_other_consumer` — all drafted 2026-08-12 (same-day amendment; one combined gate) |
 
 **No new model is proposed anywhere in this brief.** The model documented is the Federal Reserve's proposed structural model under Equations A32–A38, unchanged.
 
@@ -78,12 +78,12 @@ Placement rule (the common brief §3 discipline, applied to the retail hierarchy
 | 1 | Four-section census (mortgage incl. HEL/HELOC; auto; consumer card; other non-core) | PDF p. 177; md sec-156 | FRAMEWORK | this brief §1, §4 |
 | 2 | Segmentation drivers: rate structure, product type, credit risk | PDF p. 177; md sec-156 | FRAMEWORK | §4 |
 | 3 | Data basis: FR Y-14M + FR Y-14Q; loan-level **and** segment-level attributes | PDF p. 177; md sec-156 | FRAMEWORK | §4.3 |
-| 4 | Non-core: data limitations prevent further segmentation | PDF p. 177; md sec-156 | OTHER-CONSUMER (recorded here for the census) | other-consumer brief (deferred); §4 |
-| 5 | Mortgage segmentation (HFI/FVO-HFS × FRM/ARM; rejected term/FICO splits; Y-14M weighted rates) | PDF pp. 177–178; md sec-157 | MORTGAGE | mortgage brief (deferred) |
+| 4 | Non-core: data limitations prevent further segmentation | PDF p. 177; md sec-156 | OTHER-CONSUMER (recorded here for the census) | other-consumer brief (drafted 2026-08-12); §4 |
+| 5 | Mortgage segmentation (HFI/FVO-HFS × FRM/ARM; rejected term/FICO splits; Y-14M weighted rates) | PDF pp. 177–178; md sec-157 | MORTGAGE | `ii_loans_mortgage.source-brief.md` (drafted 2026-08-12) |
 | 6 | Auto rules (A.2 segment level; all fixed; HFS→HFI; new/used; Prime spread) | PDF p. 178; md sec-158 | AUTO | `ii_loans_auto.source-brief.md` (this slice) |
-| 7 | Card rules (bank/charge cards; all variable; revolver classification; reported rate and spread; SME cards separate-similar) | PDF pp. 178–179; md sec-159 | CARD | card brief (deferred); OQ-012 |
-| 8 | Other-consumer rules (no segmentation; G.2-line jump-off rates; spread vs Prime) | PDF pp. 179–180; md sec-160 | OTHER-CONSUMER | other-consumer brief (deferred); OQ-011, OQ-041 |
-| 9 | Expert judgment splits the non-core portfolio into variable- and fixed-rate products | PDF p. 181; md sec-164 | OTHER-CONSUMER (framework tension note §7.3) | other-consumer brief (deferred); OQ-041 |
+| 7 | Card rules (bank/charge cards; all variable; revolver classification; reported rate and spread; SME cards separate-similar) | PDF pp. 178–179; md sec-159 | CARD | `ii_loans_card.source-brief.md` (drafted 2026-08-12); OQ-012 |
+| 8 | Other-consumer rules (no segmentation; G.2-line jump-off rates; spread vs Prime) | PDF pp. 179–180; md sec-160 | OTHER-CONSUMER | `ii_loans_other_consumer.source-brief.md` (drafted 2026-08-12); OQ-011, OQ-041 |
+| 9 | Expert judgment splits the non-core portfolio into variable- and fixed-rate products | PDF p. 181; md sec-164 | OTHER-CONSUMER (framework tension note §7.3) | other-consumer brief (drafted 2026-08-12); OQ-041 |
 | 10 | Retail base-rate entries: Prime (retail variable incl. cards, HELOC); mortgage rate (ARM) | PDF p. 181; md sec-163 | FRAMEWORK application (common §7.4 owns the register transcription) | §5 |
 | 11 | Eq A36 retail fixed spread from new originations | PDF pp. 182–183; md sec-165 | FRAMEWORK application (common §7.6 owns the transcription) | §7 |
 | 12 | "The base rate applied is the same as the base rate for floating: the Prime Rate for retail…" | PDF p. 182; md sec-165 | FRAMEWORK — **SQ-23** (abbreviates away the mortgage exception) | §5.2 |
@@ -91,7 +91,7 @@ Placement rule (the common brief §3 discipline, applied to the retail hierarchy
 | 14 | Retail fixed-rate prevalence: "fixed-rate mortgage and home loans, auto loans, and most non-core loans" | PDF p. 183; md sec-165 | FRAMEWORK (retail half of common §3 row 30) | §7.2 |
 | 15 | Retail Portfolio limitations ¶1: Prime-except-mortgages, constant spread by product/segment/firm | PDF p. 185; md sec-170 | FRAMEWORK | §12; §5 |
 | 16 | Retail Portfolio limitations ¶2: no rate data for most non-core; auto segment-level accuracy | PDF p. 185; md sec-170 | FRAMEWORK (owner); family pointers | §12; auto/other-consumer briefs |
-| 17 | Question A156 (revolver classification alternatives) | PDF p. 187; md sec-172 | CARD | card brief (deferred); §11 |
+| 17 | Question A156 (revolver classification alternatives) | PDF p. 187; md sec-172 | CARD | card brief (drafted 2026-08-12); §11 |
 | 18 | Table A8 retail rows (Auto 0.865; Credit Card 0.969; Mortgage 1.014; Noncore 1.072) + footnote 63 retail categories | PDF pp. 184, 220; md 5354, sec-209 | FRAMEWORK census; per-row application per family | §10 |
 | 19 | Revolver-draw limitation (no draw growth) — **wholesale-located**; revolving products also exist in retail | PDF p. 186; md sec-171 | Cross-reference only (wholesale §12 item 6 placement note) | §9 row 6 |
 | 20 | wt from default/prepayment/maturity rates (credit-loss models) — retail leg | PDF pp. 174, 183; md sec-151, sec-165 | COMMON machinery; retail delivery **OQ-001 OPEN** | §7.4 |
@@ -107,10 +107,10 @@ Coding-friendly names are this project's, not the Fed's. Grid and rate-type summ
 
 | # | Fed section name | Coding-friendly name | Stated grid | Stated rate type | Data grain (stated) | Detail owner |
 |---|---|---|---|---|---|---|
-| 1 | Mortgage (incl. first lien, home equity loans, HELOC) | `ii_loans_mortgage` | HFI vs FVO/HFS, then FRM vs ARM | both | FR Y-14M loan-level | mortgage brief (deferred) |
+| 1 | Mortgage (incl. first lien, home equity loans, HELOC) | `ii_loans_mortgage` | HFI vs FVO/HFS, then FRM vs ARM | both | FR Y-14M loan-level | mortgage brief (drafted 2026-08-12) |
 | 2 | Auto loan | `ii_loans_auto` | new vs used vehicle; HFS treated as HFI | **all fixed** (Board assumption) | FR Y-14Q Schedule A.2 **segment-level** | auto brief (this slice) |
-| 3 | Consumer credit card (+ small business cards, separate-similar) | `ii_loans_card` | consumer bank vs charge cards; SME cards separately | **all variable** (Board assumption) | FR Y-14M (segment-level stated for SME cards) | card brief (deferred) |
-| 4 | Other non-core credit products | `ii_loans_other_consumer` | **none** ("no segmentation") | unresolved — OQ-041 | no rate data in the retail schedule; G.2-line jump-off | other-consumer brief (deferred) |
+| 3 | Consumer credit card (+ small business cards, separate-similar) | `ii_loans_card` | consumer bank vs charge cards; SME cards separately | **all variable** (Board assumption) | FR Y-14M (segment-level stated for SME cards) | card brief (drafted 2026-08-12) |
+| 4 | Other non-core credit products | `ii_loans_other_consumer` | **none** ("no segmentation") | unresolved — OQ-041 | no rate data in the retail schedule; G.2-line jump-off | other-consumer brief (drafted 2026-08-12) |
 
 ### 4.2 Segmentation principles
 

@@ -20,12 +20,12 @@ Labels [FACT] / [PID] / [INT] / [CODE] / [OQ] / [ALT] per `ii_loans_common.sourc
 | # | Elicitation item | Blocks | Framework/OQ hook |
 |---|---|---|---|
 | 1 | The auto input sheet: name, header list, grain (expected segment-level per the A.2 basis), the new/used identification, balance and rate columns | launch-point construction | §5 |
-| 2 | The Eq A32 multiplicand for auto: M.1 Balance rows/roles (per side if applicable) or another balance source | balance wiring | §5 row 6 |
+| 2 | The Eq A32 multiplicand for auto: M.1 Balance rows/roles (per side if applicable) or another balance source — *M.1 context received same day [PID-LOAN-26]: dom role "Retail - Auto" on the Auto loans row, flagged in the "Auto (dom)" family column; international side → "Retail - noncore"; flag-sum construction + auto-lease-row membership still TO CONFIRM* | balance wiring | §5 row 6 |
 | 3 | The workbook's **wt construction** for auto (runoff basis: maturity? amortization? prepayment?) | the A38 blend | **OQ-001 retail leg** (§8) |
 | 4 | The workbook's **new-origination rate source** for the Eq A36 spread (new-origination cohort rate vs all-loan segment rate) | spread construction | **OQ-042** (§7) |
 | 5 | Whether the auto sheet carries **floors**, and their collapse rule if per-segment values differ | floor clamp | **OQ-002 retail leg** (§9) |
 | 6 | Scalar-row confirmation for auto blocks (candidate "Auto" 0.865) | Total construction | **OQ-010 retail leg** (§11) |
-| 7 | Materiality: HFS auto balances at the firm (the reclass in §6.2 is then live or vacuous) | grid collapse | §6.2 |
+| 7 | Materiality: HFS auto balances at the firm (the reclass in §6.2 is then live or vacuous) — *M.1 view suggests the answer; confirm at the gate* | grid collapse | §6.2 |
 
 ---
 
