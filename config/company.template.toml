@@ -425,3 +425,13 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 # line_items_section = 1                    # which "Average Rates Earned" occurrence
 #                                           # (1-based) when the sheet stacks sections;
 #                                           # the census prints every occurrence's row
+# line_items_pq_group = 1                   # which PQ0..PQ9 column group of the header
+#                                           # row (1-based, left to right) — the header
+#                                           # repeats the labels across side-by-side
+#                                           # blocks; the census prints every PQ0 column
+# heloc_spread_anchor = "prime_pq9"         # what the HELOC spreads subtract:
+#                                           # "mortgage_launch" (default) | "prime_launch" |
+#                                           # "prime_pq9" — the terminal Prime, which
+#                                           # reproduces the reference HELOC exactly
+#                                           # (round-2 arithmetic identification; confirm
+#                                           # against the workbook's HELOC spread cell)

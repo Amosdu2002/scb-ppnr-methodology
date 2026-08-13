@@ -53,7 +53,12 @@ WEIGHTED_AVERAGE_RATE; new-origination spread = window rate − base(PQ0), windo
 with "x" in the active window takes its **own current rate** as the new-origination rate
 (PID-LOAN-33 working assumption — hardcoded query lineage, no formula to audit; censused per
 segment). Variable leg: Eq A33 at spread = WAR − base(PQ0), floored at WEIGHTED_ARM_FLOOR — for HELOC:
-max(mortgage(t) + spread, query floor), user-stated round 1.
+max(mortgage(t) + spread, query floor), user-stated round 1, with the spread anchored per
+`heloc_spread_anchor`: **"prime_pq9" (WAR − the terminal Prime) reproduces the reference
+HELOC 4Q/9Q exactly and the calc sheet's rising 8.6/8.3/8.4 path** (round-2 arithmetic
+identification — at a 4Q24 launch that anchor is NOT the launch Prime, so it may be a
+workbook mislink to the other launch section's Prime PQ0; reproduce first, confirm with the
+spread cell, and flag to the workbook owners if confirmed — the CRE grand-row precedent).
 Block Total = (fixed + variable) × **1.014**.
 
 **Auto (PID-LOAN-29/32).** Balances = M.1 auto row × pivot D_OS shares. Fixed leg per segment:

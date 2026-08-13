@@ -871,15 +871,15 @@ def load_line_item_rates(spec: LoansSheetSpec) -> tuple[Mapping[str, float], Ret
     # (the MORT precedent), and different sections may lay their columns out
     # differently, so the header is chosen NEAREST the rates section below,
     # never simply the first one on the sheet.
-    header_rows: list[tuple[int, int]] = []      # (row index, PQ0 column)
+    header_rows: list[tuple[int, list[int]]] = []    # (row index, PQ0 columns, left to right)
     for index, row in enumerate(rows):
-        found = {
-            str(cell).strip().upper(): column
+        labels = [
+            (column, str(cell).strip().upper())
             for column, cell in enumerate(row)
             if isinstance(cell, str) and re.fullmatch(r"PQ[0-9]", str(cell).strip())
-        }
-        if len(found) >= 10:
-            header_rows.append((index, found["PQ0"]))
+        ]
+        if len(labels) >= 10:
+            header_rows.append((index, [column for column, text in labels if text == "PQ0"]))
     if not header_rows:
         raise ValidationFailure(f"{context}: no PQ0..PQ9 header row found anywhere on the sheet")
 
@@ -903,7 +903,23 @@ def load_line_item_rates(spec: LoansSheetSpec) -> tuple[Mapping[str, float], Ret
     )
     section = list(enumerate(rows))[start:end_index]
 
-    _, pq0_column = min(header_rows, key=lambda entry: abs(entry[0] - title_index))
+    _, pq0_columns = min(header_rows, key=lambda entry: abs(entry[0] - title_index))
+    # The header row repeats PQ0..PQ9 across side-by-side column blocks; the
+    # values live under the group configured by line_items_pq_group (1-based,
+    # default the LEFTMOST — round 2 showed the last PQ0 at column EB, a
+    # far-right block with junk, while the rates sit under the first group).
+    if spec.line_items_pq_group < 1 or spec.line_items_pq_group > len(pq0_columns):
+        raise ValidationFailure(
+            f"{context}: line_items_pq_group = {spec.line_items_pq_group} but the header row "
+            f"carries {len(pq0_columns)} PQ0 group(s) (columns "
+            f"{[column_letter(c) for c in pq0_columns]})"
+        )
+    pq0_column = pq0_columns[spec.line_items_pq_group - 1]
+    if len(pq0_columns) > 1:
+        census.notes.append(
+            f"PQ0 occurs at columns {[column_letter(c) for c in pq0_columns]}; using "
+            f"occurrence {spec.line_items_pq_group} (line_items_pq_group)"
+        )
     if len(titles) > 1:
         census.notes.append(
             f"{len(titles)} 'Average Rates Earned' sections on the sheet (rows "

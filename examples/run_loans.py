@@ -511,6 +511,7 @@ def _run_retail(spec: LoansSheetSpec, scenario: str, launch_point: str,
             base_paths={"mortgage_rate": mortgage_path, "prime_rate": prime_path},
             base_launch={"mortgage_rate": mortgage_launch, "prime_rate": prime_launch},
             quarters=quarters, diagnostics=diagnostics,
+            heloc_spread_anchor=spec.heloc_spread_anchor,
         ))
 
     if spec.card_query_sheet is not None:

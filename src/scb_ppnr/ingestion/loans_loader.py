@@ -197,6 +197,18 @@ class LoansSheetSpec:
     line_items_section: int = 1             # which "Average Rates Earned" occurrence to read
                                             # (1-based) — sheets in this workbook family stack
                                             # multiple launch sections (the MORT precedent)
+    line_items_pq_group: int = 1            # which PQ0..PQ9 COLUMN GROUP of the header row
+                                            # (1-based, left to right) — the header repeats the
+                                            # labels across side-by-side blocks (round 2: the
+                                            # last PQ0 sat at column EB, far from the rates)
+    heloc_spread_anchor: str = "mortgage_launch"
+                                            # what the HELOC spreads subtract from the segment
+                                            # rate: "mortgage_launch" (mortgage rate at PQ0) |
+                                            # "prime_launch" (Prime at PQ0) | "prime_pq9"
+                                            # (Prime's terminal/flat level — the value that
+                                            # reproduces the reference HELOC EXACTLY at 4Q24,
+                                            # round-2 arithmetic identification; awaiting the
+                                            # user's spread-cell confirmation)
 
 
 @dataclass

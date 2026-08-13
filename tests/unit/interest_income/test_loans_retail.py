@@ -194,6 +194,10 @@ def _write_line_items(workbook):
         sheet.cell(row=1, column=8 + quarter, value=f"PQ{quarter}")
     for quarter in range(10):
         sheet.cell(row=3, column=4 + quarter, value=f"PQ{quarter}")
+    # the SAME header row repeats the PQ group far right (the round-2 column-EB
+    # pattern); junk values live under it and must not be read by default
+    for quarter in range(10):
+        sheet.cell(row=3, column=40 + quarter, value=f"PQ{quarter}")
     sheet.cell(row=4, column=2, value="Average Asset Balances ($Millions)")
     sheet.cell(row=5, column=2, value="Credit Cards")          # decoy: balances section
     sheet.cell(row=5, column=4, value=123456.0)
@@ -208,6 +212,7 @@ def _write_line_items(workbook):
     for offset, (label, value) in enumerate(rates, start=8):
         sheet.cell(row=offset, column=2, value=label)
         sheet.cell(row=offset, column=4, value=value)
+        sheet.cell(row=offset, column=40, value=0.001)   # junk under the far-right group
     sheet.cell(row=16, column=2, value="Total Interest Income")
     sheet.cell(row=18, column=2, value="Credit Cards")         # decoy: GII section, after the end
     sheet.cell(row=18, column=4, value=9.99)
@@ -457,6 +462,38 @@ def test_oc_products_and_line_rates(spec):
     assert rates["credit_cards"] == pytest.approx(0.14)
     assert rates["non_purpose"] == pytest.approx(0.06)
     assert len(rates) == 7
+
+
+def test_line_items_pq_group_selection(spec):
+    from dataclasses import replace
+    rates, census = load_line_item_rates(spec)
+    assert rates["credit_cards"] == pytest.approx(0.14)      # leftmost group by default
+    assert any("PQ0 occurs at columns" in note for note in census.notes)
+    junk, _ = load_line_item_rates(replace(spec, line_items_pq_group=2))
+    assert junk["credit_cards"] == pytest.approx(0.001)
+    with pytest.raises(ValidationFailure):
+        load_line_item_rates(replace(spec, line_items_pq_group=3))
+
+
+def test_heloc_spread_anchor(spec, m1):
+    query = load_mortgage_query(spec)
+    blocks = build_mortgage(
+        query, m1,
+        base_paths={"mortgage_rate": {q: MORTGAGE[q] for q in QUARTERS},
+                    "prime_rate": {q: PRIME[q] for q in QUARTERS}},
+        base_launch={"mortgage_rate": 0.06, "prime_rate": 0.08},
+        quarters=QUARTERS, diagnostics=RetailDiagnostics(),
+        heloc_spread_anchor="prime_pq9",
+    )
+    heloc = {b.name: b for b in blocks}["heloc/HFI"]
+    variable = next(s for s in heloc.streams if s.name == "variable")
+    # anchor = Prime PQ9 = 0.03: spread = 0.077 - 0.03 = 0.047; the projection
+    # base stays the MORTGAGE path (0.04 flat) -> 0.087 every quarter
+    assert variable.spread == pytest.approx(0.047)
+    assert variable.rate_path[1] == pytest.approx(0.087)
+    # the non-HELOC blocks are untouched by the anchor
+    first_lien = {b.name: b for b in blocks}["first_lien/HFI"]
+    assert next(s for s in first_lien.streams if s.name == "variable").spread == pytest.approx(-0.015)
 
 
 def test_line_items_section_selection(spec):

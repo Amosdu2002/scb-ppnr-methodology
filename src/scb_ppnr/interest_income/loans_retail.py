@@ -8,8 +8,10 @@ projects them on the shared Equation A33 / A38 machinery from
                 a fixed leg (Eq A38 blend; new-origination spread from the
                 query's window column, own-rate fallback) and a variable leg
                 (Eq A33 floored at the query's ARM floor). Base = the MORTGAGE
-                rate for first-lien and home-equity blocks, PRIME for HELOC
-                (PID-LOAN-33; OQ-040 resolved for project implementation).
+                rate for ALL blocks, HELOC included (PID-LOAN-33 as amended —
+                a recorded divergence from the Fed's HELOC-on-Prime register);
+                the HELOC spread may anchor at Prime's terminal level
+                (heloc_spread_anchor, round-2 arithmetic identification).
     Auto        all-fixed (Eq A33 never runs): spread = the pivot's
                 new-origination rate minus Prime PQ0; the re-origination
                 weights are SUPPLIED (PID-LOAN-29 as amended).
@@ -144,6 +146,7 @@ def build_mortgage(
     base_launch: Mapping[str, float],
     quarters: Sequence[int],
     diagnostics: RetailDiagnostics,
+    heloc_spread_anchor: str = "mortgage_launch",
 ) -> tuple[RetailBlock, ...]:
     """Six blocks: {first lien, home equity, HELOC} x {HFI, FVO/HFS}.
 
@@ -163,6 +166,28 @@ def build_mortgage(
         base_name = _MORTGAGE_BASE_BY_PRODUCT[product]
         base_path = base_paths[base_name]
         launch_base = base_launch[base_name]
+        # HELOC spreads may anchor away from the projection base (round-2
+        # arithmetic identification: WAR minus Prime's terminal level, not the
+        # launch mortgage rate, reproduces the reference HELOC exactly; the
+        # projection path stays the mortgage rate either way).
+        spread_anchor = launch_base
+        if product == "heloc":
+            if heloc_spread_anchor == "mortgage_launch":
+                spread_anchor = launch_base
+            elif heloc_spread_anchor == "prime_launch":
+                spread_anchor = base_launch["prime_rate"]
+            elif heloc_spread_anchor == "prime_pq9":
+                spread_anchor = base_paths["prime_rate"][max(quarters)]
+            else:
+                raise ValidationFailure(
+                    f"heloc_spread_anchor must be 'mortgage_launch', 'prime_launch', or "
+                    f"'prime_pq9', got {heloc_spread_anchor!r}"
+                )
+            if heloc_spread_anchor != "mortgage_launch":
+                diagnostics.notes.append(
+                    f"heloc/{side}: spreads anchored at {heloc_spread_anchor} = "
+                    f"{spread_anchor:.4%} (projection base stays the mortgage rate)"
+                )
         segments = {
             rate_type: query.segments.get((product, side, rate_type))
             for rate_type in ("fixed", "variable")
@@ -205,13 +230,13 @@ def build_mortgage(
                     )
                 if segment.new_origination_fallback:
                     diagnostics.fallbacks += 1
-                spread = new_orig - launch_base
+                spread = new_orig - spread_anchor
                 check_rate(f"mortgage {product}/{side} fixed spread", spread)
                 rates, _, binds = project_fixed_rate(
                     segment.rate, spread, base_path, weights, None, quarters
                 )
             else:
-                spread = segment.rate - launch_base
+                spread = segment.rate - spread_anchor
                 check_rate(f"mortgage {product}/{side} variable spread", spread)
                 rates, _, binds = project_variable_rate(
                     spread, base_path, segment.arm_floor, quarters
