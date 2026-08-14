@@ -65,7 +65,18 @@ Everything a run produces lands in `--out` (default `out/<timestamp>/`,
 gitignored — these files carry firm amounts on company runs):
 `loans_report.txt`, `loans_paths.csv`, `securities_report.txt`,
 `securities_paths.csv`, `expense_report.txt`, `nii_report.txt`,
+`results.xlsx` + `results.csv` (the consolidated results — see below),
 `effective_config.txt`, `run_summary.txt`, and `<stage>.log` under `--quiet`.
+
+`results.xlsx` (written by the nii stage via `run_nii --consolidated-out`,
+built in side-neutral `src/scb_ppnr/consolidated.py`) consolidates the run:
+a Summary sheet (headline income/expense/NII vs the FRB targets, both alpha_b
+calibrations, the monitor verdict, per-component nine-quarter cumulatives) and
+full quarterly-path sheets for Income and Expense. `results.csv` is its flat
+stdlib-only twin — every quarterly-path row at the `--paths-out` %.6f
+convention — for machine reads and run-to-run diffs. The Expense sheet is
+omitted under `--skip-expense`; a missing openpyxl degrades to the CSV with a
+printed note.
 
 `effective_config.txt` (also printed by `--check`) is a
 `key = value  # source-file` dump built on `compose_config`'s provenance — the

@@ -124,6 +124,8 @@ python3 run.py --config … --only nii --out out/<earlier-run>  # reuse earlier 
 | `securities_report.txt` | Per-model income with coupon, accretion, and reinvestment legs; bucketed warning summary. |
 | `expense_report.txt` | The five expense paths, the FRB target row, and the Other-Borrowing α calibration block. |
 | `nii_report.txt` | Component-paths table, the round-0 implied-trading diagnostic, the α calibration and family reconciliation, and the combined-NII monitor verdict. |
+| `results.xlsx` | Consolidated results workbook. Summary sheet: headline income/expense/NII paths against the FRB targets, both α_b calibrations, the monitor verdict, and per-component nine-quarter cumulatives. Income and Expense sheets: full quarterly paths per component. |
+| `results.csv` | Flat twin of the workbook's quarterly-path rows (`sheet, series, PQ1…PQ9, total_9q`) for machine reads and run-to-run diffs. |
 | `*_paths.csv` | Component hand-off files (`component, PQ1…PQ9`, USD millions); also usable with the per-stage runners directly. |
 
 **Operational notes.** (1) `--scenario` applies to the securities, expense, and

@@ -58,7 +58,8 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 
 `run.py` chains the validated family runners in order — loans → securities →
 expense → nii — into one artifact directory (`out/<timestamp>/`, gitignored:
-reports, component CSVs, `effective_config.txt`, `run_summary.txt`):
+reports, component CSVs, the consolidated `results.xlsx` workbook with its
+`results.csv` twin, `effective_config.txt`, `run_summary.txt`):
 
 ```bash
 python3 run.py --config config/runs/company.toml      # company run, all stages
