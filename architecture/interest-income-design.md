@@ -41,8 +41,12 @@ src/scb_ppnr/interest_income/
                          confirmation (agency AC recursion; floater straight-line accretion;
                          other-sec floating book-yield shift; no paydown reinvestment)
   ii_ust.py / ii_mbs.py / ii_other_sec.py     Increment 2 (landed) — thin models over the engine
-  loans/                 Increment 3 — subpackage: schemas, rate_machinery (A33–A38),
-                         segmentation (six portfolio definitions as data), ii_loans
+  loans_schemas.py / loans_launchpoint.py / loans_projection.py / loans_retail.py
+                         Increment 3 (landed) — flat modules, not the originally
+                         sketched loans/ subpackage: the A33–A38 machinery and
+                         segmentation live inside loans_launchpoint/loans_projection
+                         (wholesale + CRE) and loans_retail (the four retail
+                         families on the shared machinery)
   nii_trading_al.py      Increment 4 (LANDED 2026-08-13) — mirrors ie_other_borrowing's
                          factoring (pre-α path → calibrate → project); calibration policy
                          isolated in calibrate_alpha_b. Gate decided same day: cumulative
@@ -101,10 +105,11 @@ Planned: Increment 2 — closed subcomponent bucket sets per securities model vi
 the existing `subcomponent` mechanism; vendor-prepayment and hedge terms as
 declared quarterly input paths; a reserved third `[firm_data.positions]` sheet if
 security-level granularity is ever chosen (never a change to the two existing
-sheets). Increment 3 — compound segment ids and the one real loader surgery
-(subcomponents on quarterly rows for the time-varying `wt` paths), preceded by a
-message-pinning test commit and a pure-move split of parse machinery into
-`firm_sheets.py`. Increment 4 (LANDED 2026-08-13) — the `nii_trading_al` spot
+sheets). Increment 3 (landed) — took a different shape than planned: the loans
+and retail inputs arrive through their own workbook loaders (`loans_loader.py`,
+`retail_loader.py`) configured under `[firm_data.loans]`, not through the
+spot/quarterly pair, so the anticipated `firm_sheets.py` pure-move split was
+never needed. Increment 4 (LANDED 2026-08-13) — the `nii_trading_al` spot
 pair (both rows or neither, PID-TRD-2) and the FRB income/NII paths picked up by
 `load_income_inputs` from the quarterly sheet when declared.
 
