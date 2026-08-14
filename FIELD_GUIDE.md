@@ -168,7 +168,7 @@ procedure:
   is the Federal Reserve's proposal; retain that framing in derived material.
 - **Decisions carry IDs.** Project decisions (D-xxx), component implementation
   decisions (PID-xxx), and open questions (OQ-xxx) are registered in
-  `handbook/open-questions.md`, append-only. No PID/D item is attributable to
+  `docs/handbook/open-questions.md`, append-only. No PID/D item is attributable to
   the Federal Reserve. Methodology changes receive an ID before implementation.
 - **Refuse, never guess; log, never clamp.** Missing or unconfirmed inputs stop
   the run by name. Suspicious but legal inputs (wt > 1, floor outliers, NaN
@@ -184,12 +184,12 @@ procedure:
 | Document | Purpose |
 |---|---|
 | `README.md` | Repository overview and quickstart. |
-| `architecture/run-and-config.md` | Runner hierarchy, stage semantics, and the configuration composition design — Sections 1 and 4 of this guide, in full. |
-| `architecture/interest-expense-design.md` / `interest-income-design.md` | Package design per side: validation tiers, execution order, testing discipline. |
-| `handbook/` chapters and cross-cutting conventions | The methodology itself, per model, with source-page citations. |
-| `specifications/**/*.spec.md` | Implementation contracts and convergence records: what matched the reference, to what ratio, under which decisions. |
-| `inventory/asset-side-model-matrix.md` / `liability-side-model-matrix.md` | Status ledger per model: methodology at a glance, gates, outstanding items. |
-| `handbook/open-questions.md` | The complete D- / PID- / OQ- registry. |
+| `docs/architecture/run-and-config.md` | Runner hierarchy, stage semantics, and the configuration composition design — Sections 1 and 4 of this guide, in full. |
+| `docs/architecture/interest-expense-design.md` / `interest-income-design.md` | Package design per side: validation tiers, execution order, testing discipline. |
+| `docs/handbook/` chapters and cross-cutting conventions | The methodology itself, per model, with source-page citations. |
+| `docs/specifications/**/*.spec.md` | Implementation contracts and convergence records: what matched the reference, to what ratio, under which decisions. |
+| `docs/inventory/asset-side-model-matrix.md` / `liability-side-model-matrix.md` | Status ledger per model: methodology at a glance, gates, outstanding items. |
+| `docs/handbook/open-questions.md` | The complete D- / PID- / OQ- registry. |
 
 ---
 

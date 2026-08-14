@@ -1,7 +1,7 @@
 """Securities workbook loader (PID-SEC-6): the native multi-sheet workbook →
 canonical `SecurityPosition`s grouped by model.
 
-Contract: `specifications/interest-income/securities/securities-input-contract.md`.
+Contract: `docs/specifications/interest-income/securities/securities-input-contract.md`.
 Positions sheet is located by its MDRM header row (the row containing CQSCP084);
 enrichment tabs are merged by CUSIP/ISIN; the prepayment pivot (PID-MBS-1) is
 located by its "Row Labels" header with month-offset columns 0,3,…,27 ≙ PQ0..PQ9

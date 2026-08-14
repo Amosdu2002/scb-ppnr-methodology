@@ -1,7 +1,7 @@
 """Canonical security-level contracts for the securities family (PID-SEC-1/5/6).
 
 One `SecurityPosition` per held security, produced by the ingestion layer from
-the native workbook (`specifications/interest-income/securities/
+the native workbook (`docs/specifications/interest-income/securities/
 securities-input-contract.md`). Money is canonical USD millions (D-006 — the
 loader converts the workbook's declared whole-dollar scale once); rates are
 annualized decimals. Category → model assignment is the user-confirmed

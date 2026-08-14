@@ -3,7 +3,7 @@ implementation. Increment 1: the two Family A calculators; Increment 2: the
 securities family (shared three-term engine); Increment 3: the loans layers;
 Increment 4: trading NII (mirroring the ie_other_borrowing calibration
 factoring, PID-TRD-1/2/3) plus the income orchestrator and reporting.
-See architecture/interest-income-design.md."""
+See docs/architecture/interest-income-design.md."""
 
 from ..core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from .common import build_income_result, quarterly_income

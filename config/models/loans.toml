@@ -17,7 +17,7 @@
 # (PID-LOAN-6); the variable-type map 0/1/2/3/4/[NULL] is pinned by
 # PID-LOAN-2/9 and an unmapped code refuses.
 #
-# Computation: specifications/interest-income/loans/ii_loans_corporate.spec.md
+# Computation: docs/specifications/interest-income/loans/ii_loans_corporate.spec.md
 # The Federal Reserve model is PROPOSED for the 2026 stress test, NOT adopted.
 
 [firm_data.loans]

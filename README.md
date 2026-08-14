@@ -15,11 +15,11 @@ data, workbooks, or firm-specific details.
 | Path | Content |
 |---|---|
 | `sources/fed/` | Authoritative PDF + searchable Markdown conversion (never edited) |
-| `handbook/` | Model chapters, cross-cutting conventions, open-question/decision log |
-| `specifications/` | Machine-readable YAML spec per model (implementation contracts) |
-| `inventory/` | Model inventory, source map, integrity review, per-side model matrices |
-| `reviews/` | Independent source-grounding review reports |
-| `architecture/` | Design notes: expense side, income side, `run-and-config.md` (runners + config) |
+| `docs/handbook/` | Model chapters, cross-cutting conventions, open-question/decision log |
+| `docs/specifications/` | Machine-readable YAML spec per model (implementation contracts) |
+| `docs/inventory/` | Model inventory, source map, integrity review, per-side model matrices |
+| `docs/reviews/` | Independent source-grounding review reports |
+| `docs/architecture/` | Design notes: expense side, income side, `run-and-config.md` (runners + config) |
 | `config/` | Bindings template, committed methodology switches (`models/`), run manifests (`runs/`) |
 | `src/scb_ppnr/` | Reference implementation (canonical inputs; stdlib models, openpyxl for XLSX ingestion) |
 | `tests/` | Synthetic deterministic unit + integration tests |
@@ -72,7 +72,7 @@ Company setup: copy `config/company.template.toml` to `config/local/sources.toml
 manifest composes your bindings with the committed methodology switches in
 `config/models/`. The per-family runners in `examples/` remain the granular path
 (`run_loans.py --retail-only`, `diagnose_securities.py --explain`, ...); see
-`architecture/run-and-config.md`.
+`docs/architecture/run-and-config.md`.
 
 New to the suite? **[`FIELD_GUIDE.md`](FIELD_GUIDE.md)** is the onboarding
 reference: system overview, input-to-model mapping, configuration,
@@ -81,5 +81,5 @@ execution, and the reconciliation procedure.
 ## Where decisions live
 
 Project-wide decisions (D-xxx), component decisions (PID-xxx), and open questions
-(OQ-xxx) are registered in `handbook/open-questions.md`; chapters and YAML specs cite
+(OQ-xxx) are registered in `docs/handbook/open-questions.md`; chapters and YAML specs cite
 them inline. Nothing labeled PID/D is ever attributable to the Federal Reserve.

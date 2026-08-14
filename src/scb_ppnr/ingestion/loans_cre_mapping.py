@@ -22,7 +22,7 @@ are reused from `loans_mapping`. What is CRE-specific is the line-code side:
                                     never allocated balance.
 
 The Fed-side census is six portfolios and 24 stated segments (PDF pp. 176-177)
-— preserved as [FACT] in `handbook/models/ii_loans_cre.source-brief.md`; the
+— preserved as [FACT] in `docs/handbook/models/ii_loans_cre.source-brief.md`; the
 four-category realization is a recorded, data-forced divergence (PID-LOAN-19).
 The Fed names NO FR Y-14Q schedule for CRE at all ("H.2" appears nowhere in the
 document — OQ-039), so nothing in this module is Federal Reserve methodology.

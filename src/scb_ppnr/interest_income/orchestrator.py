@@ -14,7 +14,7 @@ caller's contract — enforced here for anything typed.
 
 Reconciliation is EXACT BY CONSTRUCTION under PID-TRD-1 (gate decision
 2026-08-13; supersedes the pre-gate monitor-mode note in
-architecture/interest-income-design.md): the seven-component nine-quarter
+docs/architecture/interest-income-design.md): the seven-component nine-quarter
 cumulative equals the FRB income total, and a breach raises — it indicates a
 coding error, exactly as on the expense side. Per-quarter differences remain
 diagnostics. The hedge adjustment (Section v.c) stays an external downstream

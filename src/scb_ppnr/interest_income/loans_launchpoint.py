@@ -5,8 +5,8 @@ physical binding lives in ingestion; this module takes `LoanFacility` rows and
 produces the per-segment quantities the projection consumes: pool rates,
 spreads, shares, balances, collapsed floors and re-origination weights.
 
-Every rule is a PID registered in `handbook/open-questions.md` and specified in
-`specifications/interest-income/loans/ii_loans_corporate.spec.md`. The Federal
+Every rule is a PID registered in `docs/handbook/open-questions.md` and specified in
+`docs/specifications/interest-income/loans/ii_loans_corporate.spec.md`. The Federal
 Reserve model is PROPOSED for the 2026 stress test, NOT adopted.
 
 Diagnostics are first-class rather than an afterthought: several rules here can

@@ -20,7 +20,7 @@
 #     file sets it — the composer refuses duplicates loudly, naming both files.
 #
 # Computation: src/scb_ppnr/interest_income/securities_engine.py and
-# specifications/interest-income/securities/securities-input-contract.md.
+# docs/specifications/interest-income/securities/securities-input-contract.md.
 # The Federal Reserve model is PROPOSED for the 2026 stress test, NOT adopted.
 
 [firm_data.securities]

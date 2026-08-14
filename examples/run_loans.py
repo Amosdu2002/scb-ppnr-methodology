@@ -26,9 +26,9 @@ names the H.2 sheet (`cre_h2_sheet` — PID-LOAN-18..25; the two parts use
 DIFFERENT constructions on evidence, so neither borrows the other's engine).
 
 The Federal Reserve model is PROPOSED for the 2026 stress test, NOT adopted.
-Decisions: PID-LOAN-1..25 (`handbook/open-questions.md`); computation:
-`specifications/interest-income/loans/ii_loans_corporate.spec.md` and
-`specifications/interest-income/loans/ii_loans_cre.spec.md`."""
+Decisions: PID-LOAN-1..25 (`docs/handbook/open-questions.md`); computation:
+`docs/specifications/interest-income/loans/ii_loans_corporate.spec.md` and
+`docs/specifications/interest-income/loans/ii_loans_cre.spec.md`."""
 
 from __future__ import annotations
 

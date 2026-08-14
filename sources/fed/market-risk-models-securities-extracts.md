@@ -3,7 +3,7 @@
 > **Scope: deliberately partial.** This file transcribes ONLY the passages of
 > *Supervisory Stress Test Model Documentation: Market Risk Models* (October 2025,
 > Updated January 2026; `sources/fed/market-risk-models.pdf`, SHA-256 `7e9f633b…`,
-> see `inventory/source-integrity-review.md` §11) that the PPNR interest-income
+> see `docs/inventory/source-integrity-review.md` §11) that the PPNR interest-income
 > securities models delegate to the "Securities Model Description" (PPNR footnotes
 > 64–65; Questions A164/A168/A174). The full Section A (pp. 7–77) covers the
 > Securities Model's fair-value, credit-loss, and OCI machinery, which is outside

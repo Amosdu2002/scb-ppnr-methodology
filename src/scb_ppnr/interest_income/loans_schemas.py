@@ -3,8 +3,8 @@
 The Federal Reserve model these implement is PROPOSED for the 2026 stress test
 (public-comment stage), NOT adopted. Fed methodology lives in the three loans
 source briefs; every project decision below is a PID registered in
-`handbook/open-questions.md` and specified in
-`specifications/interest-income/loans/ii_loans_corporate.spec.md`.
+`docs/handbook/open-questions.md` and specified in
+`docs/specifications/interest-income/loans/ii_loans_corporate.spec.md`.
 
 Units are canonical at this boundary: rates are annualized decimals, money is
 USD millions (D-006). Percent-vs-decimal and money scaling are resolved at

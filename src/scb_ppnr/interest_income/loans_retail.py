@@ -30,7 +30,7 @@ applies 0.948, so reference-matching runs set retail_auto_scalar = "0.948".
 
 The Federal Reserve model is PROPOSED for the 2026 stress test, NOT adopted.
 Divergences from the source are recorded in
-`specifications/interest-income/loans/ii_loans_retail.spec.md`."""
+`docs/specifications/interest-income/loans/ii_loans_retail.spec.md`."""
 
 from __future__ import annotations
 

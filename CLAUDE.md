@@ -35,7 +35,7 @@
 - Begin substantive responses with a short summary.
 - Before broad file changes, provide a plan and wait for approval.
 - Ask no more than three questions when genuinely blocked.
-- Put unresolved issues in handbook/open-questions.md.
+- Put unresolved issues in docs/handbook/open-questions.md.
 - Do not silently overwrite approved handbook content.
 - When reviewing a chapter, identify errors before proposing a rewrite.
 

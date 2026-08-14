@@ -14,7 +14,7 @@ Three engines, assigned by rate type (PID-LOAN-5):
 
 The Federal Reserve model is PROPOSED for the 2026 stress test, NOT adopted.
 Divergences from the source are recorded in
-`specifications/interest-income/loans/ii_loans_corporate.spec.md` §7."""
+`docs/specifications/interest-income/loans/ii_loans_corporate.spec.md` §7."""
 
 from __future__ import annotations
 

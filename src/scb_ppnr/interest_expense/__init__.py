@@ -1,7 +1,7 @@
 """Proposed 2026 Fed PPNR interest-expense model family — canonical-input reference
 implementation. Five models (four independent + Other Borrowing, which requires their
 outputs and the FRB total-interest-expense path for its PID-OB-5 alpha calibration),
-plus a family orchestrator. See architecture/interest-expense-design.md."""
+plus a family orchestrator. See docs/architecture/interest-expense-design.md."""
 
 from .common import quarterly_expense
 from .ie_dom_time_dep import project_dom_time_dep
