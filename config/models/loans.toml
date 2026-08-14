@@ -2,11 +2,14 @@
 #
 # Physical bindings — workbook path, sheet names, header rows, column headers,
 # unit scales, launch point, scenario name — live in the company-local config's
-# [firm_data.loans] section (see config/company.template.toml). This file
-# carries only the decision-bearing switch, so it can be reviewed in git next
-# to the PID registry that justifies it. Compose the two through a run
-# manifest (config/runs/example.toml); a key defined in both files is a hard
-# error, never a silent override.
+# [firm_data.loans] section (see config/company.template.toml), together with
+# the compare-mode toggles (results_sheet, cre_results_sheet, apply_scalar),
+# which bind to company-specific results sheets. This file carries the
+# decision-bearing switches, so they can be reviewed in git next to the PID
+# registry that justifies them. Compose the two through a run manifest
+# (config/runs/company.toml or config/runs/example.toml); a key defined in both
+# files is a hard error, never a silent override — activating a switch here
+# means deleting it from the sources file if it is set there too.
 #
 # Former candidate switches deliberately absent, because they are FIXED by
 # PIDs, not configurable: the base-rate fallback is 0 (PID-LOAN-4 amendment,
@@ -24,3 +27,67 @@ floor_collapse = "balance_weighted"   # PID-LOAN-7: CORP H.1 floors are per faci
                                       # within-segment dispersion is logged either way.
                                       # FLAGGED — awaiting confirmation of what the
                                       # workbook itself does.
+cre_orig_date_statistic = "weighted_median"   # PID-LOAN-22 as amended: the
+                                      # origination-date statistic is the
+                                      # OUTSTANDING-weighted MEDIAN — identified by
+                                      # the first compare (the reference's
+                                      # median-date cells are observed dates; the
+                                      # mean missed construction fixed by one
+                                      # quarter, 1.0447). "weighted_mean" kept for
+                                      # A/B. ACTIVATED 2026-08-14, user-confirmed:
+                                      # the validated company config sets exactly
+                                      # this value. NOTE the code's config-path
+                                      # fallback when the key is absent is
+                                      # "weighted_mean" (config.py _parse_loans) —
+                                      # pinning the median here protects runs from
+                                      # that refuted default.
+
+# The switches below are documented here (moved from the template 2026-08-14)
+# but left COMMENTED: each code default is the production/PID value, and the
+# commented value is the reference-matching alternative — activate consciously.
+
+# engine = "reference"                      # the workbook's own construction (cell
+#                                           # formulas, 2026-08-12): per LOCOM side,
+#                                           # Fixed = M.1(side) x out-share(v1) x A38
+#                                           # floored at 0; Variable = M.1(side) x
+#                                           # out-share(floating+mixed) x max(floor,
+#                                           # base + FLOATING spread), floor =
+#                                           # out-weighted incl blanks-as-zero;
+#                                           # Total = (F + V) x Table A8. Pair with
+#                                           # share_basis = "utilized" — the workbook's
+#                                           # "Launchpoint Outstanding Balance" IS the
+#                                           # sum of Utilized Exposure Global over a
+#                                           # segment's reference keys (user-clarified
+#                                           # 2026-08-12); no extra columns needed.
+#                                           # Default "pid" = the PID-registered form.
+# share_basis = "utilized"                  # weights segment shares, balances, floors and
+#                                           # the wt denominator by Utilized Exposure
+#                                           # Global — the reference workbook's basis
+#                                           # ("Launchpoint Outstanding Balance" = the sum
+#                                           # of this column per segment; also the Fed's
+#                                           # own words, "percentage of OUTSTANDING
+#                                           # balance"). Default "committed" (REFUTED
+#                                           # against the reference 2026-08-12). Rate
+#                                           # pools stay committed-weighted either way —
+#                                           # they matched the reference exactly.
+# balance_source = "h1_sum"                 # where the Corporate segment balance comes
+#                                           # from: "m1" (default — the M.1 Balance
+#                                           # sheet) | "h1_sum" (sum the H.1 exposures;
+#                                           # added with the compare loop, e22110e).
+#                                           # Not previously documented in the template.
+# mortgage_window = "quarter"               # "quarter" = jump-off-quarter originations
+#                                           # (the sheet switch's 0, production);
+#                                           # "month" = the final-month window
+#                                           # (PID-LOAN-33)
+# card_spread_mode = "reported"             # PID-LOAN-34 production assumption;
+#                                           # "reported_revolver" | "calculated" for A/B
+# retail_auto_scalar = "0.865"              # PID-LOAN-32 (user-directed): the PUBLISHED
+#                                           # Table A8 Auto row; "0.948" reproduces the
+#                                           # reference workbook's own auto panel.
+#                                           # A STRING — keep it quoted.
+# heloc_spread_anchor = "prime_pq9"         # what the HELOC spreads subtract:
+#                                           # "mortgage_launch" (default) | "prime_launch" |
+#                                           # "prime_pq9" — the terminal Prime, which
+#                                           # reproduces the reference HELOC exactly
+#                                           # (round-2 arithmetic identification; confirm
+#                                           # against the workbook's HELOC spread cell)

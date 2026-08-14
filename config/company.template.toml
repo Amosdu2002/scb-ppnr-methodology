@@ -1,14 +1,25 @@
-# Company-local ingestion config — TEMPLATE.
+# Company-local PHYSICAL BINDINGS — TEMPLATE.
 #
-# Copy to config/local/company.toml (config/local/ is gitignored), fill every
+# Copy to config/local/sources.toml (config/local/ is gitignored), fill every
 # <PLACEHOLDER> and TO_BE_CONFIRMED, and keep the filled copy out of any public
 # repository: workbook paths, sheet names, and column names are company-specific
-# implementation details and never belong in this repo.
+# implementation details and never belong in this repo. Then run through the
+# committed manifest, which composes your copy with the methodology decision
+# files in config/models/:
 #
-# Relative paths resolve against THIS FILE's directory. Loaders REFUSE to run
-# while any used setting still says TO_BE_CONFIRMED — that is deliberate: the
-# open input gates (PID-OB-4 BBB confirmations; OQ-023 FRB-total source; PID-5
-# column names) block execution instead of being guessed.
+#     python3 run.py --config config/runs/company.toml
+#
+# (Passing one single filled file directly to --config also still works —
+# composition is optional.) This file carries BINDINGS plus the load-required
+# floor_mode; the methodology switches live in config/models/loans.toml and
+# config/models/securities.toml. A key set in two composed files is a hard
+# error naming both files — so keep each switch in exactly one place.
+#
+# Relative paths resolve against the file passed to --config (the manifest's
+# directory when composing). Loaders REFUSE to run while any used setting still
+# says TO_BE_CONFIRMED — that is deliberate: the open input gates (PID-OB-4 BBB
+# confirmations; OQ-023 FRB-total source; PID-5 column names) block execution
+# instead of being guessed.
 
 [mev]
 date_column = "Date"                    # PID-5 pattern: a Date column + one column per MEV
@@ -84,174 +95,6 @@ sheet = "<SPOT_TAB_NAME>"
 path = "<PATH_TO_WORKBOOK_WITH_CANONICAL_TABS>.xlsx"
 sheet = "<QUARTERLY_TAB_NAME>"
 
-# Securities workbook (PID-SEC-6; asset-side Increment 2). The loader reads your
-# native multi-sheet workbook: the Schedule B.1-layout positions sheet (located by
-# its MDRM header row), enrichment tabs (per-tab column names below), and the
-# prepayment pivot ("Row Labels" + month offsets 0,3,...,27; PID-MBS-1).
-# floor_mode (PID-SEC-2): "zero" | "security_floor" | "none" | "security_floor_else_zero".
-# "security_floor_else_zero" is the reference-workbook rule (2026-07-24): EVERY
-# floater's projected coupon is floored at the security's coupon floor when on
-# file, else at 0.
-# TOML ORDERING: every bare key after a [table] header belongs to THAT table, so
-# EVERY scalar setting below must stay ABOVE the [firm_data.securities.*] sub-tables
-# and the [[firm_data.securities.enrichment]] blocks. A setting appended at the end
-# of the file silently becomes an override entry — the loader now catches that and
-# names the offending key, but the ordering is the thing to get right.
-[firm_data.securities]
-workbook = "<PATH_TO_SECURITIES_WORKBOOK>.xlsx"
-positions_sheet = "<POSITIONS_SHEET_NAME>"
-prepayment_sheet = "<PREPAYMENT_SHEET_NAME>"    # delete this line if no prepayment sheet
-money_scale = "dollars"                 # confirmed 2026-07-24: whole USD -> canonical millions
-coupon_scale = "percent"                # enrichment coupon/floor scale
-book_yield_scale = "percent"            # positions-sheet book-yield scale — confirm
-floor_mode = "security_floor"           # PID-SEC-2 mode switch
-# ---------------------------------------------------------------------------
-# SCALAR SETTINGS — every one of these must stay ABOVE the sub-tables below.
-# In TOML a bare key belongs to the most recent [table] header, so a scalar moved
-# past that divider silently becomes a map entry (the loader now catches this and
-# names the key, but keep the order right).
-# ---------------------------------------------------------------------------
-# floating_projection = "spot"          # PID-SEC-10 default mode: "spot" | "neg_hold" |
-                                        # "neg_hold_blend13" | "blend13" (monthly-reset PQ1, no
-                                        # negative-margin hold) | "flat_c0" (every floater held at
-                                        # the launch coupon) | "freeze1" (PQ1 at the launch coupon,
-                                        # then one reset off 3M(PQ1), frozen) | "pos_hold" /
-                                        # "pos_hold_blend13" (mirror of neg_hold — REFUTED for CMBS
-                                        # 2026-07-28, see the overrides block)
-# book_yield_categories = []            # PID-SEC-11: REFUTED for Municipal Bond 2026-07-27 and
-                                        # superseded by a42_collapsed_categories — keep empty
-# maturity_source = "positions_first"   # OQ-030: AA-denominator maturity — "enrichment_first"
-                                        # (ITO date / 365; default) | "positions_first" (the
-                                        # sheet's own Maturity (yr) column primary)
-# a42_collapsed_categories = ["Municipal Bond", "Sovereign Bond"]
-                                        # PID-SEC-14 (reference-verified 2026-07-28): categories
-                                        # computed by the PRINTED Equation A42 — income(q) =
-                                        # AmortizedCost x BookYield / 4, CONSTANT PQ1-9, no separate
-                                        # accretion leg. The amortized cost is the STATIC launch
-                                        # value (user-confirmed: the workbook cell points at
-                                        # AMORTIZED_COST on the main sheet, not a per-quarter
-                                        # column). Municipal matched 20 reference rows spanning
-                                        # AC/face 0.774-1.193 to within book-yield display rounding
-                                        # -> category 1.0000, all 1992 rows inside 0.1%. Sovereign
-                                        # fixed rows reach 1.0006 WITH the rounding override below.
-                                        # Missing book yield falls back to the split form, logged.
-# zcb_no_accretion_categories = ["Sovereign Bond"]   # PID-SEC-12: zero-coupon rows in these
-                                        # categories book NO accretion. This WINS over
-                                        # a42_collapsed_categories — without that precedence the
-                                        # sovereign ZCBs came back at xr/ref 8.96 against a
-                                        # reference that books exactly zero for 60 of them.
-# missing_ac_mode = "price_proxy_no_accretion"   # PID-SEC-13: how a BLANK amortized cost is treated
-                                        # on rows that are NOT genuine unsettled trades.
-                                        # "price_proxy_no_accretion" (default = original PID-SEC-3:
-                                        # AC = price/100 x face, accretion held at 0) |
-                                        # "price_proxy_accrete" (same AC, accretion runs) |
-                                        # "zero_accrete" (blank read as ZERO, whole face accretes —
-                                        # what the reference does). Set it PER CATEGORY below.
-# unsettled_window_days = 7             # PID-SEC-13: rows whose PURCHASE_DATE (CQSCP095) is within
-                                        # this many days of the report date are GENUINE unsettled
-                                        # trades and always take the original PID-SEC-3 treatment,
-                                        # whatever missing_ac_mode says. No CQSCP095 column -> no row
-                                        # is classifiable and all follow missing_ac_mode (logged).
-# maturity_quarters_rounding = "ceil"   # PID-SEC-15: how many quarters a security accrues.
-                                        # "ceil" = ceil(4 x maturity_years); "floor" = FULL quarters
-                                        # only. LEAVE THE GLOBAL DEFAULT AT ceil — user-confirmed
-                                        # 2026-07-28 that Coupon Accrual references the PRIOR
-                                        # quarter's face, which is still positive in the quarter a
-                                        # security matures, so the split form books that quarter.
-                                        # floor set globally cost US Treasuries 544 USD mm (one
-                                        # quarter of coupon on 181 rows). Override per category.
-# agency_face_path_survival = true      # PID-SEC-16 (2026-07-28): for Agency MBS with a vendor
-                                        # prepayment face path, the PATH decides how long the
-                                        # security lives, not the PID-SEC-7 WAL-as-maturity. A WAL is
-                                        # an average life, not a maturity date, and the reference
-                                        # zeroes a face only when the security actually MATURES.
-                                        # 476 Agency rows end early (TRUNCATION-CLASS xr/ref 0.8182,
-                                        # mean first dead quarter PQ7.3).
-# price_mdrm = "CQSCJH21"               # override if the Price column carries a different MDRM
-                                        # code; fallback: a header cell technically named "Price"
-# on_security_error = "skip"            # "stop" (strict default) | "skip" — skip isolates a failing
-                                        # security with a HIGHLIGHT warning and a count
-# reinvest_paydowns = true              # MRM p. 72: paydown proceeds reinvest like maturities
-                                        # (default true); set false only for A/B runs
-# PID-SEC-9 — optional positions-sheet technical input columns (exact header text
-# on the MDRM header row; DECIMAL units, no scale applied). Precedence: maturity
-# date stays primary (years column = fallback); enrichment coupon stays primary
-# (coupon column fills blanks); the floor column is PREFERRED over the
-# enrichment floor. Delete any line whose column the sheet does not carry.
-# positions_maturity_years_column = "Maturity (yr)"
-# positions_coupon_column = "Coupon Rate (decimal)"
-# positions_floor_column = "Coupon Rate Floor (decimal)"
-# positions_margin_column = "<MARGIN_COLUMN>"   # PID-SEC-17: the sheet's own MARGIN column (decimal
-                                        # spread over the index). Where present it REPLACES the
-                                        # c0 - 3M(0) imputation, so coupon(q) = margin + 3M(q) uses
-                                        # the real spread. The Board states it lacks reliable margin
-                                        # data for floating instruments "except for Agency
-                                        # residential mortgage-backed securities" (PPNR p. 199) —
-                                        # which is why every imputation-based projection mode failed
-                                        # on those 898 rows. An enrichment tab can supply it instead
-                                        # via margin_column on the [[...enrichment]] block.
-# positions_rate_type_column = "Float or fixed indicator"   # verification-only: the sheet's own
-                                        # float/fixed flag feeds the compare bake-off and a
-                                        # disagreement monitor; the ITO rate type drives the models
-
-# ---------------------------------------------------------------------------
-# SUB-TABLES — NO SCALAR SETTING MAY APPEAR BELOW THIS LINE.
-# ---------------------------------------------------------------------------
-# [firm_data.securities.missing_ac_mode_overrides]   # PID-SEC-13 per category. zero_accrete set
-# "Agency MBS" = "zero_accrete"                      # GLOBALLY closed a -52.6 Agency MBS row but
-                                                     # opened +216.7 across 10 CLO rows whose
-                                                     # reference income is exactly zero.
-
-# [firm_data.securities.maturity_quarters_rounding_overrides]   # PID-SEC-15 per category. Only
-# "Sovereign Bond" = "floor"                                    # Sovereign is evidenced: its fixed
-                                                     # rows reach xr/ref 1.0006 under floor + A42,
-                                                     # while US Treasuries needs ceil. The reason
-                                                     # the two differ is UNEXPLAINED — the proposed
-                                                     # mechanism was refuted 2026-07-28 (the A42
-                                                     # cell reads a STATIC amortized cost, so there
-                                                     # is no per-quarter AC to go to zero). Set this
-                                                     # from measurement, not by analogy. See OQ-032.
-
-# LEAVE floating_projection_overrides EMPTY (2026-07-29). The user supplied the
-# reference's actual rule, and it is ONE rule for ALL floating securities:
-#     coupon(PQx) = Max(CPN_Floor, Coupon Rate - PQ0 3M UST + PQx 3M UST)
-# which is exactly floating_projection = "spot" with floor_mode =
-# "security_floor_else_zero". Every per-category mode below (freeze1, blend13,
-# flat_c0, neg_hold, pos_hold) was an approximation of a FLOOR that was not being
-# read — see PID-SEC-18. Verified: with CPN_Floor = c0 the formula reproduces the
-# failing Agency row at 0.5181 vs 0.5181 and the CMBS rows to within 0.08%; with
-# CPN_Floor = 0 the coupon collapses to the AA leg alone. The entries below are
-# kept only as a record of what was tried.
-# [firm_data.securities.floating_projection_overrides]   # PID-SEC-10 per-category modes — the
-# "Domestic Non-Agency RMBS (incl HEL ABS)" = "flat_c0"  # reference treats categories differently
-# "CLO" = "blend13"
-# "Auto ABS" = "blend13"
-# "Foreign RMBS" = "blend13"
-# "Student Loan ABS" = "blend13"
-# "CMBS" = "flat_c0"                    # 2026-07-29: the gaps file's MATCHING rows are 5/5 negative
-                                        # margin (held, and correct) while the WORST rows are 20/20
-                                        # POSITIVE margin (projected, and wrong) — the reference holds
-                                        # them all. flat_c0 treats negative-margin rows identically to
-                                        # neg_hold, so it cannot break what already matches.
-# "CMBS" = "neg_hold_blend13"           # superseded. pos_hold_blend13 was tried 2026-07-28 and REVERTED:
-                                        # fitted to the 15 worst rows in the gaps CSV (a biased
-                                        # sample), it broke the ~180 rows already at 1.000 and took
-                                        # the category 0.9148 -> 1.4135.
-# "Agency MBS" = "freeze1"              # 2026-07-28 bake-off: freeze1 = 0.9907 against the spot
-                                        # default's 0.4627 over 898 rows -> category 0.9989.
-
-[[firm_data.securities.enrichment]]     # one block per enrichment tab (repeat as needed)
-sheet = "<ENRICHMENT_TAB_NAME>"
-header_row = 2                          # 1-based row carrying the column names below
-key_column = "<CUSIP_OR_ISIN_COLUMN>"
-maturity_column = "<MATURITY_DATE_COLUMN>"      # Excel serial dates
-coupon_column = "<COUPON_RATE_COLUMN>"
-rate_type_column = "<RATE_TYPE_COLUMN>"         # FIXED | FLOATING | ZERO COUPON
-floor_column = "<COUPON_FLOOR_COLUMN>"          # delete this line if the tab has none
-floater_indicator_column = "<IS_FLOATER_COLUMN>"    # optional Y/N cross-check vs rate type
-                                                    # (mismatches logged, never blocked); delete if absent
-wal_column = "<WAL_COLUMN>"                     # years (decimal)
-
 # Scale rules (D-006) — the loaders refuse undeclared units, nothing is guessed:
 #   rate/spread/share rows : scale = "percent" | "decimal"
 #   balance/dollar rows    : scale = "millions" | "billions" (canonical unit is USD
@@ -278,14 +121,92 @@ wal_column = "<WAL_COLUMN>"                     # years (decimal)
 # Net trading assets = assets − liabilities must be > 0 (a negative net trading
 # book has no user-directed treatment yet — surfaced, never defaulted).
 
+# Securities workbook (PID-SEC-6; asset-side Increment 2). The loader reads your
+# native multi-sheet workbook: the Schedule B.1-layout positions sheet (located by
+# its MDRM header row), enrichment tabs (per-tab column names below), and the
+# prepayment pivot ("Row Labels" + month offsets 0,3,...,27; PID-MBS-1).
+# floor_mode (PID-SEC-2): "zero" | "security_floor" | "none" | "security_floor_else_zero".
+# "security_floor_else_zero" is the reference-workbook rule (2026-07-24): EVERY
+# floater's projected coupon is floored at the security's coupon floor when on
+# file, else at 0.
+# TOML ORDERING: every bare key after a [table] header belongs to THAT table, so
+# EVERY scalar setting below must stay ABOVE the [firm_data.securities.*] sub-tables
+# and the [[firm_data.securities.enrichment]] blocks. A setting appended at the end
+# of the file silently becomes an override entry — the loader now catches that and
+# names the offending key, but the ordering is the thing to get right.
+[firm_data.securities]
+workbook = "<PATH_TO_SECURITIES_WORKBOOK>.xlsx"
+positions_sheet = "<POSITIONS_SHEET_NAME>"
+prepayment_sheet = "<PREPAYMENT_SHEET_NAME>"    # delete this line if no prepayment sheet
+money_scale = "dollars"                 # confirmed 2026-07-24: whole USD -> canonical millions
+coupon_scale = "percent"                # enrichment coupon/floor scale
+book_yield_scale = "percent"            # positions-sheet book-yield scale — confirm
+floor_mode = "security_floor_else_zero" # PID-SEC-2/18 — the verified reference rule, paired
+                                        # with floating_projection = "spot" (set in
+                                        # config/models/securities.toml); user-confirmed
+                                        # 2026-08-14. Load-required whenever this section
+                                        # exists, which is why it stays with the bindings.
+# ---------------------------------------------------------------------------
+# Every OTHER PID-SEC methodology switch (floating_projection, missing_ac_mode,
+# maturity_quarters_rounding, the per-category override sub-tables, ...) lives
+# in config/models/securities.toml — do not ALSO set one here when composing
+# both files: a key defined in two files is a hard error naming both.
+# TOML ORDERING still applies: every scalar key below belongs to
+# [firm_data.securities] and must stay ABOVE the [[...enrichment]] blocks.
+# ---------------------------------------------------------------------------
+# PID-SEC-9 — optional positions-sheet technical input columns (exact header text
+# on the MDRM header row; DECIMAL units, no scale applied). Precedence: maturity
+# date stays primary (years column = fallback); enrichment coupon stays primary
+# (coupon column fills blanks); the floor column is PREFERRED over the
+# enrichment floor. Delete any line whose column the sheet does not carry.
+# positions_maturity_years_column = "Maturity (yr)"
+# positions_coupon_column = "Coupon Rate (decimal)"
+# positions_floor_column = "Coupon Rate Floor (decimal)"
+# positions_margin_column = "<MARGIN_COLUMN>"   # PID-SEC-17: the sheet's own MARGIN column (decimal
+                                        # spread over the index). Where present it REPLACES the
+                                        # c0 - 3M(0) imputation, so coupon(q) = margin + 3M(q) uses
+                                        # the real spread. The Board states it lacks reliable margin
+                                        # data for floating instruments "except for Agency
+                                        # residential mortgage-backed securities" (PPNR p. 199) —
+                                        # which is why every imputation-based projection mode failed
+                                        # on those 898 rows. An enrichment tab can supply it instead
+                                        # via margin_column on the [[...enrichment]] block.
+# positions_rate_type_column = "Float or fixed indicator"   # verification-only: the sheet's own
+                                        # float/fixed flag feeds the compare bake-off and a
+                                        # disagreement monitor; the ITO rate type drives the models
+
+# ---------------------------------------------------------------------------
+# NO SCALAR SETTING MAY APPEAR BELOW THIS LINE — the enrichment blocks are
+# array-of-tables entries, and a scalar after them becomes a stray table key.
+# The commented per-category override sub-tables (missing_ac_mode_overrides,
+# maturity_quarters_rounding_overrides, floating_projection_overrides) moved to
+# config/models/securities.toml with the switches they override.
+# ---------------------------------------------------------------------------
+[[firm_data.securities.enrichment]]     # one block per enrichment tab (repeat as needed)
+sheet = "<ENRICHMENT_TAB_NAME>"
+header_row = 2                          # 1-based row carrying the column names below
+key_column = "<CUSIP_OR_ISIN_COLUMN>"
+maturity_column = "<MATURITY_DATE_COLUMN>"      # Excel serial dates
+coupon_column = "<COUPON_RATE_COLUMN>"
+rate_type_column = "<RATE_TYPE_COLUMN>"         # FIXED | FLOATING | ZERO COUPON
+floor_column = "<COUPON_FLOOR_COLUMN>"          # delete this line if the tab has none
+floater_indicator_column = "<IS_FLOATER_COLUMN>"    # optional Y/N cross-check vs rate type
+                                                    # (mismatches logged, never blocked); delete if absent
+wal_column = "<WAL_COLUMN>"                     # years (decimal)
+
 # ---------------------------------------------------------------------------
 # Corporate wholesale loans (PID-LOAN-8..11) — ONE workbook carrying CORP H.1,
 # H.1 Mapping, M.1 Balance, FR-Y9C 4Q 2024, and MEV. Sheet names, header
 # geometry and unit scales are all config; the runner takes NO file paths.
 #   PYTHONPATH=src python3 examples/run_loans.py --config <this file, filled>
-# The one methodology switch (floor_collapse, PID-LOAN-7) lives in
-# config/models/loans.toml — do not ALSO set it here when composing both files
-# through a run manifest: a key defined in two files is a hard error.
+# The methodology switches (floor_collapse, engine, share_basis,
+# balance_source, cre_orig_date_statistic, mortgage_window, card_spread_mode,
+# retail_auto_scalar, heloc_spread_anchor — PID-LOAN-7/22/32/33/34 and the
+# 2026-08-12 reference-construction records) live in config/models/loans.toml.
+# Do not ALSO set one here when composing both files through a run manifest:
+# a key defined in two files is a hard error. The compare-mode toggles
+# (results_sheet, cre_results_sheet, apply_scalar) stay HERE — they bind to
+# company-specific results sheets.
 # ---------------------------------------------------------------------------
 [firm_data.loans]
 workbook = "<PATH_TO_LOANS_WORKBOOK>.xlsx"
@@ -334,30 +255,6 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # + a "9, 10, 11" block; Fixed/Variable/Total
 #                                           # rows over PQ0..PQ9, raw dollars). Set it and
 #                                           # the run prints ours/theirs per block.
-# engine = "reference"                      # the workbook's own construction (cell
-#                                           # formulas, 2026-08-12): per LOCOM side,
-#                                           # Fixed = M.1(side) x out-share(v1) x A38
-#                                           # floored at 0; Variable = M.1(side) x
-#                                           # out-share(floating+mixed) x max(floor,
-#                                           # base + FLOATING spread), floor =
-#                                           # out-weighted incl blanks-as-zero;
-#                                           # Total = (F + V) x Table A8. Pair with
-#                                           # share_basis = "utilized" — the workbook's
-#                                           # "Launchpoint Outstanding Balance" IS the
-#                                           # sum of Utilized Exposure Global over a
-#                                           # segment's reference keys (user-clarified
-#                                           # 2026-08-12); no extra columns needed.
-#                                           # Default "pid" = the PID-registered form.
-# share_basis = "utilized"                  # weights segment shares, balances, floors and
-#                                           # the wt denominator by Utilized Exposure
-#                                           # Global — the reference workbook's basis
-#                                           # ("Launchpoint Outstanding Balance" = the sum
-#                                           # of this column per segment; also the Fed's
-#                                           # own words, "percentage of OUTSTANDING
-#                                           # balance"). Default "committed" (REFUTED
-#                                           # against the reference 2026-08-12). Rate
-#                                           # pools stay committed-weighted either way —
-#                                           # they matched the reference exactly.
 # apply_scalar = false                      # reference-matching runs: the workbook's
 #                                           # results carry NO industry scalar (verified
 #                                           # 2026-08-12 — the grand total is the plain
@@ -385,14 +282,6 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # = sum of I/K over the SAME three rows.
 #                                           # The role labels on those rows print,
 #                                           # and a non-"Wholesale - CRE" role WARNs
-# cre_orig_date_statistic = "weighted_median"   # PID-LOAN-22 as amended: the
-#                                           # origination-date statistic is the
-#                                           # OUTSTANDING-weighted MEDIAN —
-#                                           # identified by the first compare
-#                                           # (the reference's median-date cells
-#                                           # are observed dates; the mean missed
-#                                           # construction fixed by one quarter,
-#                                           # 1.0447). "weighted_mean" kept for A/B
 # cre_results_sheet = "<CRE_RESULTS_SHEET>" # COMPARE MODE for CRE: blocks
 #                                           # "1 - HFI".."4 - HFS/FVO" (no merged
 #                                           # block), Fixed/Variable/Total rows over
@@ -414,18 +303,10 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 # mortgage_query_sheet = "Mortgage query"   # 12-segment launch table + PQ schedules;
 #                                           # the FIRST launch/schedule block pair =
 #                                           # the MORT variant that drives (PID-LOAN-33)
-# mortgage_window = "quarter"               # "quarter" = jump-off-quarter originations
-#                                           # (the sheet switch's 0, production);
-#                                           # "month" = the final-month window
 # card_query_sheet = "Card query"           # rows 1..4 = consumer/SME x bank/charge
-# card_spread_mode = "reported"             # PID-LOAN-34 production assumption;
-#                                           # "reported_revolver" | "calculated" for A/B
 # auto_pivot_sheet = "Auto 4Q24 pivot"      # summary block: labels col L, M/N/O =
 # auto_pivot_workbook = "<AUTO_FILE>.xlsx"  # outstanding / avg rate / new-orig rate,
 #                                           # P..X = wt PQ1..PQ9 (PID-LOAN-29)
-# retail_auto_scalar = "0.865"              # PID-LOAN-32 (user-directed): the PUBLISHED
-#                                           # Table A8 Auto row; "0.948" reproduces the
-#                                           # reference workbook's own auto panel
 # oc_sheet = "OTHER"                        # the construction sheet's A.7/A.9 input
 #                                           # block (cols: 2 Sch., 4 product type,
 #                                           # 6 balance, 7 line token — oc_*_column)
@@ -440,9 +321,3 @@ mev_rate_scale = "percent"               # MEV rates: 4.9 means 4.9%
 #                                           # row (1-based, left to right) — the header
 #                                           # repeats the labels across side-by-side
 #                                           # blocks; the census prints every PQ0 column
-# heloc_spread_anchor = "prime_pq9"         # what the HELOC spreads subtract:
-#                                           # "mortgage_launch" (default) | "prime_launch" |
-#                                           # "prime_pq9" — the terminal Prime, which
-#                                           # reproduces the reference HELOC exactly
-#                                           # (round-2 arithmetic identification; confirm
-#                                           # against the workbook's HELOC spread cell)
