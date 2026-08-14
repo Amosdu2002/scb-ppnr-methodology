@@ -1,0 +1,42 @@
+# COMPANY RUN MANIFEST — the file to pass to --config for a real run:
+#
+#     python3 run.py --config config/runs/company.toml
+#
+# It composes your machine-local bindings (config/local/sources.toml — your
+# filled copy of config/company.template.toml; config/local/ is gitignored)
+# with the committed methodology decision files in config/models/. You edit
+# exactly ONE file, sources.toml; this manifest and the models files stay as
+# committed. Relative paths inside the composed files resolve against THIS
+# file's directory, so prefer absolute paths for the workbooks in sources.toml.
+#
+# Merge rules (enforced by the loader, tests in test_config_compose.py):
+#   * tables merge recursively; a LEAF (scalar, array, array-of-tables) defined
+#     in two files is a HARD ERROR naming both files — never a silent override;
+#   * an unknown top-level section is refused rather than ignored;
+#   * an included file may not itself include — one level only;
+#   * provenance records file BASENAMES: keep every included file's basename
+#     distinct or a duplicate-leaf error cannot name the culprit unambiguously.
+#
+# MIGRATING an existing single-file config/local/company.toml (2026-08-14):
+#   1. BEFORE pulling this structure, save a values baseline:
+#        python3 run.py --check --config config/local/company.toml > before.txt
+#   2. cp config/local/company.toml config/local/sources.toml   (keep the
+#      original as an archive until step 5)
+#   3. python3 run.py --check --config config/runs/company.toml
+#      On each duplicate-leaf error (it names the key and both files): compare
+#      the two VALUES; equal -> delete the line from sources.toml and re-run;
+#      different -> a real methodology discrepancy: keep YOUR value (comment
+#      the models-file line locally) and raise it.
+#   4. python3 run.py --check --config config/runs/company.toml > after.txt
+#   5. diff before.txt after.txt — the key set must be identical and every
+#      value unchanged (sources differ, values must not). Archive both dumps
+#      with the next run's results; retire the old company.toml.
+#
+# Every pipeline run also writes the same dump to out/<stamp>/effective_config.txt —
+# archive it alongside each run's results so a reconciliation can be reproduced.
+
+include = [
+    "../local/sources.toml",      # YOUR filled bindings (gitignored; from company.template.toml)
+    "../models/loans.toml",       # loans methodology switches (PID-LOAN-*)
+    "../models/securities.toml",  # securities methodology switches (PID-SEC-*)
+]
