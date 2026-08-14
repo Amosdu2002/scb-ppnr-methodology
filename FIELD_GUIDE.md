@@ -128,6 +128,11 @@ python3 run.py --config … --only nii --out out/<earlier-run>  # reuse earlier 
 | `results.csv` | Flat twin of the workbook's quarterly-path rows (`sheet, series, PQ1…PQ9, total_9q`) for machine reads and run-to-run diffs. |
 | `*_paths.csv` | Component hand-off files (`component, PQ1…PQ9`, USD millions); also usable with the per-stage runners directly. |
 
+Each run directory also carries a `README.txt` stating this reading order
+(start with `results.xlsx`, then `run_summary.txt`; per-family reports for
+detail), and `out/latest` points at the newest default-location run (a
+`LATEST.txt` pointer file is written where symlinks are unavailable).
+
 **Operational notes.** (1) `--scenario` applies to the securities, expense, and
 NII stages. The loans stage's scenario is a projection-block *name* inside the
 loans workbook's own MEV sheet — a separate namespace — and is set in

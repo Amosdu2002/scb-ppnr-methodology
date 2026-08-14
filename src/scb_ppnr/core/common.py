@@ -28,6 +28,29 @@ def sum_path(path: Mapping[int, float]) -> float:
     return sum(path[q] for q in PROJECTION_QUARTERS)
 
 
+# One shared layout for every PQ1..PQ9 report table. Cells are space-JOINED, so
+# columns can never fuse whatever the magnitude (the old fixed-width
+# concatenation ran "10462.375" into its neighbor at five digits); commas group
+# thousands, matching the house style of the run headers ("NetTA 1,000.0").
+_PATH_LABEL_WIDTH = 22
+_PATH_CELL_WIDTH = 11  # "999,999.999" fits aligned; wider values keep the space
+
+
+def format_path_header(first_label: str) -> str:
+    return (first_label.ljust(_PATH_LABEL_WIDTH)
+            + " ".join(f"PQ{q}".rjust(_PATH_CELL_WIDTH) for q in PROJECTION_QUARTERS)
+            + "  " + "total".rjust(_PATH_CELL_WIDTH + 1))
+
+
+def format_path_row(label: str, path: Mapping[int, float],
+                    total: float | None = None) -> str:
+    values = [path[q] for q in PROJECTION_QUARTERS]
+    total = sum(values) if total is None else total
+    return (label.ljust(_PATH_LABEL_WIDTH)
+            + " ".join(f"{value:>{_PATH_CELL_WIDTH},.3f}" for value in values)
+            + "  " + f"{total:>{_PATH_CELL_WIDTH + 1},.3f}")
+
+
 def freeze_projection_path(name: str, values: Mapping[int, float]) -> Mapping[int, float]:
     """Read-only PQ1..PQ9 copy; raises if any projection quarter is missing."""
     try:

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Mapping
 
+from ..core.common import format_path_header, format_path_row
 from .orchestrator import MODEL_EXECUTION_ORDER
 from .schemas import PROJECTION_QUARTERS, FamilyResult
 
@@ -12,22 +13,12 @@ from .schemas import PROJECTION_QUARTERS, FamilyResult
 def family_report(result: FamilyResult, frb_total: Mapping[int, float]) -> str:
     lines = [f"firm={result.firm_id}  scenario={result.scenario_id}", ""]
     lines.append("Quarterly expense paths (USD MILLIONS per quarter — canonical unit, D-006; pre-hedge):")
-    lines.append(
-        "model".ljust(22) + "".join(f"PQ{q}".rjust(9) for q in PROJECTION_QUARTERS) + "     total".rjust(11)
-    )
+    lines.append(format_path_header("model"))
     for model_id in MODEL_EXECUTION_ORDER:
         model_result = result.results[model_id]
-        path = model_result.expense_path()
-        lines.append(
-            model_id.ljust(22)
-            + "".join(f"{path[q]:9.3f}" for q in PROJECTION_QUARTERS)
-            + f"{model_result.cumulative_expense:11.3f}"
-        )
-    lines.append(
-        "frb_total (target)".ljust(22)
-        + "".join(f"{frb_total[q]:9.3f}" for q in PROJECTION_QUARTERS)
-        + f"{sum(frb_total[q] for q in PROJECTION_QUARTERS):11.3f}"
-    )
+        lines.append(format_path_row(model_id, model_result.expense_path(),
+                                     model_result.cumulative_expense))
+    lines.append(format_path_row("frb_total (target)", frb_total))
 
     calibration = result.calibration
     lines += [

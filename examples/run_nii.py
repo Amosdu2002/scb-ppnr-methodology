@@ -37,6 +37,7 @@ from scb_ppnr.consolidated import (
     write_consolidated_csv,
     write_consolidated_workbook,
 )
+from scb_ppnr.core.common import format_path_header, format_path_row
 from scb_ppnr.core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from scb_ppnr.ingestion import (
     load_config,
@@ -122,9 +123,7 @@ def assemble_loans_total(paths: dict[str, dict[int, float]], emit) -> None:
 
 
 def _path_row(label: str, path, total=None) -> str:
-    total = sum(path[q] for q in PROJECTION_QUARTERS) if total is None else total
-    return (label.ljust(22) + "".join(f"{path[q]:9.3f}" for q in PROJECTION_QUARTERS)
-            + f"{total:11.3f}")
+    return format_path_row(label, path, total)
 
 
 def _synthetic_defaults() -> tuple[Path, list[Path]]:
@@ -225,8 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         sibling_paths = {**csv_paths, **calculators}
 
         table = ["COMPONENT INCOME PATHS (USD millions per quarter)"]
-        table.append("component".ljust(22)
-                     + "".join(f"PQ{q}".rjust(9) for q in PROJECTION_QUARTERS) + "     total".rjust(11))
+        table.append(format_path_header("component"))
         for model_id in SIBLING_MODEL_IDS:
             table.append(_path_row(model_id, sibling_paths[model_id]))
         table.append(_path_row("sum of siblings", {

@@ -66,7 +66,12 @@ gitignored — these files carry firm amounts on company runs):
 `loans_report.txt`, `loans_paths.csv`, `securities_report.txt`,
 `securities_paths.csv`, `expense_report.txt`, `nii_report.txt`,
 `results.xlsx` + `results.csv` (the consolidated results — see below),
-`effective_config.txt`, `run_summary.txt`, and `<stage>.log` under `--quiet`.
+`effective_config.txt`, `run_summary.txt`, a `README.txt` reading guide, and
+`<stage>.log` under `--quiet`. `out/latest` points at the newest
+default-location run (symlink; `LATEST.txt` fallback where symlinks are
+unavailable). Report tables share one layout (`core.common.format_path_row`):
+space-joined, comma-grouped columns that cannot fuse at any magnitude —
+replacing the fixed-width concatenation that ran five-digit values together.
 
 `results.xlsx` (written by the nii stage via `run_nii --consolidated-out`,
 built in side-neutral `src/scb_ppnr/consolidated.py`) consolidates the run:

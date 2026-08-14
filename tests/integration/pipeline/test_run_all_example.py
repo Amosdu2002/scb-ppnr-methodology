@@ -25,7 +25,7 @@ EXPECTED_ARTIFACTS = (
     "securities_report.txt", "securities_paths.csv",
     "expense_report.txt", "nii_report.txt",
     "results.xlsx", "results.csv",
-    "effective_config.txt", "run_summary.txt",
+    "effective_config.txt", "run_summary.txt", "README.txt",
 )
 
 

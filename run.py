@@ -219,6 +219,55 @@ def _check(config_arg: Path | None) -> int:
     return 0
 
 
+_README = """\
+HOW TO READ THIS RUN DIRECTORY  (scb_ppnr pipeline output)
+
+Start here
+  results.xlsx          consolidated results — open the Summary sheet first
+                        (headline vs FRB targets, verdicts, alpha calibrations),
+                        then Income / Expense for the full quarterly paths
+  run_summary.txt       per-stage status, timings, and the PIPELINE verdict
+
+Full detail per family (censuses, warnings, compare blocks, diagnostics)
+  loans_report.txt      securities_report.txt
+  expense_report.txt    nii_report.txt
+
+Machine-readable
+  results.csv           every quarterly path, flat (sheet,series,PQ1..PQ9,total_9q)
+  loans_paths.csv       securities_paths.csv — component hand-offs for run_nii
+
+Provenance
+  effective_config.txt  the run's settings as key = value  # source-file
+
+All amounts USD millions per quarter, pre-hedge (D-006). Methodology: Federal
+Reserve PROPOSED 2026 suite — not adopted. These files carry firm amounts on
+company runs — keep them local (this directory is gitignored).
+"""
+
+
+def _write_readme(out: Path) -> None:
+    (out / "README.txt").write_text(_README, encoding="utf-8")
+
+
+def _update_latest_pointer(out: Path) -> None:
+    """Best-effort `out/latest` -> newest run dir, for default-location runs only.
+    Symlink where the platform allows it; otherwise a LATEST.txt pointer file
+    (Windows without developer mode). Never fails the run."""
+    root_out = ROOT / "out"
+    if out.parent != root_out:
+        return
+    try:
+        link = root_out / "latest"
+        if link.is_symlink() or link.exists():
+            link.unlink()
+        link.symlink_to(out.name, target_is_directory=True)
+    except OSError:
+        try:
+            (root_out / "LATEST.txt").write_text(out.name + "\n", encoding="utf-8")
+        except OSError:
+            pass
+
+
 def _write_effective_config(config_arg: Path | None, out: Path) -> str | None:
     target = Path(config_arg) if config_arg is not None else SYNTHETIC_CONFIG
     try:
@@ -286,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
            else ROOT / "out" / f"{dt.datetime.now():%Y%m%d-%H%M%S}")
     out = out.expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
+    _write_readme(out)
+    _update_latest_pointer(out)
 
     selected = tuple(s for s in STAGES if args.only is None or s in args.only)
     if args.config is None:

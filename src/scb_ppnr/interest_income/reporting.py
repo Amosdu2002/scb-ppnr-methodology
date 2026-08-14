@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Mapping
 
+from ..core.common import format_path_header, format_path_row
 from .orchestrator import INCOME_MODEL_EXECUTION_ORDER
 from .schemas import PROJECTION_QUARTERS, IncomeFamilyResult
 
@@ -15,22 +16,12 @@ from .schemas import PROJECTION_QUARTERS, IncomeFamilyResult
 def income_family_report(result: IncomeFamilyResult, frb_total_interest_income: Mapping[int, float]) -> str:
     lines = [f"firm={result.firm_id}  scenario={result.scenario_id}", ""]
     lines.append("Quarterly income paths (USD MILLIONS per quarter — canonical unit, D-006; pre-hedge):")
-    lines.append(
-        "model".ljust(22) + "".join(f"PQ{q}".rjust(9) for q in PROJECTION_QUARTERS) + "     total".rjust(11)
-    )
+    lines.append(format_path_header("model"))
     trading_path = result.trading_result.income_path()
     for model_id in INCOME_MODEL_EXECUTION_ORDER:
         path = trading_path if model_id == result.trading_result.model_id else result.sibling_paths[model_id]
-        lines.append(
-            model_id.ljust(22)
-            + "".join(f"{path[q]:9.3f}" for q in PROJECTION_QUARTERS)
-            + f"{sum(path[q] for q in PROJECTION_QUARTERS):11.3f}"
-        )
-    lines.append(
-        "frb_income (target)".ljust(22)
-        + "".join(f"{frb_total_interest_income[q]:9.3f}" for q in PROJECTION_QUARTERS)
-        + f"{sum(frb_total_interest_income[q] for q in PROJECTION_QUARTERS):11.3f}"
-    )
+        lines.append(format_path_row(model_id, path))
+    lines.append(format_path_row("frb_income (target)", frb_total_interest_income))
 
     calibration = result.calibration
     lines += [

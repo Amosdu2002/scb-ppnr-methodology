@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping
 
-from .core.common import freeze_projection_path, sum_path
+from .core.common import format_path_header, format_path_row, freeze_projection_path, sum_path
 from .core.schemas import PROJECTION_QUARTERS
 from .interest_expense.schemas import FRB_IDENTITY_GUARD_REL
 
@@ -102,8 +102,7 @@ def combined_nii_monitor(
 
 def combined_nii_report_text(report: CombinedNiiReport) -> str:
     lines = ["Combined NII (USD MILLIONS per quarter; income − expense, D-008 convention; pre-hedge):"]
-    header = "series".ljust(22) + "".join(f"PQ{q}".rjust(9) for q in PROJECTION_QUARTERS) + "     total".rjust(11)
-    lines.append(header)
+    lines.append(format_path_header("series"))
     rows = [
         ("total_income", report.income_path, report.cumulative_income),
         ("total_expense", report.expense_path, report.cumulative_expense),
@@ -115,11 +114,7 @@ def combined_nii_report_text(report: CombinedNiiReport) -> str:
         )
         rows.append(("gap (modeled-frb)", report.per_quarter_gap, report.cumulative_gap))
     for label, path, total in rows:
-        lines.append(
-            label.ljust(22)
-            + "".join(f"{path[q]:9.3f}" for q in PROJECTION_QUARTERS)
-            + f"{total:11.3f}"
-        )
+        lines.append(format_path_row(label, path, total))
     if report.within_identity_guard is not None:
         lines.append(
             f"Cumulative gap within the {FRB_IDENTITY_GUARD_REL:.0%} identity guard: "
