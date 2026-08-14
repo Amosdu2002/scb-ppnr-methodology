@@ -18,13 +18,14 @@
 # copy alongside each run's results so a reconciliation can be reproduced.
 
 include = [
-    # Physical bindings and the securities settings as they stand today.
-    # Migrate these to config/local/sources.toml + config/models/securities.toml
-    # at a natural break between reconciliation runs — not mid-flight, since
-    # moving settings that are driving verified numbers is exactly the kind of
-    # change that makes "which value was active?" hard to answer.
+    # Physical bindings (workbook paths, sheet names, scales) and the
+    # load-required floor_mode. For a real run this line becomes your filled
+    # copy — see config/runs/company.toml, which composes
+    # config/local/sources.toml instead of the template (migrated 2026-08-14,
+    # the planned break between reconciliation runs).
     "../company.template.toml",
 
-    # Loans methodology switches (committed, non-confidential).
+    # Methodology switches / decision records (committed, non-confidential).
     "../models/loans.toml",
+    "../models/securities.toml",
 ]
