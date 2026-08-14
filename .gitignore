@@ -12,3 +12,10 @@ config/local/
 securities_report*.txt
 *gaps*.csv
 loans_report*.txt
+nii_report*.txt
+expense_report*.txt
+*_paths.csv
+!examples/synthetic_data/component_paths.csv
+
+# run.py artifact directories (reports + component CSVs per run).
+out/
