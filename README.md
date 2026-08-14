@@ -73,6 +73,10 @@ manifest composes your bindings with the committed methodology switches in
 (`run_loans.py --retail-only`, `diagnose_securities.py --explain`, ...); see
 `architecture/run-and-config.md`.
 
+New to the suite? **[`FIELD_GUIDE.md`](FIELD_GUIDE.md)** is the onboarding
+reference: system overview, input-to-model mapping, configuration,
+execution, and the reconciliation procedure.
+
 ## Where decisions live
 
 Project-wide decisions (D-xxx), component decisions (PID-xxx), and open questions
