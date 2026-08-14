@@ -20,8 +20,10 @@ missing. With no --config every stage runs its own self-contained synthetic demo
 (no cross-feeding — outputs match the standalone demos exactly).
 
 All artifacts land in --out (default out/<timestamp>/, gitignored): the four
-reports, the two component CSVs, effective_config.txt (key = value  # source),
-and run_summary.txt. They carry firm amounts on company runs — keep them local.
+reports, the two component CSVs, the consolidated results workbook
+(results.xlsx: Summary/Income/Expense sheets, + results.csv flat twin),
+effective_config.txt (key = value  # source), and run_summary.txt. They carry
+firm amounts on company runs — keep them local.
 
 SCENARIO NOTE: --scenario is a [mev.scenarios.<id>] config id and is forwarded
 to securities/expense/nii only. The loans runner's scenario is a projection-block
@@ -61,7 +63,7 @@ _STAGE_ARTIFACTS = {
     "loans": ("loans_report.txt", "loans_paths.csv"),
     "securities": ("securities_report.txt", "securities_paths.csv"),
     "expense": ("expense_report.txt",),
-    "nii": ("nii_report.txt",),
+    "nii": ("nii_report.txt", "results.xlsx", "results.csv"),
 }
 SYNTHETIC_CONFIG = ROOT / "examples" / "synthetic_config.toml"
 DEFAULT_COMPANY_MANIFEST = ROOT / "config" / "runs" / "company.toml"
@@ -93,7 +95,9 @@ def _stage_argv(stage: str, args: argparse.Namespace, out: Path) -> list[str]:
                 "--paths-basis", args.paths_basis]
     if stage == "expense":
         return [*config, *scenario, "--report", str(out / "expense_report.txt")]
-    argv = [*config, *scenario, "--report", str(out / "nii_report.txt")]
+    argv = [*config, *scenario,
+            "--report", str(out / "nii_report.txt"),
+            "--consolidated-out", str(out / "results.xlsx")]
     if args.config is not None:
         argv += ["--component-paths",
                  str(out / "loans_paths.csv"), str(out / "securities_paths.csv")]

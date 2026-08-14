@@ -32,6 +32,11 @@ import argparse
 import datetime as dt
 from pathlib import Path
 
+from scb_ppnr.consolidated import (
+    consolidated_tables,
+    write_consolidated_csv,
+    write_consolidated_workbook,
+)
 from scb_ppnr.core.schemas import PROJECTION_QUARTERS, ValidationFailure
 from scb_ppnr.ingestion import (
     load_config,
@@ -141,6 +146,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="skip the expense family + combined-NII monitor even if configured")
     parser.add_argument("--report", type=Path, default=None,
                         help="also write the output to this file (keep it local)")
+    parser.add_argument("--consolidated-out", type=Path, default=None,
+                        help="write a consolidated results workbook (Summary/Income/Expense "
+                             "sheets) to this .xlsx path, plus a flat .csv twin of the "
+                             "quarterly paths; carries firm amounts — keep it local")
     args = parser.parse_args(argv)
 
     sections: list[str] = []
@@ -198,6 +207,8 @@ def main(argv: list[str] | None = None) -> int:
              f"excluded, PID-SEC-8) must mirror the workbook's own components sheet")
 
         csv_paths = read_component_paths(path_files)
+        loans_parts = {name: dict(path) for name, path in csv_paths.items()
+                       if name in _LOANS_PART_IDS}
         assemble_loans_total(csv_paths, emit)
 
         calculators = sibling_paths_from_results(
@@ -240,12 +251,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         emit(income_family_report(result, family.frb_total_interest_income))
 
+        expense_family = None
+        expense_result = None
+        monitor = None
         if args.skip_expense:
             emit("COMBINED NII: skipped (--skip-expense)")
         else:
             try:
                 expense_family = load_family_inputs(config)
             except ValidationFailure as error:
+                expense_family = None
                 emit(f"COMBINED NII: skipped — expense-side inputs not loadable from this "
                      f"config ({error})")
             else:
@@ -260,6 +275,29 @@ def main(argv: list[str] | None = None) -> int:
                     frb_net_interest_income=family.frb_net_interest_income,
                 )
                 emit(combined_nii_report_text(monitor))
+
+        if args.consolidated_out is not None:
+            tables = consolidated_tables(
+                income_result=result,
+                implied_path=implied,
+                loans_parts=loans_parts,
+                frb_total_interest_income=family.frb_total_interest_income,
+                expense_result=expense_result,
+                frb_total_interest_expense=(expense_family.frb_total_interest_expense
+                                            if expense_family is not None else None),
+                monitor=monitor,
+                generated=f"{dt.datetime.now():%Y-%m-%d %H:%M}",
+            )
+            csv_twin = args.consolidated_out.with_suffix(".csv")
+            write_consolidated_csv(tables, csv_twin)
+            try:
+                write_consolidated_workbook(tables, args.consolidated_out)
+            except ImportError:
+                emit(f"CONSOLIDATED: workbook skipped (openpyxl not installed) — quarterly "
+                     f"paths written to {csv_twin}")
+            else:
+                emit(f"CONSOLIDATED: results written to {args.consolidated_out} "
+                     f"(+ {csv_twin.name}) — carries firm amounts; keep it local")
     except ValidationFailure as error:
         failed = str(error)
         print("\nVALIDATION FAILURE — the run stopped here; every section above "
